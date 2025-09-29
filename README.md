@@ -61,7 +61,6 @@ utesca-backend/
 │   │       └── router.py         # Main API router
 │   ├── domains/                   # Business domains
 │   │   ├── events/               # Events domain
-│   │   │   ├── models.py         # Database models
 │   │   │   ├── schemas.py        # Pydantic schemas
 │   │   │   ├── repository.py     # Data access layer
 │   │   │   ├── service.py        # Business logic layer
@@ -76,7 +75,6 @@ utesca-backend/
 
 ### Domain Structure
 
-- **`models.py`** - SQLAlchemy database models
 - **`schemas.py`** - Pydantic models for API request/response
 - **`repository.py`** - Data access layer (database operations)
 - **`service.py`** - Business logic layer
