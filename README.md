@@ -54,7 +54,6 @@ utesca-backend/
 │   ├── main.py                    # FastAPI application entry point
 │   ├── core/                      # Core application components
 │   │   ├── config.py             # Application settings
-│   │   ├── database.py           # Database configuration
 │   │   └── security.py           # Authentication & security
 │   ├── api/                       # API layer
 │   │   └── v1/
@@ -69,8 +68,7 @@ utesca-backend/
 │   │   └── projects/             # Projects domain
 │   └── utils/                     # Utility functions
 ├── tests/                         # Test modules
-├── requirements.txt               # Python dependencies
-└── env.example                   # Environment variables template
+└── requirements.txt               # Python dependencies
 ```
 
 ### Domain Structure
@@ -125,9 +123,6 @@ All API endpoints are versioned and prefixed with `/api/v1`:
 Run tests using pytest:
 
 ```bash
-# Install test dependencies (if not already installed)
-pip install pytest pytest-asyncio httpx
-
 # Run tests
 pytest
 ```
