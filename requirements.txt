@@ -1,26 +1,6 @@
-# FastAPI and core dependencies
-fastapi[standard]==0.117.1
-
-# Database
-
-# Security
-
-# Settings management
-pydantic-settings==2.5.0
-
-# Additional optional dependencies for enhanced functionality
-# Uncomment the ones you need for your specific use case:
-
-# For advanced JSON serialization
-# orjson==3.9.10
-
-# For faster JSON parsing
-# ujson==5.8.0
-
-# For extra Pydantic types
-# pydantic-extra-types==2.9.0
-
-# Development dependencies (uncomment for development)
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.2
+fastapi[standard]==0.118.0
+supabase>=2.20.0
+pydantic>=2.11.9
+pydantic-settings>=2.0.0
+pytest==8.4.2
+uvicorn[standard]>=0.27.0
