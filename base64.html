@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="img-src 'self' data: https:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Base64 Preview → Custom Link</title>
+  <style>
+    #previewLink img { max-width: 220px; max-height: 220px; border:1px solid #ccc; border-radius:8px; cursor:pointer; }
+    .row { display:flex; gap:8px; align-items:center; margin:10px 0; }
+    input[type="url"]{ flex:1; padding:8px; border:1px solid #ccc; border-radius:6px; }
+    .hint { color:#666; font-size:12px; }
+    .error { color:#b00020; font-size:12px; }
+  </style>
+  <script defer>
+    const API_BASE = "http://127.0.0.1:8000/api";
+    const DEFAULT_LINK = "https://photos.google.com";
+
+    // --- URL state ---
+    function getSavedLink() {
+      return localStorage.getItem("preview_click_url") || DEFAULT_LINK;
+    }
+    function setSavedLink(url) {
+      localStorage.setItem("preview_click_url", url);
+    }
+    function isValidHttpUrl(s) {
+      try {
+        const u = new URL(s);
+        return u.protocol === "http:" || u.protocol === "https:";
+      } catch { return false; }
+    }
+    function applyLinkToPreview() {
+      const linkEl = document.getElementById("previewLink");
+      const inputEl = document.getElementById("linkUrl");
+      const errEl = document.getElementById("urlError");
+      const val = inputEl.value.trim();
+      if (val && isValidHttpUrl(val)) {
+        linkEl.href = val;
+        errEl.textContent = "";
+        setSavedLink(val);
+      } else {
+        // fallback to default if empty/invalid
+        linkEl.href = DEFAULT_LINK;
+        errEl.textContent = val ? "Enter a valid http(s) URL." : "";
+      }
+    }
+
+    // --- API ---
+    async function encodeImageToBase64(file) {
+      const form = new FormData();
+      form.append("file", file);
+      const resp = await fetch(`${API_BASE}/convert-image`, { method: "POST", body: form });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (!data.success) throw new Error("Conversion failed");
+
+      let url = data.data_url || "";
+      if (!url.startsWith("data:image/")) {
+        const ct = data.content_type && data.content_type.startsWith("image/") ? data.content_type : "image/png";
+        if (data.base64) url = `data:${ct};base64,${data.base64}`;
+      }
+      return url;
+    }
+
+    function setPreview(src, file) {
+      const img = document.getElementById("previewImg");
+      img.onload  = () => console.log("Preview loaded.");
+      img.onerror = () => { console.warn("Base64 preview failed; using object URL fallback."); img.src = URL.createObjectURL(file); };
+      img.src = src;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // wire URL input
+      const urlInput = document.getElementById("linkUrl");
+      urlInput.value = getSavedLink();
+      applyLinkToPreview();
+      urlInput.addEventListener("input", applyLinkToPreview);
+      urlInput.addEventListener("blur",  applyLinkToPreview);
+
+      // wire file input
+      const input = document.getElementById("photo");
+      input.addEventListener("change", async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const dataURL = await encodeImageToBase64(file);
+          if (!dataURL) throw new Error("Empty data URL from API");
+          setPreview(dataURL, file);
+          localStorage.setItem("event_thumb_data_url", dataURL);
+        } catch (err) {
+          console.error(err);
+          alert("Could not display Base64 preview. Check console for details.");
+        }
+      });
+    });
+  </script>
+</head>
+<body>
+  <div class="row">
+    <label for="photo"><strong>Upload:</strong></label>
+    <input type="file" id="photo" accept="image/*" />
+  </div>
+
+  <div class="row">
+    <label for="linkUrl"><strong>Click-through URL:</strong></label>
+    <input type="url" id="linkUrl" placeholder="https://photos.google.com/..." />
+  </div>
+  <div id="urlError" class="error"></div>
+  <div class="hint">Tip: paste a specific Google Photos album/link here. If left invalid, we’ll default to the Google Photos homepage.</div>
+
+  <p>Click the thumbnail to open your link:</p>
+  <a id="previewLink" href="https://photos.google.com" target="_blank" rel="noopener">
+    <img id="previewImg" alt="Thumbnail will appear here" />
+  </a>
+</body>
+</html>
