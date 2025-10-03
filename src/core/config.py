@@ -1,39 +1,92 @@
 """
-Application configuration settings.
+Application configuration management using Pydantic Settings.
+
+This module handles environment-based configuration using PostgreSQL schemas.
+A single Supabase database is used with separate 'test' and 'prod' schemas.
+Environment variables are loaded from .env file in development and from system
+environment in production (e.g., Vercel).
 """
 
-from typing import List
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from functools import lru_cache
+from typing import Literal
 
 
 class Settings(BaseSettings):
-    """Application settings."""
+    """
+    Application settings loaded from environment variables.
 
-    # Basic app info
-    PROJECT_NAME: str = "UTESCA Backend API"
-    VERSION: str = "1.0.0"
-    DESCRIPTION: str = "Backend API for UTESCA web application"
+    Environment Variables:
+    - ENVIRONMENT: 'test' or 'production' (default: 'test')
+    - SUPABASE_URL: Database URL
+    - SUPABASE_KEY: Database anon/service key
+    - API_V1_PREFIX: API version prefix (default: '/api/v1')
+    - PROJECT_NAME: Project name (default: 'UTESCA Portal')
+    """
 
-    # API settings
-    API_V1_STR: str = "/api/v1"
+    # Environment configuration
+    ENVIRONMENT: Literal["test", "production"] = "test"
 
-    # CORS settings
-    ALLOWED_HOSTS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # API configuration
+    API_V1_PREFIX: str = "/api/v1"
+    PROJECT_NAME: str = "UTESCA Portal"
 
-    # Database settings - Supabase PostgreSQL
-    DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/utesca"
+    # Supabase credentials (single database with test and prod schemas)
+    SUPABASE_URL: str
+    SUPABASE_KEY: str
 
-    # Security settings
-    SECRET_KEY: str = "your-secret-key-change-this-in-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    # CORS settings (for Next.js frontend)
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:3000",  # Local Next.js dev
+        "https://utesca.ca",       # Production frontend
+        "https://www.utesca.ca",
+    ]
 
-    # Environment
-    ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    model_config = SettingsConfigDict(
+        env_file="../.env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",  # Ignore extra fields in .env
+    )
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    @property
+    def db_schema(self) -> str:
+        """
+        Get the appropriate PostgreSQL schema based on environment.
+
+        Returns:
+            'test' for test environment
+            'prod' for production environment
+        """
+        return "prod" if self.ENVIRONMENT == "production" else "test"
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production environment."""
+        return self.ENVIRONMENT == "production"
+
+    @property
+    def is_test(self) -> bool:
+        """Check if running in test environment."""
+        return self.ENVIRONMENT == "test"
 
 
-settings = Settings()
+@lru_cache
+def get_settings() -> Settings:
+    """
+    Get cached settings instance.
+
+    Uses lru_cache to ensure settings are loaded only once.
+    This is the recommended way to access settings throughout the app.
+
+    Usage:
+        from core.config import get_settings
+
+        settings = get_settings()
+        print(settings.db_schema)  # 'test' or 'prod' based on ENVIRONMENT
+    """
+    return Settings()
+
+
+# Convenience export
+settings = get_settings()

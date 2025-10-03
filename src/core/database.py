@@ -1,39 +1,45 @@
 """
-Database configuration and session management.
+Database connection and utility functions.
+
+This module provides utilities for connecting to Supabase and setting the
+correct PostgreSQL schema (test or prod) based on the environment.
 """
 
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-
-from src.core.config import settings
-
-# Create database engine
-engine = create_engine(
-    settings.DATABASE_URL,
-    # PostgreSQL connection pool settings
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-    pool_recycle=300,
-)
-
-# Create session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Create base class for models
-Base = declarative_base()
+from supabase import create_client, Client
+from functools import lru_cache
+from .config import get_settings
 
 
-def get_db():
+@lru_cache
+def get_supabase_client() -> Client:
     """
-    Database dependency for FastAPI endpoints.
+    Get a cached Supabase client instance.
 
-    Yields:
-        Database session
+    Usage:
+        from core.database import get_supabase_client
+
+        supabase = get_supabase_client()
+        result = supabase.table("users").select("*").execute()
+
+    Note: Schema selection (test/prod) should be handled at the database level
+    through RLS policies or by prefixing table names with the schema.
     """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    settings = get_settings()
+    client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+    return client
+
+
+def get_schema() -> str:
+    """
+    Get the current database schema based on environment.
+
+    Returns:
+        'test' or 'prod'
+
+    Usage:
+        from core.database import get_schema
+
+        schema = get_schema()  # 'test' or 'prod'
+    """
+    settings = get_settings()
+    return settings.db_schema
