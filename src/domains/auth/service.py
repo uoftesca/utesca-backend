@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from typing import Optional
 from uuid import UUID
 from supabase import create_client, Client
+from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
 from core.database import get_supabase_client, get_schema
 from core.config import get_settings
@@ -355,10 +356,26 @@ class AuthService:
 
         except HTTPException:
             raise
+        except (AuthInvalidCredentialsError, AuthApiError) as e:
+            # Handle Supabase auth-specific errors
+            print(f"Auth error signing in: {e}")
+
+            # Check for invalid credentials error code
+            if isinstance(e, AuthInvalidCredentialsError) or \
+               (isinstance(e, AuthApiError) and e.code == "invalid_credentials"):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid email or password",
+                )
+
+            # Other auth errors (rate limiting, user banned, etc.)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.message if hasattr(e, 'message') else str(e),
+            )
         except Exception as e:
-            print(f"Error signing in: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to sign in: {str(e)}",
+                detail="An error occurred during sign in. Please try again.",
             )
 
