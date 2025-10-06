@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # Supabase credentials (single database with test and prod schemas)
     SUPABASE_URL: str
     SUPABASE_KEY: str
+    SUPABASE_SERVICE_ROLE_KEY: str
+
+    # Base URL for email redirects
+    BASE_URL: str
 
     # CORS settings (for Next.js frontend)
     ALLOWED_ORIGINS: list[str] = [
