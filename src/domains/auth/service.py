@@ -21,6 +21,7 @@ from .models import (
     SignInRequest,
     SignInResponse,
 )
+from .repository import UserRepository
 
 
 class AuthService:
@@ -30,6 +31,7 @@ class AuthService:
         self.settings = get_settings()
         self.supabase = get_supabase_client()
         self.schema = get_schema()
+        self.repository = UserRepository(self.supabase, self.schema)
 
     def _get_admin_client(self) -> Client:
         """
@@ -179,18 +181,15 @@ class AuthService:
             HTTPException: If user not found
         """
         try:
-            result = self.supabase.schema(self.schema).table("users") \
-                .select("*") \
-                .eq("id", str(user_id)) \
-                .execute()
+            user = self.repository.get_by_id(user_id)
 
-            if not result.data or len(result.data) == 0:
+            if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User not found",
                 )
 
-            return UserResponse(**result.data[0])
+            return user
 
         except HTTPException:
             raise
@@ -333,18 +332,13 @@ class AuthService:
 
             # Get user from users table
             user_id = auth_response.user.id
-            result = self.supabase.schema(self.schema).table("users") \
-                .select("*") \
-                .eq("user_id", user_id) \
-                .execute()
+            user_data = self.repository.get_by_auth_id(UUID(user_id))
 
-            if not result.data or len(result.data) == 0:
+            if not user_data:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User profile not found. Please complete onboarding.",
                 )
-
-            user_data = UserResponse(**result.data[0])
 
             return SignInResponse(
                 access_token=auth_response.session.access_token,

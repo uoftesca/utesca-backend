@@ -11,6 +11,7 @@ from uuid import UUID
 
 from core.database import get_supabase_client, get_schema
 from .models import UserResponse
+from .repository import UserRepository
 
 
 security = HTTPBearer()
@@ -56,18 +57,16 @@ async def get_current_user(
         auth_user = user_response.user
 
         # Fetch full user data from users table
-        result = admin_client.schema(schema).table("users") \
-            .select("*") \
-            .eq("user_id", auth_user.id) \
-            .execute()
+        repository = UserRepository(admin_client, schema)
+        user = repository.get_by_auth_id(UUID(auth_user.id))
 
-        if not result.data or len(result.data) == 0:
+        if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User profile not found",
             )
 
-        return UserResponse(**result.data[0])
+        return user
 
     except HTTPException:
         raise
