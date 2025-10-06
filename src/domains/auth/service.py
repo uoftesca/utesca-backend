@@ -17,6 +17,8 @@ from .models import (
     UpdateProfileRequest,
     InviteUserResponse,
     CompleteOnboardingRequest,
+    SignInRequest,
+    SignInResponse,
 )
 
 
@@ -300,5 +302,63 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to complete onboarding: {str(e)}",
+            )
+
+    async def sign_in(self, request: SignInRequest) -> SignInResponse:
+        """
+        Sign in a user with email and password.
+
+        Args:
+            request: Sign in request with email and password
+
+        Returns:
+            SignInResponse: Access token, refresh token, and user data
+
+        Raises:
+            HTTPException: If sign in fails
+        """
+        try:
+            # Sign in with Supabase Auth
+            auth_response = self.supabase.auth.sign_in_with_password({
+                "email": request.email,
+                "password": request.password,
+            })
+
+            if not auth_response.session or not auth_response.user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid email or password",
+                )
+
+            # Get user from users table
+            user_id = auth_response.user.id
+            result = self.supabase.schema(self.schema).table("users") \
+                .select("*") \
+                .eq("user_id", user_id) \
+                .execute()
+
+            if not result.data or len(result.data) == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User profile not found. Please complete onboarding.",
+                )
+
+            user_data = UserResponse(**result.data[0])
+
+            return SignInResponse(
+                access_token=auth_response.session.access_token,
+                token_type="bearer",
+                expires_in=auth_response.session.expires_in or 3600,
+                refresh_token=auth_response.session.refresh_token or "",
+                user=user_data,
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Error signing in: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to sign in: {str(e)}",
             )
 

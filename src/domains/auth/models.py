@@ -48,6 +48,13 @@ class CompleteOnboardingRequest(BaseModel):
     preferred_name: Optional[str] = Field(None, max_length=255, description="Optional preferred name")
 
 
+class SignInRequest(BaseModel):
+    """Request to sign in."""
+
+    email: EmailStr
+    password: str = Field(..., min_length=8, description="User's password")
+
+
 # ============================================================================
 # Response Models
 # ============================================================================
@@ -79,3 +86,13 @@ class InviteUserResponse(BaseModel):
     success: bool
     message: str
     email: str
+
+
+class SignInResponse(BaseModel):
+    """Response after signing in."""
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    refresh_token: str
+    user: UserResponse

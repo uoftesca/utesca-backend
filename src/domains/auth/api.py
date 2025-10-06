@@ -13,6 +13,8 @@ from .models import (
     InviteUserResponse,
     UpdateProfileRequest,
     CompleteOnboardingRequest,
+    SignInRequest,
+    SignInResponse,
 )
 from .service import AuthService
 from .dependencies import get_current_user, get_current_admin, get_auth_user_id
@@ -25,6 +27,29 @@ router = APIRouter()
 # ============================================================================
 # Authentication Endpoints
 # ============================================================================
+
+@router.post(
+    "/sign-in",
+    response_model=SignInResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Sign In",
+    description="Sign in with email and password",
+)
+async def sign_in(request: SignInRequest):
+    """
+    Sign in with email and password.
+
+    **Process:**
+    1. Authenticates user with Supabase Auth
+    2. Retrieves user profile from users table
+    3. Returns access token, refresh token, and user data
+
+    **Returns:**
+    - Access token, refresh token, and user profile
+    """
+    service = AuthService()
+    return await service.sign_in(request)
+
 
 @router.post(
     "/invite",
@@ -164,6 +189,7 @@ async def auth_status():
         "environment": settings.ENVIRONMENT,
         "schema": get_schema(),
         "endpoints": {
+            "sign_in": "POST /auth/sign-in",
             "invite": "POST /auth/invite",
             "complete_onboarding": "POST /auth/complete-onboarding",
             "me": "GET /auth/me",
