@@ -44,6 +44,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",  # Local Next.js dev
         "https://utesca.ca",       # Production frontend
         "https://www.utesca.ca",
+        "http://127.0.0.1:3000",
     ]
 
     model_config = SettingsConfigDict(
