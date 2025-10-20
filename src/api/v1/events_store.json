@@ -1,69 +1,70 @@
 {
-    "events": [
-        {
-            "title": "Alumni Panel",
-            "date": "2025-09-26",
-            "description": "",
-            "registrationLink": "",
-            "image": "https://drive.google.com/uc?export=download&id=1InEzs084rtAIUp0Tc8b0kkAVVwye7yTV",
-            "driveLink": "https://drive.google.com/drive/folders/1ZDg8hesoRkmHPehIMDwTdqoA_ngOPenl",
-            "imagePosition": "top"
-        },
-        {
-            "title": "Ace the Case Deloitte",
-            "date": "2025-03-08",
-            "description": "UTESCA & Deloitte are back with Ace the Case 2025, our Engineering Consulting Case Competition! 🏆\n\nThis is your chance to tackle real-world challenges, network with professionals, and compete for cash prizes!\n\n📍 UofT - St. George Campus\n🗓️ When: March 8th, 2025\n⏰ Time: 9:00 AM - 4:00 PM\n📌 Registration Deadline: Februrary 28th @ 11:59 PM",
-            "category": "Case Competition",
-            "registrationLink": "https://docs.google.com/forms/d/e/1FAIpQLSdFZ_iJvC7IY6OgKi6a6D6aMaz-nTcq6Tv78YeET_wQ6cdghg/viewform",
-            "image": "https://images.unsplash.com/photo-1573989699073-3627d792cbb6?q=80&w=2564&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-            "driveLink":"http://youtube.com/",
-            "imagePosition": "top"
-        },
-        {
-            "title": "Excel Powerpoint Workshop",
-            "date": "2025-02-12",
-            "description": "Join us for a comprehensive Excel and PowerPoint workshop designed to enhance your data analysis and presentation skills.\n\n📍 UofT - St. George Campus\n🗓️ When: February 12th, 2025\n⏰ Time: 6:00 PM - 8:00 PM",
-            "category": "",
-            "registrationLink": "https://docs.google.com/forms/d/e/1FAIpQLSehXhSe30VziMEx9DmugAiMt-HZ_HGMbwvD3oJ1WWMf3zAPqA/viewform?usp=preview",
-            "image": "https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?q=80&w=2376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-            "driveLink": ""
-        },
-        {
-            "title": "Consultant for a Day with PWC",
-            "date": "2025-03-20",
-            "description": "",
-            "category": "",
-            "registrationLink": "",
-            "image": "https://images.unsplash.com/photo-1615469309489-0a464a9925cb?q=80&w=2462&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-            "driveLink": "",
-            "imagePosition": -130
-        },
-        {
-            "title": "Consultant for a Day with PWC",
-            "date": "2024-03-27",
-            "description": "The UTESCA x PwC Consultant for a Day event on March 27, 2024, was a remarkable experience, uniting aspiring consultants for an engaging evening at the University of Toronto's St. George Campus.\n\nEvent Highlights:\n\n• The event began with introductions to UTESCA and PwC, laying the groundwork for learning and collaboration, and equipping attendees with valuable tips on consulting case formats for the interactive sessions.\n\n• Participants tackled a real-world case study in small groups, guided by PwC consultants, refining their problem-solving skills and consulting strategies. Group presentations followed, sparking discussions and feedback.\n\n• The evening concluded with a networking session, where attendees connected with PwC professionals over drinks and appetizers, fostering valuable relationships.\n\nLooking Ahead:\n\nWe thank PwC and all participants for making this event memorable. Stay tuned for more exciting events and opportunities!",
-            "category": "",
-            "registrationLink": "",
-            "image": "/events/consultantforaday.jpg",
-            "driveLink": ""
-        },
-        {
-            "title": "Ace the Case",
-            "date": "2024-03-09",
-            "description": "The Ace the Case 2024 event, held in collaboration with Deloitte on March 9th, 2024, at the University of Toronto's St. George Campus. This flagship case competition brought together fifteen teams, each consisting of four students, to showcase their creative problem-solving and presentation skills.\n\nDuring \"Competition Day,\" participants engaged deeply with Deloitte's operations, explored recruitment opportunities, and presented their innovative solutions to a panel of company judges. The event provided an exceptional platform for students to demonstrate their abilities, network with esteemed Deloitte professionals, and compete for cash prizes.\n\nEvent Highlights:\n\n• Participants tested their skills in analytics, problem-solving, and teamwork\n• Students connected with consulting experts and peers, expanding their professional networks\n• Winners walked away with cash prizes and valuable experiences to enhance their resumes\n\nWe extend our heartfelt congratulations to all participants and winners, and a big thank you to Deloitte for their collaboration. Stay connected with us through our social media channels for updates on Ace the Case 2025!",
-            "category": "Case Competition",
-            "registrationLink": "",
-            "image": "/events/acethecase.jpg",
-            "driveLink": ""
-        },
-        {
-            "title": "Networking and Panel Events",
-            "date": "2024-03-09",
-            "description": "Our networking mixer offers students the chance to engage with company representatives, explore recruitment opportunities, and exchange resumes. Companies will highlight the skills and experiences available through internships and post-graduate positions.\n\nFeaturing a panel of professionals from sectors like technology, healthcare, environment, and infrastructure, the event will provide insights into breaking into engineering consulting and understanding industry similarities and differences.\n\nJoin us to expand your network and explore career opportunities in engineering consulting!",
-            "category": "",
-            "registrationLink": "",
-            "image": "/events/networkingandpanel.jpg",
-            "driveLink": ""
-        }
-    ]
+  "events": [
+    {
+      "title": "Ace the Case Deloitte",
+      "date": "2025-03-08",
+      "description": "UTESCA & Deloitte are back with Ace the Case 2025, our Engineering Consulting Case Competition! 🏆\n\nThis is your chance to tackle real-world challenges, network with professionals, and compete for cash prizes!\n\n📍 UofT - St. George Campus\n🗓️ When: March 8th, 2025\n⏰ Time: 9:00 AM - 4:00 PM\n📌 Registration Deadline: Februrary 28th @ 11:59 PM",
+      "category": "Case Competition",
+      "registrationLink": "https://docs.google.com/forms/d/e/1FAIpQLSdFZ_iJvC7IY6OgKi6a6D6aMaz-nTcq6Tv78YeET_wQ6cdghg/viewform",
+      "image": "https://images.unsplash.com/photo-1573989699073-3627d792cbb6?q=80&w=2564&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "driveLink": "http://youtube.com/",
+      "imagePosition": "top"
+    },
+    {
+      "title": "Excel Powerpoint Workshop",
+      "date": "2025-02-12",
+      "description": "Join us for a comprehensive Excel and PowerPoint workshop designed to enhance your data analysis and presentation skills.\n\n📍 UofT - St. George Campus\n🗓️ When: February 12th, 2025\n⏰ Time: 6:00 PM - 8:00 PM",
+      "category": "",
+      "registrationLink": "https://docs.google.com/forms/d/e/1FAIpQLSehXhSe30VziMEx9DmugAiMt-HZ_HGMbwvD3oJ1WWMf3zAPqA/viewform?usp=preview",
+      "image": "https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?q=80&w=2376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "driveLink": ""
+    },
+    {
+      "title": "Consultant for a Day with PWC",
+      "date": "2025-03-20",
+      "description": "",
+      "category": "",
+      "registrationLink": "",
+      "image": "https://images.unsplash.com/photo-1615469309489-0a464a9925cb?q=80&w=2462&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "driveLink": "",
+      "imagePosition": -130
+    },
+    {
+      "title": "Consultant for a Day with PWC",
+      "date": "2024-03-27",
+      "description": "The UTESCA x PwC Consultant for a Day event on March 27, 2024, was a remarkable experience, uniting aspiring consultants for an engaging evening at the University of Toronto's St. George Campus.\n\nEvent Highlights:\n\n• The event began with introductions to UTESCA and PwC, laying the groundwork for learning and collaboration, and equipping attendees with valuable tips on consulting case formats for the interactive sessions.\n\n• Participants tackled a real-world case study in small groups, guided by PwC consultants, refining their problem-solving skills and consulting strategies. Group presentations followed, sparking discussions and feedback.\n\n• The evening concluded with a networking session, where attendees connected with PwC professionals over drinks and appetizers, fostering valuable relationships.\n\nLooking Ahead:\n\nWe thank PwC and all participants for making this event memorable. Stay tuned for more exciting events and opportunities!",
+      "category": "",
+      "registrationLink": "",
+      "image": "/events/consultantforaday.jpg",
+      "driveLink": ""
+    },
+    {
+      "title": "Ace the Case",
+      "date": "2024-03-09",
+      "description": "The Ace the Case 2024 event, held in collaboration with Deloitte on March 9th, 2024, at the University of Toronto's St. George Campus. This flagship case competition brought together fifteen teams, each consisting of four students, to showcase their creative problem-solving and presentation skills.\n\nDuring \"Competition Day,\" participants engaged deeply with Deloitte's operations, explored recruitment opportunities, and presented their innovative solutions to a panel of company judges. The event provided an exceptional platform for students to demonstrate their abilities, network with esteemed Deloitte professionals, and compete for cash prizes.\n\nEvent Highlights:\n\n• Participants tested their skills in analytics, problem-solving, and teamwork\n• Students connected with consulting experts and peers, expanding their professional networks\n• Winners walked away with cash prizes and valuable experiences to enhance their resumes\n\nWe extend our heartfelt congratulations to all participants and winners, and a big thank you to Deloitte for their collaboration. Stay connected with us through our social media channels for updates on Ace the Case 2025!",
+      "category": "Case Competition",
+      "registrationLink": "",
+      "image": "/events/acethecase.jpg",
+      "driveLink": ""
+    },
+    {
+      "title": "Networking and Panel Events",
+      "date": "2024-03-09",
+      "description": "Our networking mixer offers students the chance to engage with company representatives, explore recruitment opportunities, and exchange resumes. Companies will highlight the skills and experiences available through internships and post-graduate positions.\n\nFeaturing a panel of professionals from sectors like technology, healthcare, environment, and infrastructure, the event will provide insights into breaking into engineering consulting and understanding industry similarities and differences.\n\nJoin us to expand your network and explore career opportunities in engineering consulting!",
+      "category": "",
+      "registrationLink": "",
+      "image": "/events/networkingandpanel.jpg",
+      "driveLink": ""
+    },
+    {
+      "title": "Alumni Panel",
+      "date": "2025-09-26",
+      "description": "",
+      "category": "",
+      "registrationLink": "",
+      "image": "https://drive.google.com/uc?export=download&id=1InEzs084rtAIUp0Tc8b0kkAVVwye7yTV",
+      "imagePosition": "top",
+      "driveLink": "https://drive.google.com/drive/folders/1ZDg8hesoRkmHPehIMDwTdqoA_ngOPenl"
+    }
+  ]
 }
