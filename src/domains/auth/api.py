@@ -148,7 +148,7 @@ async def update_profile(
 
     **Allowed Updates:**
     - preferred_name
-    - photo_base64
+    - photo_url
     - announcement_email_preference
 
     **Requirements:**

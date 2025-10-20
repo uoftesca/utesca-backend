@@ -133,8 +133,8 @@ class AuthService:
             update_data = {}
             if request.preferred_name is not None:
                 update_data["preferred_name"] = request.preferred_name
-            if request.photo_base64 is not None:
-                update_data["photo_base64"] = request.photo_base64
+            if request.photo_url is not None:
+                update_data["photo_url"] = request.photo_url
             if request.announcement_email_preference is not None:
                 update_data["announcement_email_preference"] = request.announcement_email_preference
 
