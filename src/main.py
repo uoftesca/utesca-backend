@@ -13,10 +13,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-
 from core.config import get_settings
 from core.database import get_supabase_client, get_schema
 from api.v1.router import api_router
+
 
 
 # Get settings instance
@@ -64,7 +64,6 @@ app = FastAPI(
     redoc_url=f"{settings.API_V1_PREFIX}/redoc",
     lifespan=lifespan,
 )
-
 
 # Configure CORS
 app.add_middleware(
