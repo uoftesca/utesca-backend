@@ -36,7 +36,6 @@ class DepartmentRepository:
         Returns:
             List of DepartmentResponse objects
         """
-        print(f"[DEBUG] Repository - Querying schema: {self.schema}, year filter: {year}")
 
         query = (
             self.client.schema(self.schema)
@@ -49,9 +48,6 @@ class DepartmentRepository:
             query = query.eq("year", year)
 
         result = query.execute()
-
-        print(f"[DEBUG] Repository - Query result: {len(result.data) if result.data else 0} departments found")
-        print(f"[DEBUG] Repository - Raw data: {result.data}")
 
         if not result.data:
             return []
