@@ -48,7 +48,7 @@ async def sign_in(request: SignInRequest):
     - Access token, refresh token, and user profile
     """
     service = AuthService()
-    return await service.sign_in(request)
+    return service.sign_in(request)
 
 
 @router.post(
@@ -79,7 +79,7 @@ async def invite_user(
     - Invitation status and user details
     """
     service = AuthService()
-    return await service.invite_user(request, current_user.user_id)
+    return service.invite_user(request, current_user.user_id)
 
 
 @router.get(
@@ -130,7 +130,7 @@ async def complete_onboarding(
     - Created user profile
     """
     service = AuthService()
-    return await service.complete_onboarding(auth_user_id, request)
+    return service.complete_onboarding(auth_user_id, request)
 
 
 @router.put(
@@ -159,7 +159,7 @@ async def update_profile(
     - Updated user profile
     """
     service = AuthService()
-    return await service.update_profile(current_user.id, request)
+    return service.update_profile(current_user.id, request)
 
 
 # ============================================================================

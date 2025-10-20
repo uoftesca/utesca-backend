@@ -45,7 +45,7 @@ class AuthService:
             self.settings.SUPABASE_SERVICE_ROLE_KEY
         )
 
-    async def invite_user(
+    def invite_user(
         self,
         request: InviteUserRequest,
         invited_by_user_id: UUID
@@ -110,7 +110,7 @@ class AuthService:
                 detail=f"Failed to invite user: {str(e)}",
             )
 
-    async def update_profile(
+    def update_profile(
         self,
         user_id: UUID,
         request: UpdateProfileRequest,
@@ -167,7 +167,7 @@ class AuthService:
                 detail=f"Failed to update profile: {str(e)}",
             )
 
-    async def get_user_by_id(self, user_id: UUID) -> UserResponse:
+    def get_user_by_id(self, user_id: UUID) -> UserResponse:
         """
         Get user by ID.
 
@@ -200,7 +200,7 @@ class AuthService:
                 detail=f"Failed to fetch user: {str(e)}",
             )
 
-    async def complete_onboarding(
+    def complete_onboarding(
         self,
         auth_user_id: UUID,
         request: CompleteOnboardingRequest,
@@ -304,7 +304,7 @@ class AuthService:
                 detail=f"Failed to complete onboarding: {str(e)}",
             )
 
-    async def sign_in(self, request: SignInRequest) -> SignInResponse:
+    def sign_in(self, request: SignInRequest) -> SignInResponse:
         """
         Sign in a user with email and password.
 
