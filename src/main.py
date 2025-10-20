@@ -13,7 +13,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-from api.v1.events_store import router as events_router
 from core.config import get_settings
 from core.database import get_supabase_client, get_schema
 from api.v1.router import api_router
@@ -79,7 +78,6 @@ app.add_middleware(
 
 # Include API v1 router
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
-app.include_router(events_router, prefix=settings.API_V1_PREFIX)
 
 
 # Root endpoint
