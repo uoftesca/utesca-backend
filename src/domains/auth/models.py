@@ -37,7 +37,7 @@ class UpdateProfileRequest(BaseModel):
     """Request to update user profile."""
 
     preferred_name: Optional[str] = None
-    photo_base64: Optional[str] = None
+    photo_url: Optional[str] = None
     announcement_email_preference: Optional[EmailNotificationPreference] = None
 
 
@@ -71,7 +71,7 @@ class UserResponse(BaseModel):
     display_role: str
     department_id: Optional[UUID] = None
     preferred_name: Optional[str] = None
-    photo_base64: Optional[str] = None
+    photo_url: Optional[str] = None
     invited_by: Optional[UUID] = None
     announcement_email_preference: EmailNotificationPreference
     created_at: datetime
