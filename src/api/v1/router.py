@@ -20,12 +20,7 @@ from fastapi import APIRouter
 # Domain router imports
 from domains.auth.api import router as auth_router
 from domains.departments.api import router as departments_router
-# from src.domains.events.api import router as events_router
-# from src.domains.users.api import router as users_router
-# from src.domains.announcements.api import router as announcements_router
-# from src.domains.applications.api import router as applications_router
-# from src.domains.analytics.api import router as analytics_router
-# from src.domains.public.api import router as public_router
+from domains.users.api import router as users_router
 
 # Create main API router
 api_router = APIRouter()
@@ -33,6 +28,7 @@ api_router = APIRouter()
 # Include domain routers
 api_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 api_router.include_router(departments_router, prefix="/departments", tags=["Departments"])
+api_router.include_router(users_router, prefix="/users", tags=["Users"])
 
 
 # Placeholder endpoint - remove once domain routers are added
