@@ -46,6 +46,7 @@ def upsert_event(ev: Event):
 
     Events are matched by title (case-insensitive) and date.
     If a match is found, the event is updated; otherwise, it's inserted.
+    Events are kept in chronological order with most recent first.
 
     Args:
         ev: Event to upsert
@@ -66,6 +67,9 @@ def upsert_event(ev: Event):
 
     if not replaced:
         new_events.append(ev.model_dump())
+
+    # Sort events in descending chronological order (most recent first)
+    new_events.sort(key=lambda e: e["date"], reverse=True)
 
     store["events"] = new_events
     save_store(store)

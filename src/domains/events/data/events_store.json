@@ -1,6 +1,26 @@
 {
   "events": [
     {
+      "title": "Alumni Panel",
+      "date": "2025-09-26",
+      "description": "",
+      "category": "",
+      "registrationLink": "",
+      "image": "https://drive.google.com/uc?export=download&id=1InEzs084rtAIUp0Tc8b0kkAVVwye7yTV",
+      "imagePosition": "top",
+      "driveLink": "https://drive.google.com/drive/folders/1ZDg8hesoRkmHPehIMDwTdqoA_ngOPenl"
+    },
+    {
+      "title": "Consultant for a Day with PWC",
+      "date": "2025-03-20",
+      "description": "",
+      "category": "",
+      "registrationLink": "",
+      "image": "https://images.unsplash.com/photo-1615469309489-0a464a9925cb?q=80&w=2462&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "driveLink": "",
+      "imagePosition": -130
+    },
+    {
       "title": "Ace the Case Deloitte",
       "date": "2025-03-08",
       "description": "UTESCA & Deloitte are back with Ace the Case 2025, our Engineering Consulting Case Competition! 🏆\n\nThis is your chance to tackle real-world challenges, network with professionals, and compete for cash prizes!\n\n📍 UofT - St. George Campus\n🗓️ When: March 8th, 2025\n⏰ Time: 9:00 AM - 4:00 PM\n📌 Registration Deadline: Februrary 28th @ 11:59 PM",
@@ -18,16 +38,6 @@
       "registrationLink": "https://docs.google.com/forms/d/e/1FAIpQLSehXhSe30VziMEx9DmugAiMt-HZ_HGMbwvD3oJ1WWMf3zAPqA/viewform?usp=preview",
       "image": "https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?q=80&w=2376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
       "driveLink": ""
-    },
-    {
-      "title": "Consultant for a Day with PWC",
-      "date": "2025-03-20",
-      "description": "",
-      "category": "",
-      "registrationLink": "",
-      "image": "https://images.unsplash.com/photo-1615469309489-0a464a9925cb?q=80&w=2462&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-      "driveLink": "",
-      "imagePosition": -130
     },
     {
       "title": "Consultant for a Day with PWC",
@@ -55,16 +65,6 @@
       "registrationLink": "",
       "image": "/events/networkingandpanel.jpg",
       "driveLink": ""
-    },
-    {
-      "title": "Alumni Panel",
-      "date": "2025-09-26",
-      "description": "",
-      "category": "",
-      "registrationLink": "",
-      "image": "https://drive.google.com/uc?export=download&id=1InEzs084rtAIUp0Tc8b0kkAVVwye7yTV",
-      "imagePosition": "top",
-      "driveLink": "https://drive.google.com/drive/folders/1ZDg8hesoRkmHPehIMDwTdqoA_ngOPenl"
     }
   ]
 }
