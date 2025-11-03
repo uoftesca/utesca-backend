@@ -136,15 +136,15 @@ async def complete_onboarding(
 @router.put(
     "/profile",
     response_model=UserResponse,
-    summary="Update Profile",
-    description="Update current user's profile",
+    summary="Update Own Profile",
+    description="Update your own profile preferences (self-service)",
 )
 async def update_profile(
     request: UpdateProfileRequest,
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
-    Update current user's profile.
+    Update your own profile preferences.
 
     **Allowed Updates:**
     - preferred_name
