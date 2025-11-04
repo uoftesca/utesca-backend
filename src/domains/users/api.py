@@ -10,7 +10,7 @@ from uuid import UUID
 
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
-from .models import UserListResponse
+from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse
 from .service import UserService
 
 
@@ -105,6 +105,95 @@ def get_user(
     return service.get_user_by_id(user_id)
 
 
+@router.put(
+    "/{user_id}",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update Other User",
+    description="Update user data (requires co-president or VP permissions)",
+)
+def update_user(
+    user_id: UUID,
+    request: UpdateUserRequest,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Update a user's information.
+
+    **What This Endpoint Does:**
+    - Administrative endpoint for managing official user data
+    - Updates organizational fields (name, role, department)
+    - Requires elevated permissions (co-president or VP)
+
+    **Authentication & Permissions:**
+    - Requires valid JWT token
+    - **Co-presidents**: Can update any user's information
+    - **VPs**: Can only update directors in their department
+
+    **Editable Fields by Role:**
+    - **Co-presidents** can change: `first_name`, `last_name`, `display_role`, `role`, `department_id`
+    - **VPs** can change: `first_name`, `last_name`, `display_role` only
+
+    **Path Parameters:**
+    - `user_id`: User UUID to update
+
+    **Request Body (all optional):**
+    - `first_name`: User's official first name
+    - `last_name`: User's official last name
+    - `display_role`: User's display role title (e.g., "VP of Events", "Marketing Director")
+    - `role`: User's system role - `co_president`/`vp`/`director` (co-presidents only)
+    - `department_id`: User's department UUID (co-presidents only)
+
+    **Returns:**
+    - Updated user details
+
+    **Errors:**
+    - 400: No fields to update
+    - 403: Insufficient permissions (not co-president/VP, or VP trying to modify non-director)
+    - 404: User not found
+    """
+    service = UserService()
+    return service.update_user(user_id, request, current_user)
+
+
+@router.delete(
+    "/{user_id}",
+    response_model=DeleteUserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete User",
+    description="Delete a user from the system (requires co-president or VP with proper permissions)",
+)
+def delete_user(
+    user_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Delete a user from the system.
+
+    **Authentication:**
+    - Requires valid JWT token
+    - Co-presidents: Can delete any user (except themselves)
+    - VPs: Can only delete directors in their department
+
+    **Path Parameters:**
+    - `user_id`: User UUID to delete
+
+    **Returns:**
+    - Confirmation of deletion with deleted user ID
+
+    **Errors:**
+    - 400: Cannot delete yourself
+    - 403: Insufficient permissions
+    - 404: User not found
+
+    **Note:**
+    - This is a hard delete; the user will be permanently removed
+    - Deletion cascades from auth.users to {schema}.users
+    """
+    service = UserService()
+    return service.delete_user(user_id, current_user)
+
+
 # ============================================================================
 # Health Check / Test Endpoint
 # ============================================================================
@@ -135,5 +224,7 @@ def users_status():
         "endpoints": {
             "list_users": "GET /users",
             "get_user": "GET /users/{id}",
+            "update_user": "PUT /users/{id}",
+            "delete_user": "DELETE /users/{id}",
         },
     }
