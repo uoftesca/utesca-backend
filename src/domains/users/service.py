@@ -209,6 +209,13 @@ class UserService:
                         detail="Only co-presidents can change user roles",
                     )
 
+                # Prevent changing a co-president's role
+                if target_user.role == "co_president":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Cannot change the role of a co-president",
+                    )
+
             # 4. Validate department change (only co-presidents)
             if (
                 request.department_id is not None
