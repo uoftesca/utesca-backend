@@ -4,7 +4,8 @@ Pydantic models for users domain.
 These models define the request/response schemas for user endpoints.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
+from pydantic.alias_generators import to_camel
 from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
@@ -26,6 +27,11 @@ class UpdateUserRequest(BaseModel):
     role: Optional[UserRole] = Field(None, description="Can only be changed by co-presidents")
     department_id: Optional[UUID] = Field(None, description="Can only be changed by co-presidents")
 
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 
 # ============================================================================
 # Response Models
@@ -39,6 +45,11 @@ class UserListResponse(BaseModel):
     page: Optional[int] = None
     page_size: Optional[int] = None
 
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 
 class DeleteUserResponse(BaseModel):
     """Response after deleting a user."""
@@ -46,3 +57,8 @@ class DeleteUserResponse(BaseModel):
     success: bool
     message: str
     deleted_user_id: UUID
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )

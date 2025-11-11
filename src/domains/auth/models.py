@@ -5,6 +5,7 @@ These models define the request/response schemas for authentication endpoints.
 """
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic.alias_generators import to_camel
 from typing import Optional, Literal
 from datetime import datetime
 from uuid import UUID
@@ -32,6 +33,11 @@ class InviteUserRequest(BaseModel):
     display_role: str = Field(..., min_length=1, max_length=255, description="e.g., 'VP of Events', 'Marketing Director'")
     department_id: Optional[UUID] = None
 
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 
 class UpdateProfileRequest(BaseModel):
     """Request to update user profile."""
@@ -40,12 +46,22 @@ class UpdateProfileRequest(BaseModel):
     photo_url: Optional[str] = None
     announcement_email_preference: Optional[EmailNotificationPreference] = None
 
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
+
 
 class CompleteOnboardingRequest(BaseModel):
     """Request to complete onboarding after accepting invite."""
 
     password: str = Field(..., min_length=8, description="User's chosen password")
     preferred_name: Optional[str] = Field(None, max_length=255, description="Optional preferred name")
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
 
 
 class SignInRequest(BaseModel):
@@ -77,7 +93,11 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
 
 
 class InviteUserResponse(BaseModel):
@@ -96,3 +116,8 @@ class SignInResponse(BaseModel):
     expires_in: int
     refresh_token: str
     user: UserResponse
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True
+    )
