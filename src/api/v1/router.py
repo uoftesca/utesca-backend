@@ -22,8 +22,6 @@ from domains.auth.api import router as auth_router
 from domains.departments.api import router as departments_router
 from domains.users.api import router as users_router
 from domains.events.api import router as events_router
-# from src.domains.users.api import router as users_router
-# from src.domains.departments.api import router as departments_router
 # from src.domains.announcements.api import router as announcements_router
 # from src.domains.applications.api import router as applications_router
 # from src.domains.analytics.api import router as analytics_router
@@ -37,8 +35,6 @@ api_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 api_router.include_router(departments_router, prefix="/departments", tags=["Departments"])
 api_router.include_router(users_router, prefix="/users", tags=["Users"])
 api_router.include_router(events_router, prefix="/events", tags=["Events"])
-# api_router.include_router(users_router, prefix="/users", tags=["Users"])
-# api_router.include_router(departments_router, prefix="/departments", tags=["Departments"])
 # api_router.include_router(announcements_router, prefix="/announcements", tags=["Announcements"])
 # api_router.include_router(applications_router, prefix="/applications", tags=["Applications"])
 # api_router.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
