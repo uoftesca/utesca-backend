@@ -4,97 +4,221 @@ Event API endpoints.
 Provides REST API endpoints for event management.
 """
 
-from fastapi import APIRouter
-from .models import Event, Store
-from .repository import load_store, save_store
+from fastapi import APIRouter, Depends, Query, status, HTTPException
+from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
+from uuid import UUID
+
+from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
+from domains.auth.models import UserResponse
+from .models import (
+    EventCreate,
+    EventUpdate,
+    EventResponse,
+    EventListResponse,
+    EventStatus,
+)
+from .service import EventService
 
 
 # Create router for events domain
 router = APIRouter()
 
+# Security for optional authentication
+optional_security = HTTPBearer(auto_error=False)
 
-@router.get("", response_model=Store)
-def get_events():
+
+def get_event_service() -> EventService:
+    """Dependency to get EventService instance."""
+    return EventService()
+
+
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+) -> Optional[UserResponse]:
+    """
+    Optional authentication dependency for public endpoints.
+
+    Returns None if no credentials provided, otherwise returns user.
+    """
+    if credentials is None:
+        return None
+    try:
+        # Use the regular get_current_user logic but handle errors gracefully
+        from core.config import get_settings
+        from supabase import create_client
+        from core.database import get_schema
+        from domains.auth.repository import UserRepository
+        from uuid import UUID
+
+        settings = get_settings()
+        schema = get_schema()
+
+        admin_client = create_client(
+            settings.SUPABASE_URL,
+            settings.SUPABASE_SERVICE_ROLE_KEY
+        )
+
+        user_response = admin_client.auth.get_user(credentials.credentials)
+
+        if not user_response or not user_response.user:
+            return None
+
+        repository = UserRepository(admin_client, schema)
+        user = repository.get_by_auth_id(UUID(user_response.user.id))
+
+        return user if user else None
+    except Exception:
+        return None
+
+
+@router.get("", response_model=EventListResponse)
+async def get_events(
+    status: Optional[EventStatus] = Query(None, description="Filter by event status"),
+    current_user: Optional[UserResponse] = Depends(get_optional_user),
+    service: EventService = Depends(get_event_service),
+):
     """
     Get all events.
 
-    Returns:
-        Store: All events in the store
-    """
-    return load_store()
-
-
-@router.post("/replace", response_model=Store)
-def replace_all(store: Store):
-    """
-    Replace all events in the store.
+    - **Public access**: Returns only events with status='published'
+    - **Authenticated access**: Returns all events based on user role
+      - Directors, VPs, Co-presidents: Can see all events
 
     Args:
-        store: New complete event store
+        status: Optional status filter (draft, pending_approval, published)
+        Authorization header: Optional Bearer token for authenticated access
 
     Returns:
-        Store: The updated event store
+        EventListResponse: List of events
     """
-    save_store(store.model_dump())
-    return store
+    # If no user is authenticated, only return published events
+    # For authenticated users, use the status filter if provided, otherwise return all
+    if current_user is None:
+        status_filter = "published"
+    else:
+        # Authenticated users can see all events (use status filter if provided)
+        status_filter = status
+
+    return service.get_events(status=status_filter)
 
 
-@router.post("/upsert", response_model=Store)
-def upsert_event(ev: Event):
+@router.get("/{event_id}", response_model=EventResponse)
+async def get_event_by_id(
+    event_id: UUID,
+    current_user: Optional[UserResponse] = Depends(get_optional_user),
+    service: EventService = Depends(get_event_service),
+):
     """
-    Insert or update an event.
+    Get a single event by ID.
 
-    Events are matched by title (case-insensitive) and date.
-    If a match is found, the event is updated; otherwise, it's inserted.
-    Events are kept in chronological order with most recent first.
+    - **Public access**: Can only access events with status='published'
+    - **Authenticated access**: Can access any event
 
     Args:
-        ev: Event to upsert
+        event_id: Event UUID
+        Authorization header: Optional Bearer token for authenticated access
 
     Returns:
-        Store: The updated event store
+        EventResponse: Event data
+
+    Raises:
+        404: If event not found
+        403: If public user tries to access non-published event
     """
-    store = load_store()
-    key = (ev.title.strip().lower(), ev.date)
-    new_events, replaced = [], False
+    event = service.get_event_by_id(event_id)
 
-    for e in store["events"]:
-        if (e["title"].strip().lower(), e["date"]) == key:
-            new_events.append(ev.model_dump())
-            replaced = True
-        else:
-            new_events.append(e)
+    # If no user is authenticated, only allow access to published events
+    if current_user is None and event.status != "published":
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "Access denied. This event is not published."},
+        )
 
-    if not replaced:
-        new_events.append(ev.model_dump())
-
-    # Sort events in descending chronological order (most recent first)
-    new_events.sort(key=lambda e: e["date"], reverse=True)
-
-    store["events"] = new_events
-    save_store(store)
-    return store
+    return event
 
 
-@router.post("/delete")
-def delete_event(ev: Event):
+@router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
+async def create_event(
+    event_data: EventCreate,
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: EventService = Depends(get_event_service),
+):
     """
-    Delete an event from the store.
+    Create a new event.
 
-    Events are matched by title (case-insensitive) and date.
+    - **Authorization**: Only VPs and Co-presidents can create events
+    - **Directors**: Will receive 403 Forbidden
 
     Args:
-        ev: Event to delete (only title and date are used for matching)
+        event_data: Event creation data
+        current_user: Current authenticated user (must be VP or Co-president)
 
     Returns:
-        Dict: Success response
-    """
-    store = load_store()
-    key = (ev.title.strip().lower(), ev.date)
-    store["events"] = [
-        e for e in store["events"]
-        if (e["title"].strip().lower(), e["date"]) != key
-    ]
-    save_store(store)
-    return {"ok": True}
+        EventResponse: Created event
 
+    Raises:
+        403: If user is not VP or Co-president
+        400: If validation fails
+        500: If creation fails
+    """
+    return service.create_event(event_data, created_by=current_user.id)
+
+
+@router.put("/{event_id}", response_model=EventResponse)
+async def update_event(
+    event_id: UUID,
+    event_data: EventUpdate,
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: EventService = Depends(get_event_service),
+):
+    """
+    Update an existing event.
+
+    - **Authorization**: Only VPs and Co-presidents can update events
+    - **Directors**: Will receive 403 Forbidden
+
+    Args:
+        event_id: Event UUID
+        event_data: Event update data (all fields optional)
+        current_user: Current authenticated user (must be VP or Co-president)
+
+    Returns:
+        EventResponse: Updated event
+
+    Raises:
+        403: If user is not VP or Co-president
+        404: If event not found
+        400: If validation fails
+        500: If update fails
+    """
+    return service.update_event(event_id, event_data)
+
+
+@router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_event(
+    event_id: UUID,
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: EventService = Depends(get_event_service),
+):
+    """
+    Delete an event.
+
+    - **Authorization**: Only VPs and Co-presidents can delete events
+    - **Directors**: Will receive 403 Forbidden
+
+    Args:
+        event_id: Event UUID
+        current_user: Current authenticated user (must be VP or Co-president)
+
+    Returns:
+        204 No Content on success
+
+    Raises:
+        403: If user is not VP or Co-president
+        404: If event not found
+        500: If deletion fails
+    """
+    service.delete_event(event_id)
+    return None
