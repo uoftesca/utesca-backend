@@ -10,7 +10,7 @@ from uuid import UUID
 
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
-from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse
+from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse, ChangePasswordRequest, ChangePasswordResponse
 from .service import UserService
 
 
@@ -73,6 +73,48 @@ def list_users(
         page=page,
         page_size=page_size,
     )
+
+
+@router.put(
+    "/password",
+    response_model=ChangePasswordResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Change Password",
+    description="Change authenticated user's password (requires authentication)",
+)
+def change_password(
+    request: ChangePasswordRequest,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Change the authenticated user's password.
+
+    **Authentication:**
+    - Requires valid JWT token
+    - Users can only change their own password
+
+    **Request Body:**
+    - `current_password`: User's current password
+    - `new_password`: New password (must meet requirements)
+    - `confirm_password`: Confirmation of new password (must match new_password)
+
+    **Password Requirements:**
+    - Minimum 8 characters
+
+    **Returns:**
+    - Success message
+
+    **Errors:**
+    - 400: New password does not meet requirements or passwords don't match
+    - 401: Current password is incorrect
+    - 429: Too many password change attempts (rate limited: 5 per hour)
+
+    **Rate Limiting:**
+    - Maximum 5 attempts per hour per user
+    - Rate limit is reset on successful password change
+    """
+    service = UserService()
+    return service.change_password(request, current_user)
 
 
 @router.get(
@@ -226,5 +268,6 @@ def users_status():
             "get_user": "GET /users/{id}",
             "update_user": "PUT /users/{id}",
             "delete_user": "DELETE /users/{id}",
+            "change_password": "PUT /users/password",
         },
     }

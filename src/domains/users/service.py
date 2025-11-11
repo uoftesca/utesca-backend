@@ -5,15 +5,110 @@ This module handles business logic for user management.
 """
 
 from fastapi import HTTPException, status
-from typing import Optional
+from typing import Optional, List, Dict
 from uuid import UUID
+from datetime import datetime, timedelta
+from threading import Lock
 from supabase import create_client, Client
+from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
 from core.database import get_supabase_client, get_schema
 from core.config import get_settings
 from domains.auth.models import UserResponse
-from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse
+from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse, ChangePasswordRequest, ChangePasswordResponse
 from .repository import UserRepository
+
+
+# ============================================================================
+# Rate Limiter for Password Changes
+# ============================================================================
+
+class RateLimiter:
+    """
+    Thread-safe in-memory rate limiter.
+    
+    Tracks attempts per user and enforces rate limits within a time window.
+    """
+
+    def __init__(self, max_attempts: int = 5, window_seconds: int = 3600):
+        """
+        Initialize rate limiter.
+
+        Args:
+            max_attempts: Maximum number of attempts allowed
+            window_seconds: Time window in seconds (default: 3600 = 1 hour)
+        """
+        self.max_attempts = max_attempts
+        self.window_seconds = window_seconds
+        self._attempts: Dict[str, List[datetime]] = {}
+        self._lock = Lock()
+
+    def check_rate_limit(self, user_id: UUID) -> bool:
+        """
+        Check if user has exceeded rate limit.
+
+        Args:
+            user_id: User UUID to check
+
+        Returns:
+            True if within rate limit, False if exceeded
+        """
+        user_id_str = str(user_id)
+        now = datetime.now()
+        cutoff_time = now - timedelta(seconds=self.window_seconds)
+
+        with self._lock:
+            # Get attempts for this user
+            attempts = self._attempts.get(user_id_str, [])
+
+            # Remove old attempts outside the time window
+            attempts = [attempt for attempt in attempts if attempt > cutoff_time]
+
+            # Check if limit exceeded
+            if len(attempts) >= self.max_attempts:
+                return False
+
+            # Record this attempt
+            attempts.append(now)
+            self._attempts[user_id_str] = attempts
+
+            return True
+
+    def reset(self, user_id: UUID):
+        """
+        Reset rate limit for a user (e.g., after successful operation).
+
+        Args:
+            user_id: User UUID to reset
+        """
+        user_id_str = str(user_id)
+        with self._lock:
+            if user_id_str in self._attempts:
+                del self._attempts[user_id_str]
+
+    def get_remaining_attempts(self, user_id: UUID) -> int:
+        """
+        Get remaining attempts for a user.
+
+        Args:
+            user_id: User UUID to check
+
+        Returns:
+            Number of remaining attempts
+        """
+        user_id_str = str(user_id)
+        now = datetime.now()
+        cutoff_time = now - timedelta(seconds=self.window_seconds)
+
+        with self._lock:
+            attempts = self._attempts.get(user_id_str, [])
+            attempts = [attempt for attempt in attempts if attempt > cutoff_time]
+            remaining = max(0, self.max_attempts - len(attempts))
+            return remaining
+
+
+# Global rate limiter instance for password changes
+password_change_rate_limiter = RateLimiter(max_attempts=5, window_seconds=3600)
 
 
 class UserService:
@@ -360,4 +455,265 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to delete user: {str(e)}",
+            )
+
+    def _validate_password_requirements(self, password: str) -> List[str]:
+        """
+        Validate password meets requirements.
+
+        Requirements:
+        - Minimum 8 characters
+
+        Args:
+            password: Password to validate
+
+        Returns:
+            List of validation error messages (empty if valid)
+        """
+        errors = []
+
+        if len(password) < 8:
+            errors.append("Must be at least 8 characters")
+
+        return errors
+
+
+    def _format_error_response(self, error_message: str) -> dict:
+        """
+        Format error response according to API spec.
+
+        Args:
+            error_message: Error message to format
+
+        Returns:
+            Formatted error dictionary with "error" key
+        """
+        return {"error": error_message}
+
+    def _check_password_change_rate_limit(self, user_id: UUID) -> None:
+        """
+        Check if user has exceeded password change rate limit.
+
+        Args:
+            user_id: User UUID to check
+
+        Raises:
+            HTTPException: If rate limit exceeded
+        """
+        if not password_change_rate_limiter.check_rate_limit(user_id):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=self._format_error_response("Too many password change attempts. Please try again later."),
+            )
+
+    def _validate_password_confirmation(
+        self, new_password: str, confirm_password: str
+    ) -> None:
+        """
+        Validate that new password and confirmation password match.
+
+        Args:
+            new_password: New password
+            confirm_password: Confirmation password
+
+        Raises:
+            HTTPException: If passwords don't match
+        """
+        if new_password != confirm_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "New password and confirmation password do not match"},
+            )
+
+    def _validate_new_password_requirements(self, password: str) -> None:
+        """
+        Validate new password meets requirements.
+
+        Args:
+            password: New password to validate
+
+        Raises:
+            HTTPException: If password doesn't meet requirements
+        """
+        password_errors = self._validate_password_requirements(password)
+        if password_errors:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "New password does not meet requirements",
+                    "details": password_errors
+                },
+            )
+
+    def _create_temp_supabase_client(self) -> Client:
+        """
+        Create a temporary Supabase client for password verification.
+
+        Returns:
+            Client: Supabase client instance
+        """
+        return create_client(
+            self.settings.SUPABASE_URL, self.settings.SUPABASE_KEY
+        )
+
+    def _attempt_password_verification(
+        self, client: Client, email: str, password: str
+    ) -> bool:
+        """
+        Attempt to verify password by signing in.
+
+        Args:
+            client: Supabase client instance
+            email: User's email
+            password: Password to verify
+
+        Returns:
+            True if password is correct, False otherwise
+
+        Raises:
+            AuthInvalidCredentialsError: If credentials are invalid
+            AuthApiError: If there's an auth API error
+        """
+        auth_response = client.auth.sign_in_with_password({
+            "email": email,
+            "password": password,
+        })
+        return auth_response.session is not None and auth_response.user is not None
+
+    def _handle_auth_exception_for_password_verification(
+        self, e: Exception
+    ) -> None:
+        """
+        Handle authentication exceptions during password verification.
+
+        Args:
+            e: Exception that occurred
+
+        Raises:
+            HTTPException: With appropriate error message
+        """
+        if isinstance(e, AuthInvalidCredentialsError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "Current password is incorrect"},
+            )
+        if isinstance(e, AuthApiError) and e.code == "invalid_credentials":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "Current password is incorrect"},
+            )
+        # Re-raise if it's not an invalid credentials error
+        raise
+
+    def _verify_current_password(
+        self, email: str, current_password: str
+    ) -> None:
+        """
+        Verify that the current password is correct.
+
+        Args:
+            email: User's email
+            current_password: Current password to verify
+
+        Raises:
+            HTTPException: If current password is incorrect or verification fails
+        """
+        try:
+            temp_client = self._create_temp_supabase_client()
+            is_valid = self._attempt_password_verification(
+                temp_client, email, current_password
+            )
+
+            if not is_valid:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail={"error": "Current password is incorrect"},
+                )
+        except (AuthInvalidCredentialsError, AuthApiError) as e:
+            self._handle_auth_exception_for_password_verification(e)
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Error verifying current password: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=self._format_error_response("Failed to verify current password"),
+            )
+
+    def _update_password_in_supabase(
+        self, auth_user_id: UUID, new_password: str
+    ) -> None:
+        """
+        Update user password in Supabase Auth.
+
+        Args:
+            auth_user_id: Supabase Auth user ID
+            new_password: New password to set
+
+        Raises:
+            HTTPException: If password update fails
+        """
+        try:
+            self.supabase.auth.admin.update_user_by_id(
+                uid=str(auth_user_id),
+                attributes={"password": new_password},
+            )
+        except Exception as e:
+            print(f"Error updating password: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=self._format_error_response("Failed to update password"),
+            )
+
+    def _reset_password_change_rate_limit(self, user_id: UUID) -> None:
+        """
+        Reset password change rate limit for user.
+
+        Args:
+            user_id: User UUID to reset rate limit for
+        """
+        password_change_rate_limiter.reset(user_id)
+
+    def change_password(
+        self, request: ChangePasswordRequest, current_user: UserResponse
+    ) -> ChangePasswordResponse:
+        """
+        Change user password.
+
+        Args:
+            request: Password change request
+            current_user: Current authenticated user
+
+        Returns:
+            ChangePasswordResponse: Success message
+
+        Raises:
+            HTTPException: If validation fails, rate limit exceeded, or update fails
+        """
+        try:
+            user_id = current_user.id
+
+            # Validate permissions and inputs
+            self._check_password_change_rate_limit(user_id)
+            self._validate_password_confirmation(request.new_password, request.confirm_password)
+            self._validate_new_password_requirements(request.new_password)
+
+            # Verify current password
+            self._verify_current_password(current_user.email, request.current_password)
+
+            # Update password
+            self._update_password_in_supabase(current_user.user_id, request.new_password)
+
+            # Reset rate limit on success
+            self._reset_password_change_rate_limit(user_id)
+
+            return ChangePasswordResponse(message="Password updated successfully")
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Error changing password: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=self._format_error_response(f"Failed to change password: {str(e)}"),
             )
