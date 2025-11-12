@@ -33,7 +33,6 @@ class EventCreate(BaseModel):
     status: EventStatus = Field(default="draft")
     registration_form_schema: Optional[dict] = None
     max_capacity: Optional[int] = Field(None, gt=0)
-    thumbnail_url: Optional[str] = None
     image_url: Optional[str] = None
     category: Optional[str] = None
     image_position: Optional[str] = None
@@ -57,7 +56,6 @@ class EventUpdate(BaseModel):
     status: Optional[EventStatus] = None
     registration_form_schema: Optional[dict] = None
     max_capacity: Optional[int] = Field(None, gt=0)
-    thumbnail_url: Optional[str] = None
     image_url: Optional[str] = None
     category: Optional[str] = None
     image_position: Optional[str] = None
@@ -87,7 +85,6 @@ class EventResponse(BaseModel):
     created_by: Optional[UUID] = None
     registration_form_schema: Optional[dict] = None
     max_capacity: Optional[int] = None
-    thumbnail_url: Optional[str] = None
     image_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
