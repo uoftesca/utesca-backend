@@ -15,6 +15,7 @@ from .repository import UserRepository
 
 
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -174,3 +175,51 @@ async def get_current_vp_or_admin(
         )
 
     return current_user
+
+
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+) -> Optional[UserResponse]:
+    """
+    Optional authentication dependency for public endpoints.
+
+    Returns None if no credentials provided, otherwise validates and returns user.
+    This is useful for endpoints that should work both with and without authentication,
+    with different behavior based on authentication status.
+
+    Args:
+        credentials: Optional HTTP Bearer token from Authorization header
+
+    Returns:
+        Optional[UserResponse]: User data if authenticated, None otherwise
+    """
+    if credentials is None:
+        return None
+
+    try:
+        from core.config import get_settings
+        from supabase import create_client
+
+        settings = get_settings()
+        schema = get_schema()
+
+        # Create admin client to verify JWT
+        admin_client = create_client(
+            settings.SUPABASE_URL,
+            settings.SUPABASE_SERVICE_ROLE_KEY
+        )
+
+        # Verify JWT token and get user
+        user_response = admin_client.auth.get_user(credentials.credentials)
+
+        if not user_response or not user_response.user:
+            return None
+
+        # Fetch full user data from users table
+        repository = UserRepository(admin_client, schema)
+        user = repository.get_by_auth_id(UUID(user_response.user.id))
+
+        return user if user else None
+    except Exception:
+        # Gracefully handle any errors by returning None
+        return None

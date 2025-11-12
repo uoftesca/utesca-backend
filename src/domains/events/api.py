@@ -6,11 +6,10 @@ Provides REST API endpoints for event management.
 
 from fastapi import APIRouter, Depends, Query, status, HTTPException
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from uuid import UUID
 
-from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
+from domains.auth.dependencies import get_current_user, get_current_vp_or_admin, get_optional_user
 from domains.auth.models import UserResponse
 from .models import (
     EventCreate,
@@ -25,52 +24,10 @@ from .service import EventService
 # Create router for events domain
 router = APIRouter()
 
-# Security for optional authentication
-optional_security = HTTPBearer(auto_error=False)
-
 
 def get_event_service() -> EventService:
     """Dependency to get EventService instance."""
     return EventService()
-
-
-async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
-) -> Optional[UserResponse]:
-    """
-    Optional authentication dependency for public endpoints.
-
-    Returns None if no credentials provided, otherwise returns user.
-    """
-    if credentials is None:
-        return None
-    try:
-        # Use the regular get_current_user logic but handle errors gracefully
-        from core.config import get_settings
-        from supabase import create_client
-        from core.database import get_schema
-        from domains.auth.repository import UserRepository
-        from uuid import UUID
-
-        settings = get_settings()
-        schema = get_schema()
-
-        admin_client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY
-        )
-
-        user_response = admin_client.auth.get_user(credentials.credentials)
-
-        if not user_response or not user_response.user:
-            return None
-
-        repository = UserRepository(admin_client, schema)
-        user = repository.get_by_auth_id(UUID(user_response.user.id))
-
-        return user if user else None
-    except Exception:
-        return None
 
 
 @router.get("", response_model=EventListResponse)
