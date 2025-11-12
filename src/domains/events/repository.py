@@ -106,7 +106,8 @@ class EventRepository:
             EventResponse: Created event
         """
         # Prepare data for insertion (use by_alias=False to get snake_case for database)
-        insert_data = event_data.model_dump(exclude_none=True, by_alias=False)
+        # Use mode='json' to serialize datetime objects to ISO strings
+        insert_data = event_data.model_dump(mode='json', exclude_none=True, by_alias=False)
         if created_by is not None:
             insert_data["created_by"] = str(created_by)
 
@@ -134,7 +135,8 @@ class EventRepository:
             EventResponse if found and updated, None otherwise
         """
         # Prepare data for update (exclude None values, use by_alias=False to get snake_case for database)
-        update_data = event_data.model_dump(exclude_none=True, by_alias=False)
+        # Use mode='json' to serialize datetime objects to ISO strings
+        update_data = event_data.model_dump(mode='json', exclude_none=True, by_alias=False)
 
         if not update_data:
             # No fields to update
