@@ -67,7 +67,7 @@ class AuthService:
             admin_client = self._get_admin_client()
 
             # Use BASE_URL from environment configuration
-            redirect_to = f"{self.settings.BASE_URL}/accept-invite"
+            redirect_to = f"{self.settings.BASE_URL}"
 
             # Prepare user metadata to be stored in auth.users
             user_metadata = {
