@@ -36,7 +36,7 @@ class EventCreate(BaseModel):
     image_url: Optional[str] = None
     category: Optional[str] = None
     image_position: Optional[str] = None
-    drive_link: Optional[str] = None
+    album_link: Optional[str] = None
     registration_link: Optional[str] = None
 
     model_config = ConfigDict(
@@ -59,7 +59,7 @@ class EventUpdate(BaseModel):
     image_url: Optional[str] = None
     category: Optional[str] = None
     image_position: Optional[str] = None
-    drive_link: Optional[str] = None
+    album_link: Optional[str] = None
     registration_link: Optional[str] = None
 
     model_config = ConfigDict(
@@ -92,7 +92,7 @@ class EventResponse(BaseModel):
     approved_at: Optional[datetime] = None
     category: Optional[str] = None
     image_position: Optional[str] = None
-    drive_link: Optional[str] = None
+    album_link: Optional[str] = None
     registration_link: Optional[str] = None
 
     model_config = ConfigDict(
@@ -126,7 +126,7 @@ class Event(BaseModel):
     registrationLink: Optional[str] = ""
     image: Optional[str] = ""
     imagePosition: Optional[str | int] = "center"
-    driveLink: Optional[str] = ""
+    albumLink: Optional[str] = ""
 
 
 class Store(BaseModel):
