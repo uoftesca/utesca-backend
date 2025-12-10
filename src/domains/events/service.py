@@ -108,6 +108,29 @@ class EventService:
             existing = self.repository.get_by_slug(slug)
         return slug
 
+    # ------------------------------------------------------------------ #
+    # Event operations
+    # ------------------------------------------------------------------ #
+    def get_events(
+        self,
+        status: Optional[EventStatus] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> EventListResponse:
+        """
+        Get all events with optional filtering.
+
+        Args:
+            status: Filter by status
+            limit: Number of records to return
+            offset: Number of records to skip
+
+        Returns:
+            EventListResponse: List of events
+        """
+        events, _ = self.repository.get_all(status=status, limit=limit, offset=offset)
+        return EventListResponse(events=events)
+
     def get_event_by_id(self, event_id: UUID) -> EventResponse:
         """
         Get a single event by ID.
