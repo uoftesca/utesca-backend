@@ -9,7 +9,13 @@ from uuid import UUID
 from datetime import datetime
 from supabase import Client
 
-from .models import EventResponse, EventCreate, EventUpdate, EventStatus
+from .models import (
+    EventResponse,
+    EventCreate,
+    EventUpdate,
+    EventStatus,
+    RegistrationFormSchema,
+)
 
 
 class EventRepository:
@@ -94,6 +100,36 @@ class EventRepository:
 
         return EventResponse(**result.data[0])
 
+    def get_by_slug(self, slug: str) -> Optional[EventResponse]:
+        """
+        Fetch event by slug.
+
+        Args:
+            slug: Event slug
+
+        Returns:
+            EventResponse if found, None otherwise
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("events")
+            .select("*")
+            .eq("slug", slug)
+            .execute()
+        )
+
+        if not result.data:
+            return None
+
+        return EventResponse(**result.data[0])
+
+    # Convenience aliases matching requested naming
+    def get_event_by_id(self, event_id: UUID) -> Optional[EventResponse]:
+        return self.get_by_id(event_id)
+
+    def get_event_by_slug(self, slug: str) -> Optional[EventResponse]:
+        return self.get_by_slug(slug)
+
     def create(self, event_data: EventCreate, created_by: Optional[UUID] = None) -> EventResponse:
         """
         Create a new event.
@@ -153,6 +189,30 @@ class EventRepository:
         if not result.data or len(result.data) == 0:
             return None
 
+        return EventResponse(**result.data[0])
+
+    def update_form_schema(self, event_id: UUID, schema: RegistrationFormSchema) -> Optional[EventResponse]:
+        """
+        Update registration_form_schema for an event.
+
+        Args:
+            event_id: Event UUID
+            schema: RegistrationFormSchema payload
+
+        Returns:
+            EventResponse if updated, None otherwise
+        """
+        update_data = {"registration_form_schema": schema.model_dump(mode="json")}
+        result = (
+            self.client.schema(self.schema)
+            .table("events")
+            .update(update_data)
+            .eq("id", str(event_id))
+            .select("*")
+            .execute()
+        )
+        if not result.data:
+            return None
         return EventResponse(**result.data[0])
 
     def delete(self, event_id: UUID) -> bool:

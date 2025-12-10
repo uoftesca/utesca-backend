@@ -5,20 +5,22 @@ This module handles business logic for event management.
 """
 
 import logging
-from fastapi import HTTPException, status
+import re
 from typing import Optional
 from uuid import UUID
-from supabase import create_client, Client
 
-from core.database import get_schema
+from fastapi import HTTPException, status
+from supabase import Client, create_client
+
 from core.config import get_settings
+from core.database import get_schema
 from utils.google_drive_service import generate_direct_link
 from .models import (
-    EventResponse,
     EventCreate,
-    EventUpdate,
     EventListResponse,
+    EventResponse,
     EventStatus,
+    EventUpdate,
 )
 from .repository import EventRepository
 
@@ -81,25 +83,30 @@ class EventService:
 
         return result.direct_url or url
 
-    def get_events(
-        self,
-        status: Optional[EventStatus] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-    ) -> EventListResponse:
-        """
-        Get all events with optional filtering.
+    # ------------------------------------------------------------------ #
+    # Slug helpers
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _slugify(text: str) -> str:
+        slug = re.sub(r"[^a-zA-Z0-9]+", "-", text.lower())
+        slug = re.sub(r"-+", "-", slug).strip("-")
+        return slug
 
-        Args:
-            status: Filter by status
-            limit: Number of records to return
-            offset: Number of records to skip
+    def _build_slug(self, title: str, event_year: int) -> str:
+        title_with_year = title
+        if str(event_year) not in title:
+            title_with_year = f"{title} {event_year}"
+        return self._slugify(title_with_year)
 
-        Returns:
-            EventListResponse: List of events
-        """
-        events, _ = self.repository.get_all(status=status, limit=limit, offset=offset)
-        return EventListResponse(events=events)
+    def _ensure_unique_slug(self, base_slug: str, current_id: Optional[UUID] = None) -> str:
+        slug = base_slug
+        counter = 1
+        existing = self.repository.get_by_slug(slug)
+        while existing and (current_id is None or existing.id != current_id):
+            counter += 1
+            slug = f"{base_slug}-{counter}"
+            existing = self.repository.get_by_slug(slug)
+        return slug
 
     def get_event_by_id(self, event_id: UUID) -> EventResponse:
         """
@@ -125,18 +132,17 @@ class EventService:
     def create_event(self, event_data: EventCreate, created_by: UUID) -> EventResponse:
         """
         Create a new event.
-
-        Args:
-            event_data: Event creation data
-            created_by: UUID of user creating the event
-
-        Returns:
-            EventResponse: Created event
         """
         try:
-            # Convert Google Drive image URL to direct download link if needed
             if event_data.image_url:
-                event_data.image_url = self._convert_google_drive_url_if_needed(event_data.image_url)
+                event_data.image_url = self._convert_google_drive_url_if_needed(
+                    event_data.image_url
+                )
+
+            if not event_data.slug:
+                year = event_data.date_time.year
+                base_slug = self._build_slug(event_data.title, year)
+                event_data.slug = self._ensure_unique_slug(base_slug)
 
             return self.repository.create(event_data, created_by=created_by)
         except Exception as e:
@@ -148,20 +154,33 @@ class EventService:
     def update_event(self, event_id: UUID, event_data: EventUpdate) -> EventResponse:
         """
         Update an existing event.
-
-        Args:
-            event_id: Event UUID
-            event_data: Event update data
-
-        Returns:
-            EventResponse: Updated event
-
-        Raises:
-            HTTPException: If event not found
         """
-        # Convert Google Drive image URL to direct download link if needed
         if event_data.image_url:
-            event_data.image_url = self._convert_google_drive_url_if_needed(event_data.image_url)
+            event_data.image_url = self._convert_google_drive_url_if_needed(
+                event_data.image_url
+            )
+
+        current = self.repository.get_by_id(event_id)
+        if not current:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event with id {event_id} not found",
+            )
+
+        new_title = event_data.title or current.title
+        new_date = event_data.date_time or current.date_time
+
+        desired_slug = event_data.slug
+        if not desired_slug:
+            base_slug = self._build_slug(new_title, new_date.year)
+            desired_slug = base_slug
+
+        if desired_slug != current.slug:
+            desired_slug = self._ensure_unique_slug(desired_slug, current_id=current.id)
+        else:
+            desired_slug = current.slug
+
+        event_data.slug = desired_slug
 
         event = self.repository.update(event_id, event_data)
         if not event:

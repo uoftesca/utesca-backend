@@ -6,7 +6,7 @@ Pydantic models for event-related data structures.
 
 from pydantic import BaseModel, Field, ConfigDict
 from pydantic.alias_generators import to_camel
-from typing import List, Optional, Literal
+from typing import Any, List, Optional, Literal
 from datetime import datetime
 from uuid import UUID
 
@@ -18,6 +18,18 @@ from uuid import UUID
 EventStatus = Literal["draft", "pending_approval", "sent_back", "published"]
 
 
+class RegistrationFormSchema(BaseModel):
+    """Schema definition for dynamic registration form."""
+
+    auto_accept: bool = False
+    fields: List[dict] = Field(default_factory=list)
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
 # ============================================================================
 # Request Models
 # ============================================================================
@@ -25,13 +37,14 @@ EventStatus = Literal["draft", "pending_approval", "sent_back", "published"]
 class EventCreate(BaseModel):
     """Request to create a new event."""
 
+    slug: Optional[str] = Field(None, min_length=1)
     title: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     date_time: datetime
     location: Optional[str] = Field(None, max_length=255)
     registration_deadline: Optional[datetime] = None
     status: EventStatus = Field(default="draft")
-    registration_form_schema: Optional[dict] = None
+    registration_form_schema: Optional[RegistrationFormSchema] = None
     max_capacity: Optional[int] = Field(None, gt=0)
     image_url: Optional[str] = None
     category: Optional[str] = None
@@ -48,13 +61,14 @@ class EventCreate(BaseModel):
 class EventUpdate(BaseModel):
     """Request to update an event (all fields optional)."""
 
+    slug: Optional[str] = Field(None, min_length=1)
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     date_time: Optional[datetime] = None
     location: Optional[str] = Field(None, max_length=255)
     registration_deadline: Optional[datetime] = None
     status: Optional[EventStatus] = None
-    registration_form_schema: Optional[dict] = None
+    registration_form_schema: Optional[RegistrationFormSchema] = None
     max_capacity: Optional[int] = Field(None, gt=0)
     image_url: Optional[str] = None
     category: Optional[str] = None
@@ -76,6 +90,7 @@ class EventResponse(BaseModel):
     """Event response model with all fields."""
 
     id: UUID
+    slug: str
     title: str
     description: Optional[str] = None
     date_time: datetime
@@ -83,7 +98,7 @@ class EventResponse(BaseModel):
     registration_deadline: Optional[datetime] = None
     status: EventStatus
     created_by: Optional[UUID] = None
-    registration_form_schema: Optional[dict] = None
+    registration_form_schema: Optional[RegistrationFormSchema] = None
     max_capacity: Optional[int] = None
     image_url: Optional[str] = None
     created_at: datetime
