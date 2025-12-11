@@ -35,8 +35,7 @@ class RegistrationsRepository:
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .insert(insert_data)
-            .select("*")
+            .insert(insert_data, returning="representation")
             .execute()
         )
 
@@ -121,9 +120,8 @@ class RegistrationsRepository:
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .update(update_data)
+            .update(update_data, returning="representation")
             .eq("id", str(registration_id))
-            .select("*")
             .execute()
         )
 
@@ -139,11 +137,11 @@ class RegistrationsRepository:
                 {
                     "status": "confirmed",
                     "confirmed_at": confirmed_at.isoformat(),
-                }
+                },
+                returning="representation",
             )
             .eq("rsvp_token", token)
             .eq("status", "accepted")
-            .select("*")
             .execute()
         )
         if not result.data:
