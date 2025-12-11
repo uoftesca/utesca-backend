@@ -40,8 +40,7 @@ class RegistrationFilesRepository:
         result = (
             self.client.schema(self.schema)
             .table("registration_files")
-            .insert(data)
-            .select("*")
+            .insert(data, returning="representation")
             .execute()
         )
         if not result.data:
@@ -96,7 +95,7 @@ class RegistrationFilesRepository:
         result = (
             self.client.schema(self.schema)
             .table("registration_files")
-            .update(update_data)
+            .update(update_data, returning="representation")
             .eq("upload_session_id", upload_session_id)
             .execute()
         )
