@@ -15,6 +15,7 @@ from .files_repository import RegistrationFilesRepository
 from .models import FileUploadRequest, RegistrationCreateRequest
 from .repository import RegistrationsRepository
 from .service import RegistrationService
+from utils.rate_limit import rate_limit
 
 router = APIRouter()
 
@@ -45,7 +46,11 @@ def get_registration_service() -> RegistrationService:
     "/events/{slug}/upload-file",
     status_code=status.HTTP_200_OK,
 )
-async def upload_file(slug: str, payload: FileUploadRequest):
+async def upload_file(
+    slug: str,
+    payload: FileUploadRequest,
+    _rl: None = Depends(rate_limit("public_upload_file", limit=10, window_seconds=60)),
+):
     events_repo, files_repo, _ = get_repos()
     event = events_repo.get_by_slug(slug)
     if not event:
@@ -82,6 +87,7 @@ async def register(
     slug: str,
     payload: RegistrationCreateRequest,
     service: RegistrationService = Depends(get_registration_service),
+    _rl: None = Depends(rate_limit("public_register", limit=5, window_seconds=60)),
 ):
     registration = service.submit_registration(
         event_slug=slug,
@@ -99,7 +105,10 @@ async def register(
     "/rsvp/{token}",
     status_code=status.HTTP_200_OK,
 )
-async def rsvp_details(token: str):
+async def rsvp_details(
+    token: str,
+    _rl: None = Depends(rate_limit("public_rsvp_view", limit=20, window_seconds=60)),
+):
     events_repo, _, regs_repo = get_repos()
     registration = regs_repo.get_registration_by_rsvp_token(token)
     if not registration:
@@ -132,7 +141,11 @@ async def rsvp_details(token: str):
     "/rsvp/{token}/confirm",
     status_code=status.HTTP_200_OK,
 )
-async def confirm_rsvp(token: str, service: RegistrationService = Depends(get_registration_service)):
+async def confirm_rsvp(
+    token: str,
+    service: RegistrationService = Depends(get_registration_service),
+    _rl: None = Depends(rate_limit("public_rsvp_confirm", limit=10, window_seconds=60)),
+):
     registration = service.confirm_rsvp(token)
     events_repo, _, _ = get_repos()
     event = events_repo.get_by_id(UUID(str(registration.event_id)))
