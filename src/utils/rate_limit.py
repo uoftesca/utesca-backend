@@ -17,6 +17,16 @@ from starlette.requests import Request
 _requests: Dict[Tuple[str, str], Deque[float]] = {}
 
 
+def reset_rate_limits(bucket: str | None = None) -> None:
+    """Testing/helper utility to clear stored counters."""
+    if bucket is None:
+        _requests.clear()
+        return
+    to_delete = [key for key in _requests if key[1] == bucket]
+    for key in to_delete:
+        _requests.pop(key, None)
+
+
 def rate_limit(bucket: str, limit: int, window_seconds: int = 60):
     """
     Dependency factory for rate limiting.
