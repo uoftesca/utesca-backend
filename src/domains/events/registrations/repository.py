@@ -101,6 +101,19 @@ class RegistrationsRepository:
         registrations = [RegistrationResponse.model_validate(item) for item in result.data or []]
         return registrations, total
 
+    def count_by_event(self, event_id: UUID) -> int:
+        """
+        Return the total number of registrations for an event.
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("id", count="exact")
+            .eq("event_id", str(event_id))
+            .execute()
+        )
+        return result.count or 0
+
     def update_status(
         self,
         registration_id: UUID,

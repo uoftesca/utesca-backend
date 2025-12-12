@@ -185,6 +185,22 @@ class RegistrationService:
                 detail="Registration deadline has passed for this event.",
             )
 
+    def _disable_auto_accept_if_capacity_reached(
+        self, event, form_schema: RegistrationFormSchema
+    ) -> None:
+        """
+        When capacity is reached, flip auto_accept off so future submissions are reviewed.
+        """
+        if not event.max_capacity:
+            return
+        if not form_schema.auto_accept:
+            return
+
+        registration_count = self.reg_repo.count_by_event(event.id)
+        if registration_count >= event.max_capacity:
+            updated_schema = form_schema.model_copy(update={"auto_accept": False})
+            self.events_repo.update_form_schema(event.id, updated_schema)
+
     def submit_registration(
         self, event_slug: str, form_data: Dict[str, Any], upload_session_id: str
     ) -> RegistrationResponse:
@@ -224,6 +240,8 @@ class RegistrationService:
             registration_id=registration.id,
             event_date=event.date_time,
         )
+
+        self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
 
         return registration
 
