@@ -67,6 +67,28 @@ class RegistrationFilesRepository:
         )
         return [FileMeta.model_validate(item) for item in result.data or []]
 
+    def get_file_by_id(self, file_id: UUID) -> Optional[FileMeta]:
+        result = (
+            self.client.schema(self.schema)
+            .table("registration_files")
+            .select("*")
+            .eq("id", str(file_id))
+            .execute()
+        )
+        if not result.data:
+            return None
+        return FileMeta.model_validate(result.data[0])
+
+    def delete_file_by_id(self, file_id: UUID) -> bool:
+        result = (
+            self.client.schema(self.schema)
+            .table("registration_files")
+            .delete()
+            .eq("id", str(file_id))
+            .execute()
+        )
+        return bool(result.data)
+
     def get_file_for_field(
         self, upload_session_id: str, field_name: str, event_id: UUID
     ) -> List[FileMeta]:

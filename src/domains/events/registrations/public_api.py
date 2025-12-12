@@ -2,40 +2,23 @@
 Public-facing registration endpoints.
 """
 
-from typing import Dict
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from supabase import Client, create_client
+from fastapi import APIRouter, Depends, status
 
-from core.config import get_settings
-from core.database import get_schema
-from domains.events.repository import EventRepository
-from .files_repository import RegistrationFilesRepository
-from .models import FileUploadRequest, RegistrationCreateRequest
-from .repository import RegistrationsRepository
+from .models import (
+    FileDeleteRequest,
+    FileDeleteResponse,
+    FileUploadRequest,
+    FileUploadResponse,
+    RegistrationCreateRequest,
+    RsvpConfirmResponse,
+    RsvpDetailsResponse,
+)
 from .service import RegistrationService
 from utils.rate_limit import rate_limit
 
 router = APIRouter()
-
-MAX_FILE_SIZE = 2_097_152  # 2MB
-ALLOWED_TYPES = {"application/pdf"}
-
-
-def get_admin_client() -> Client:
-    settings = get_settings()
-    return create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
-
-
-def get_repos():
-    client = get_admin_client()
-    schema = get_schema()
-    return (
-        EventRepository(client, schema),
-        RegistrationFilesRepository(client, schema),
-        RegistrationsRepository(client, schema),
-    )
 
 
 def get_registration_service() -> RegistrationService:
@@ -45,38 +28,47 @@ def get_registration_service() -> RegistrationService:
 @router.post(
     "/events/{slug}/upload-file",
     status_code=status.HTTP_200_OK,
+    response_model=FileUploadResponse,
 )
 async def upload_file(
     slug: str,
     payload: FileUploadRequest,
     _rl: None = Depends(rate_limit("public_upload_file", limit=10, window_seconds=60)),
+    service: RegistrationService = Depends(get_registration_service),
 ):
-    events_repo, files_repo, _ = get_repos()
-    event = events_repo.get_by_slug(slug)
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    created = service.upload_file(event_slug=slug, payload=payload)
+    return FileUploadResponse(success=True, file_id=created.id)
 
-    if payload.file_size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File too large. Maximum size is 2MB.",
-        )
-    if payload.mime_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF files are allowed.",
-        )
 
-    created = files_repo.create_file_record(
-        event_id=event.id,
-        field_name=payload.field_name,
-        file_url=payload.file_url,
-        file_name=payload.file_name,
-        file_size=payload.file_size,
-        mime_type=payload.mime_type,
-        upload_session_id=payload.upload_session_id,
+@router.delete(
+    "/events/{slug}/upload-file/{file_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=FileDeleteResponse,
+)
+async def delete_file(
+    slug: str,
+    file_id: UUID,
+    body: FileDeleteRequest,
+    _rl: None = Depends(rate_limit("public_upload_file", limit=10, window_seconds=60)),
+    service: RegistrationService = Depends(get_registration_service),
+):
+    """
+    Delete an uploaded file before registration submission.
+
+    Body must include:
+    - upload_session_id: str
+    - field_name: str
+    """
+    upload_session_id = body.upload_session_id
+    field_name = body.field_name
+
+    service.delete_uploaded_file(
+        event_slug=slug,
+        file_id=file_id,
+        upload_session_id=upload_session_id,
+        field_name=field_name,
     )
-    return {"success": True, "file_id": str(created.id)}
+    return FileDeleteResponse(success=True)
 
 
 @router.post(
@@ -104,23 +96,14 @@ async def register(
 @router.get(
     "/rsvp/{token}",
     status_code=status.HTTP_200_OK,
+    response_model=RsvpDetailsResponse,
 )
 async def rsvp_details(
     token: str,
     _rl: None = Depends(rate_limit("public_rsvp_view", limit=20, window_seconds=60)),
+    service: RegistrationService = Depends(get_registration_service),
 ):
-    events_repo, _, regs_repo = get_repos()
-    registration = regs_repo.get_registration_by_rsvp_token(token)
-    if not registration:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid RSVP token")
-    if registration.status not in ("accepted", "confirmed"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Registration is not eligible for confirmation",
-        )
-    event = events_repo.get_by_id(UUID(str(registration.event_id)))
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    registration, event = service.rsvp_details(token)
     return {
         "event": {
             "title": event.title,
@@ -140,15 +123,14 @@ async def rsvp_details(
 @router.post(
     "/rsvp/{token}/confirm",
     status_code=status.HTTP_200_OK,
+    response_model=RsvpConfirmResponse,
 )
 async def confirm_rsvp(
     token: str,
     service: RegistrationService = Depends(get_registration_service),
     _rl: None = Depends(rate_limit("public_rsvp_confirm", limit=10, window_seconds=60)),
 ):
-    registration = service.confirm_rsvp(token)
-    events_repo, _, _ = get_repos()
-    event = events_repo.get_by_id(UUID(str(registration.event_id)))
+    _, event = service.rsvp_confirm(token)
     return {
         "success": True,
         "message": "Attendance confirmed! We look forward to seeing you.",
