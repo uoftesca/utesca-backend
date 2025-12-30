@@ -208,7 +208,6 @@ class EventRepository:
             .table("events")
             .update(update_data)
             .eq("id", str(event_id))
-            .select("*")
             .execute()
         )
         if not result.data:

@@ -180,3 +180,63 @@ class FileUploadRequest(BaseModel):
         populate_by_name=True,
     )
 
+class FileUploadResponse(BaseModel):
+    """Response after uploading a file."""
+
+    success: bool
+    file_id: UUID
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class FileDeleteRequest(BaseModel):
+    """Payload for deleting a pre-submission upload."""
+
+    upload_session_id: str
+    field_name: str
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class FileDeleteResponse(BaseModel):
+    """Response after deleting a file."""
+
+    success: bool
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class RsvpDetailsResponse(BaseModel):
+    """Response for viewing RSVP details."""
+
+    event: dict
+    registration: dict
+    already_confirmed: bool
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class RsvpConfirmResponse(BaseModel):
+    """Response after confirming RSVP."""
+
+    success: bool
+    message: str
+    event: dict
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+

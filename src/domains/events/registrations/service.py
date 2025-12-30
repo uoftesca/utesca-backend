@@ -11,7 +11,6 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from supabase import Client, create_client
-
 from core.config import get_settings
 from core.database import get_schema
 from ..models import RegistrationFormSchema
@@ -24,6 +23,7 @@ from .models import (
     RegistrationResponse,
     RegistrationStatus,
     RegistrationWithFilesResponse,
+    FileUploadRequest,
 )
 from .repository import RegistrationsRepository
 
@@ -34,6 +34,9 @@ REGISTRATION_NOT_FOUND = "Registration not found"
 class RegistrationService:
     """Service layer for handling registration lifecycle."""
 
+    MAX_FILE_SIZE = 2_097_152  # 2MB
+    ALLOWED_TYPES = {"application/pdf"}
+
     def __init__(self):
         settings = get_settings()
         self.schema = get_schema()
@@ -43,7 +46,6 @@ class RegistrationService:
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.reg_repo = RegistrationsRepository(self.supabase, self.schema)
         self.files_repo = RegistrationFilesRepository(self.supabase, self.schema)
-
     # -------------------------------------------------------------------------
     # Validation helpers
     # -------------------------------------------------------------------------
@@ -183,6 +185,22 @@ class RegistrationService:
                 detail="Registration deadline has passed for this event.",
             )
 
+    def _disable_auto_accept_if_capacity_reached(
+        self, event, form_schema: RegistrationFormSchema
+    ) -> None:
+        """
+        When capacity is reached, flip auto_accept off so future submissions are reviewed.
+        """
+        if not event.max_capacity:
+            return
+        if not form_schema.auto_accept:
+            return
+
+        registration_count = self.reg_repo.count_by_event(event.id)
+        if registration_count >= event.max_capacity:
+            updated_schema = form_schema.model_copy(update={"auto_accept": False})
+            self.events_repo.update_form_schema(event.id, updated_schema)
+
     def submit_registration(
         self, event_slug: str, form_data: Dict[str, Any], upload_session_id: str
     ) -> RegistrationResponse:
@@ -223,7 +241,84 @@ class RegistrationService:
             event_date=event.date_time,
         )
 
+        self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
+
         return registration
+
+    def upload_file(self, event_slug: str, payload: FileUploadRequest) -> FileMeta:
+        event = self._get_event_or_404(event_slug)
+
+        if payload.file_size > self.MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File too large. Maximum size is 2MB.",
+            )
+        if payload.mime_type not in self.ALLOWED_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only PDF files are allowed.",
+            )
+
+        created = self.files_repo.create_file_record(
+            event_id=event.id,
+            field_name=payload.field_name,
+            file_url=payload.file_url,
+            file_name=payload.file_name,
+            file_size=payload.file_size,
+            mime_type=payload.mime_type,
+            upload_session_id=payload.upload_session_id,
+        )
+        return created
+
+    def delete_uploaded_file(
+        self, event_slug: str, file_id: UUID, upload_session_id: str, field_name: str
+    ) -> None:
+        event = self._get_event_or_404(event_slug)
+        file_meta = self.files_repo.get_file_by_id(file_id)
+        if not file_meta:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        if str(file_meta.event_id) != str(event.id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File event mismatch")
+        if file_meta.upload_session_id != upload_session_id or file_meta.field_name != field_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File does not match session or field",
+            )
+
+        self.files_repo.delete_file_by_id(file_id)
+
+    def rsvp_details(self, token: str):
+        registration = self.reg_repo.get_registration_by_rsvp_token(token)
+        if not registration:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid RSVP token"
+            )
+        if registration.status not in ("accepted", "confirmed"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration is not eligible for confirmation",
+            )
+        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
+        if not event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Event not found"
+            )
+        return registration, event
+
+    def rsvp_confirm(self, token: str):
+        registration = self.reg_repo.get_registration_by_rsvp_token(token)
+        if not registration:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid RSVP token"
+            )
+        if registration.status not in ("accepted", "confirmed"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration is not eligible for confirmation",
+            )
+        updated = self.confirm_rsvp(token)
+        event = self.events_repo.get_by_id(UUID(str(updated.event_id)))
+        return updated, event
 
     def accept_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)

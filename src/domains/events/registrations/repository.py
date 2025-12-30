@@ -35,8 +35,7 @@ class RegistrationsRepository:
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .insert(insert_data)
-            .select("*")
+            .insert(insert_data, returning="representation")
             .execute()
         )
 
@@ -102,6 +101,19 @@ class RegistrationsRepository:
         registrations = [RegistrationResponse.model_validate(item) for item in result.data or []]
         return registrations, total
 
+    def count_by_event(self, event_id: UUID) -> int:
+        """
+        Return the total number of registrations for an event.
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("id", count="exact")
+            .eq("event_id", str(event_id))
+            .execute()
+        )
+        return result.count or 0
+
     def update_status(
         self,
         registration_id: UUID,
@@ -121,9 +133,8 @@ class RegistrationsRepository:
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .update(update_data)
+            .update(update_data, returning="representation")
             .eq("id", str(registration_id))
-            .select("*")
             .execute()
         )
 
@@ -139,63 +150,15 @@ class RegistrationsRepository:
                 {
                     "status": "confirmed",
                     "confirmed_at": confirmed_at.isoformat(),
-                }
+                },
+                returning="representation",
             )
             .eq("rsvp_token", token)
             .eq("status", "accepted")
-            .select("*")
             .execute()
         )
         if not result.data:
             return None
         return RegistrationResponse.model_validate(result.data[0])
 
-    def check_in(
-        self, registration_id: UUID, checked_in_by: UUID, checked_in_at: datetime
-    ) -> Optional[RegistrationResponse]:
-        result = (
-            self.client.schema(self.schema)
-            .table("event_registrations")
-            .update(
-                {
-                    "checked_in": True,
-                    "checked_in_at": checked_in_at.isoformat(),
-                    "checked_in_by": str(checked_in_by),
-                }
-            )
-            .eq("id", str(registration_id))
-            .in_("status", ["accepted", "confirmed"])
-            .eq("checked_in", False)
-            .select("*")
-            .execute()
-        )
-        if not result.data:
-            return None
-        return RegistrationResponse.model_validate(result.data[0])
-
-    def bulk_check_in(
-        self, registration_ids: List[UUID], checked_in_by: UUID, checked_in_at: datetime
-    ) -> List[RegistrationResponse]:
-        if not registration_ids:
-            return []
-
-        id_strings = [str(rid) for rid in registration_ids]
-        result = (
-            self.client.schema(self.schema)
-            .table("event_registrations")
-            .update(
-                {
-                    "checked_in": True,
-                    "checked_in_at": checked_in_at.isoformat(),
-                    "checked_in_by": str(checked_in_by),
-                }
-            )
-            .in_("id", id_strings)
-            .in_("status", ["accepted", "confirmed"])
-            .eq("checked_in", False)
-            .select("*")
-            .execute()
-        )
-
-        return [RegistrationResponse.model_validate(item) for item in result.data or []]
 
