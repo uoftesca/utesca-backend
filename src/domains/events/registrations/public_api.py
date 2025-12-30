@@ -96,10 +96,17 @@ async def register(
         event=event,
     )
 
+    # Determine response message based on registration status
+    message = (
+        "Registration confirmed! Check your email for next steps to confirm your attendance."
+        if registration.status == "accepted"
+        else "Registration submitted! Check your email for confirmation and updates. We'll review your application and be in touch soon."
+    )
+
     return {
         "success": True,
         "registration_id": str(registration.id),
-        "message": "Registration submitted successfully. We'll review your application and be in touch soon!",
+        "message": message,
     }
 
 
