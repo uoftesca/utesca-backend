@@ -4,7 +4,7 @@ Public-facing registration endpoints.
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from .models import (
     FileDeleteRequest,
@@ -78,6 +78,7 @@ async def delete_file(
 async def register(
     slug: str,
     payload: RegistrationCreateRequest,
+    background_tasks: BackgroundTasks,
     service: RegistrationService = Depends(get_registration_service),
     _rl: None = Depends(rate_limit("public_register", limit=5, window_seconds=60)),
 ):
@@ -86,6 +87,15 @@ async def register(
         form_data=payload.form_data,
         upload_session_id=payload.upload_session_id,
     )
+
+    # Queue email to send after response
+    event = service._get_event_or_404(slug)
+    background_tasks.add_task(
+        service.send_confirmation_email,
+        registration=registration,
+        event=event,
+    )
+
     return {
         "success": True,
         "registration_id": str(registration.id),
