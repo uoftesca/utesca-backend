@@ -245,6 +245,113 @@ class RegistrationService:
 
         return registration
 
+    def _extract_name(self, form_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Extract user's name from form data with fallback logic.
+
+        Tries in order: full_name → first_name + last_name → None
+
+        Args:
+            form_data: Form submission data
+
+        Returns:
+            User's name or None if no name fields found
+        """
+        # Try full_name first
+        if full_name := form_data.get("full_name"):
+            return full_name.strip()
+
+        # Try first_name + last_name
+        first = form_data.get("first_name", "").strip()
+        last = form_data.get("last_name", "").strip()
+        if first or last:
+            return f"{first} {last}".strip()
+
+        # No name found
+        return None
+
+    def send_confirmation_email(self, registration: RegistrationResponse, event) -> None:
+        """
+        Send confirmation email after successful registration.
+
+        Email sending failures are logged but do not block registration.
+        This method is called as a background task.
+
+        Args:
+            registration: The created registration
+            event: The event object
+        """
+        from core.email import EmailService
+        from utils.timezone import format_datetime_toronto
+        from core.config import get_settings
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Extract email from form_data
+            email = registration.form_data.get("email")
+            if not email:
+                logger.warning(
+                    f"No email found in form_data for registration {registration.id}. "
+                    "Skipping confirmation email."
+                )
+                return
+
+            # Extract user's name (with fallback)
+            full_name = self._extract_name(registration.form_data)
+
+            # Format event datetime to Toronto timezone
+            event_datetime_str = format_datetime_toronto(event.date_time)
+
+            # Get base URL from settings
+            settings = get_settings()
+            base_url = settings.BASE_URL
+
+            # Initialize email service
+            email_service = EmailService()
+
+            # Determine if auto-accepted
+            auto_accept = registration.status == "accepted"
+
+            # Send appropriate email based on auto_accept
+            if auto_accept:
+                success = email_service.send_registration_confirmation(
+                    to=email,
+                    full_name=full_name,
+                    event_title=event.title,
+                    event_datetime=event_datetime_str,
+                    event_location=event.location or "TBA",
+                    rsvp_token=registration.rsvp_token,
+                    base_url=base_url,
+                )
+            else:
+                success = email_service.send_application_received(
+                    to=email,
+                    full_name=full_name,
+                    event_title=event.title,
+                    event_datetime=event_datetime_str,
+                    event_location=event.location or "TBA",
+                )
+
+            if success:
+                logger.info(
+                    f"Confirmation email sent successfully for registration {registration.id} "
+                    f"to {email}"
+                )
+            else:
+                logger.warning(
+                    f"Failed to send confirmation email for registration {registration.id} "
+                    f"to {email}"
+                )
+
+        except Exception as e:
+            # Log but don't raise - email failures should not block registration
+            logger.error(
+                f"Error sending confirmation email for registration {registration.id}: {str(e)}",
+                exc_info=True,
+            )
+
     def upload_file(self, event_slug: str, payload: FileUploadRequest) -> FileMeta:
         event = self._get_event_or_404(event_slug)
 

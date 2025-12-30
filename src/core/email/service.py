@@ -1,0 +1,130 @@
+"""
+Email service for sending transactional emails via Resend.
+"""
+
+import logging
+from typing import Optional
+import resend
+from core.config import get_settings
+from .templates import build_confirmation_email, build_application_received_email
+
+logger = logging.getLogger(__name__)
+
+
+class EmailService:
+    """Service for sending emails using Resend API."""
+
+    def __init__(self):
+        settings = get_settings()
+        self.api_key = settings.RESEND_API_KEY
+        self.from_email = "UofT Engineering Students Consulting Association <noreply@updates.utesca.ca>"
+        self.reply_to = "uoft.esca@gmail.com"
+
+        resend.api_key = self.api_key
+
+    def send_email(
+        self,
+        to: str,
+        subject: str,
+        html_body: str,
+        text_body: Optional[str] = None,
+    ) -> bool:
+        """
+        Send an email using Resend.
+
+        Args:
+            to: Recipient email address
+            subject: Email subject line
+            html_body: HTML email content
+            text_body: Plain text fallback (optional)
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        try:
+            params = {
+                "from": self.from_email,
+                "to": [to],
+                "subject": subject,
+                "html": html_body,
+                "reply_to": self.reply_to,
+            }
+
+            if text_body:
+                params["text"] = text_body
+
+            response = resend.Emails.send(params)
+            logger.info(f"Email sent successfully to {to}. ID: {response.get('id')}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send email to {to}: {str(e)}", exc_info=True)
+            return False
+
+    def send_registration_confirmation(
+        self,
+        to: str,
+        full_name: Optional[str],
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+        rsvp_token: str,
+        base_url: str,
+    ) -> bool:
+        """
+        Send confirmation email for auto-accepted registration.
+
+        Args:
+            to: Recipient email
+            full_name: Registrant's name (None if not available)
+            event_title: Event title
+            event_datetime: Formatted datetime string (Toronto time)
+            event_location: Event location
+            rsvp_token: RSVP confirmation token
+            base_url: Base URL for RSVP link
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        subject = f"Registration Confirmed: {event_title}"
+        html_body, text_body = build_confirmation_email(
+            full_name=full_name,
+            event_title=event_title,
+            event_datetime=event_datetime,
+            event_location=event_location,
+            rsvp_token=rsvp_token,
+            base_url=base_url,
+        )
+
+        return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)
+
+    def send_application_received(
+        self,
+        to: str,
+        full_name: Optional[str],
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+    ) -> bool:
+        """
+        Send application received email for manual review registrations.
+
+        Args:
+            to: Recipient email
+            full_name: Registrant's name (None if not available)
+            event_title: Event title
+            event_datetime: Formatted datetime string (Toronto time)
+            event_location: Event location
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        subject = f"Application Received: {event_title}"
+        html_body, text_body = build_application_received_email(
+            full_name=full_name,
+            event_title=event_title,
+            event_datetime=event_datetime,
+            event_location=event_location,
+        )
+
+        return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)

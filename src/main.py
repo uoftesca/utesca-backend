@@ -16,8 +16,14 @@ from contextlib import asynccontextmanager
 from core.config import get_settings
 from core.database import get_supabase_client, get_schema
 from api.v1.router import api_router
+import logging
 
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Get settings instance
 settings = get_settings()
