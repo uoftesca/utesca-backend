@@ -91,7 +91,7 @@ class EmailService:
         Returns:
             True if sent successfully, False otherwise
         """
-        subject = f"Registration Confirmed: {event_title}"
+        subject = f"Registration Received: {event_title}"
         html_body, text_body = build_confirmation_email(
             full_name=full_name,
             event_title=event_title,

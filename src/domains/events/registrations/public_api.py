@@ -15,6 +15,8 @@ from .models import (
     RsvpConfirmResponse,
     RsvpDeclineResponse,
     RsvpDetailsByIdResponse,
+    RsvpEventDetails,
+    RsvpRegistrationDetails,
 )
 from .service import RegistrationService
 from utils.rate_limit import rate_limit
@@ -128,24 +130,24 @@ async def rsvp_details(
     Only accessible for registrations with status in ['accepted', 'confirmed', 'not_attending'].
     """
     registration, event, metadata = service.rsvp_details(registration_id)
-    return {
-        "event": {
-            "title": event.title,
-            "date_time": event.date_time,
-            "location": event.location,
-            "description": event.description,
-        },
-        "registration": {
-            "status": registration.status,
-            "submitted_at": registration.submitted_at,
-            "confirmed_at": registration.confirmed_at,
-        },
-        "current_status": metadata["current_status"],
-        "can_confirm": metadata["can_confirm"],
-        "can_decline": metadata["can_decline"],
-        "is_final": metadata["is_final"],
-        "event_has_passed": metadata["event_has_passed"],
-    }
+    return RsvpDetailsByIdResponse(
+        event=RsvpEventDetails(
+            title=event.title,
+            date_time=event.date_time,
+            location=event.location,
+            description=event.description,
+        ),
+        registration=RsvpRegistrationDetails(
+            status=registration.status,
+            submitted_at=registration.submitted_at,
+            confirmed_at=registration.confirmed_at,
+        ),
+        current_status=metadata["current_status"],
+        can_confirm=metadata["can_confirm"],
+        can_decline=metadata["can_decline"],
+        is_final=metadata["is_final"],
+        event_has_passed=metadata["event_has_passed"],
+    )
 
 
 @router.post(
@@ -176,15 +178,16 @@ async def confirm_rsvp(
             event=event,
         )
 
-    return {
-        "success": True,
-        "message": "Attendance confirmed! We look forward to seeing you.",
-        "event": {
-            "title": event.title if event else None,
-            "date_time": event.date_time if event else None,
-            "location": event.location if event else None,
-        },
-    }
+    return RsvpConfirmResponse(
+        success=True,
+        message="Attendance confirmed! We look forward to seeing you.",
+        event=RsvpEventDetails(
+            title=event.title if event else "",
+            date_time=event.date_time if event else None,
+            location=event.location if event else None,
+            description=event.description if event else None,
+        ),
+    )
 
 
 @router.post(
@@ -216,9 +219,9 @@ async def decline_rsvp(
             event=event,
         )
 
-    return {
-        "success": True,
-        "message": f"You are no longer attending {event.title if event else 'this event'}. We have received your RSVP response. This change is final.",
-        "final": True,
-    }
+    return RsvpDeclineResponse(
+        success=True,
+        message=f"You are no longer attending {event.title if event else 'this event'}. We have received your RSVP response. This change is final.",
+        final=True,
+    )
 

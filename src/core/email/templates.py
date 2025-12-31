@@ -68,7 +68,7 @@ def build_confirmation_email(
                             </p>
 
                             <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
-                                Your registration for <strong>{event_title}</strong> has been confirmed! We're excited to see you there.
+                                Your registration for <strong>{event_title}</strong> has been received! We're excited to see you there.
                             </p>
 
                             <!-- Event Details Box -->
@@ -132,7 +132,7 @@ def build_confirmation_email(
     # Plain text version
     text_body = f"""{greeting}
 
-Your registration for {event_title} has been confirmed! We're excited to see you there.
+Your registration for {event_title} has been received! We're excited to see you there.
 
 EVENT DETAILS
 -------------

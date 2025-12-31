@@ -228,12 +228,39 @@ class RsvpDetailsResponse(BaseModel):
     )
 
 
+class RsvpEventDetails(BaseModel):
+    """Event details for RSVP response."""
+
+    title: str
+    date_time: datetime | None
+    location: str | None
+    description: str | None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class RsvpRegistrationDetails(BaseModel):
+    """Registration details for RSVP response."""
+
+    status: RegistrationStatus
+    submitted_at: datetime
+    confirmed_at: datetime | None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
 class RsvpConfirmResponse(BaseModel):
     """Response after confirming RSVP."""
 
     success: bool
     message: str
-    event: dict
+    event: RsvpEventDetails
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -257,8 +284,8 @@ class RsvpDeclineResponse(BaseModel):
 class RsvpDetailsByIdResponse(BaseModel):
     """Response for viewing RSVP details by registration ID."""
 
-    event: dict
-    registration: dict
+    event: RsvpEventDetails
+    registration: RsvpRegistrationDetails
     current_status: RegistrationStatus
     can_confirm: bool  # Can user confirm attendance?
     can_decline: bool  # Can user decline?
