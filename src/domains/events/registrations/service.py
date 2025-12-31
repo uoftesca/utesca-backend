@@ -250,7 +250,8 @@ class RegistrationService:
         """
         Extract user's name from form data with fallback logic.
 
-        Tries in order: full_name → first_name + last_name → None
+        Tries in order: fullName → firstName + lastName → None
+        (Supports legacy snake_case for backward compatibility)
 
         Args:
             form_data: Form submission data
@@ -258,13 +259,27 @@ class RegistrationService:
         Returns:
             User's name or None if no name fields found
         """
-        # Try full_name first
+        # Try fullName first (new standard)
+        if full_name := form_data.get("fullName"):
+            return full_name.strip()
+
+        # Legacy fallback for snake_case
         if full_name := form_data.get("full_name"):
             return full_name.strip()
 
-        # Try first_name + last_name
-        first = form_data.get("first_name", "").strip()
-        last = form_data.get("last_name", "").strip()
+        # Try firstName + lastName (new standard)
+        first = form_data.get("firstName", "")
+        last = form_data.get("lastName", "")
+
+        # Legacy fallback for snake_case
+        if not first:
+            first = form_data.get("first_name", "")
+        if not last:
+            last = form_data.get("last_name", "")
+
+        first = first.strip()
+        last = last.strip()
+
         if first or last:
             return f"{first} {last}".strip()
 

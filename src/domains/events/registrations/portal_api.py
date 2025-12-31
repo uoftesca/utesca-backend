@@ -119,7 +119,7 @@ async def export_registrations(
                 "Confirmed At": reg.confirmed_at,
                 "Checked In": reg.checked_in,
                 "Checked In At": reg.checked_in_at,
-                "Full Name": fd.get("full_name"),
+                "Full Name": fd.get("fullName") or fd.get("full_name"),
                 "Email": fd.get("email"),
             }
         )

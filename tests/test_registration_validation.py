@@ -3,6 +3,12 @@ import pytest
 from domains.events.registrations.service import RegistrationService
 from domains.events.registrations.models import FileMeta
 
+# RUN TESTS:
+# export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+# pytest --cov=src tests/test_registration_validation.py
+# pytest --cov=src --cov-report=term-missing tests/test_registration_validation.py
+# pytest --cov=src --cov-report=html tests/test_registration_validation.py
+# Open htmlcov/index.html to see the results
 
 class ValidationOnlyService(RegistrationService):
     """
@@ -108,4 +114,56 @@ def test_passes_valid_payload():
         form_data={"full_name": "Jane Doe"}, form_schema=form_schema, files_by_field=files_by_field
     )
     assert errors == []
+
+
+def test_required_text_field_camelcase():
+    """Test camelCase field name validation."""
+    service = ValidationOnlyService()
+    form_schema = {"fields": [{"id": "fullName", "type": "text", "required": True}]}
+    errors = service.validate_form_data(form_data={}, form_schema=form_schema, files_by_field={})
+    assert errors and errors[0]["field"] == "fullName"
+
+
+def test_extract_name_camelcase():
+    """Test name extraction with camelCase fields."""
+    service = ValidationOnlyService()
+
+    # Test fullName
+    form_data = {"fullName": "Jane Doe"}
+    assert service._extract_name(form_data) == "Jane Doe"
+
+    # Test firstName + lastName
+    form_data = {"firstName": "Jane", "lastName": "Doe"}
+    assert service._extract_name(form_data) == "Jane Doe"
+
+
+def test_extract_name_legacy_snake_case():
+    """Test name extraction with legacy snake_case fields still works."""
+    service = ValidationOnlyService()
+
+    # Test full_name
+    form_data = {"full_name": "Jane Doe"}
+    assert service._extract_name(form_data) == "Jane Doe"
+
+    # Test first_name + last_name
+    form_data = {"first_name": "Jane", "last_name": "Doe"}
+    assert service._extract_name(form_data) == "Jane Doe"
+
+
+def test_extract_name_priority():
+    """Test that camelCase takes priority over snake_case."""
+    service = ValidationOnlyService()
+
+    # When both exist, camelCase should win
+    form_data = {"fullName": "Camel Case", "full_name": "Snake Case"}
+    assert service._extract_name(form_data) == "Camel Case"
+
+    # When both exist for first/last name, camelCase should win
+    form_data = {
+        "firstName": "Camel",
+        "lastName": "Case",
+        "first_name": "Snake",
+        "last_name": "Case"
+    }
+    assert service._extract_name(form_data) == "Camel Case"
 

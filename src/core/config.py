@@ -7,10 +7,13 @@ Environment variables are loaded from .env file in development and from system
 environment in production (e.g., Vercel).
 """
 
+import os
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import Literal
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 class Settings(BaseSettings):
     """
@@ -51,7 +54,7 @@ class Settings(BaseSettings):
     ]
 
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        env_file=os.path.join(BASE_DIR, ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",  # Ignore extra fields in .env
