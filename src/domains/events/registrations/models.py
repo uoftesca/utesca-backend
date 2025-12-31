@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed"]
+RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed", "not_attending"]
 
 
 class FileMeta(BaseModel):
@@ -46,7 +46,6 @@ class RegistrationBase(BaseModel):
     submitted_at: datetime
     reviewed_by: Optional[UUID] = None
     reviewed_at: Optional[datetime] = None
-    rsvp_token: Optional[str] = None
     confirmed_at: Optional[datetime] = None
     checked_in: bool
     checked_in_at: Optional[datetime] = None
@@ -141,6 +140,7 @@ class RegistrationStatusBreakdown(BaseModel):
     accepted: int
     rejected: int
     confirmed: int
+    not_attending: int
     checked_in: int
 
     model_config = ConfigDict(
@@ -234,6 +234,36 @@ class RsvpConfirmResponse(BaseModel):
     success: bool
     message: str
     event: dict
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class RsvpDeclineResponse(BaseModel):
+    """Response after declining RSVP."""
+
+    success: bool
+    message: str
+    final: bool  # Indicates this change is final
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class RsvpDetailsByIdResponse(BaseModel):
+    """Response for viewing RSVP details by registration ID."""
+
+    event: dict
+    registration: dict
+    current_status: RegistrationStatus
+    can_confirm: bool  # Can user confirm attendance?
+    can_decline: bool  # Can user decline?
+    is_final: bool  # Is status final (no more changes)?
+    event_has_passed: bool  # Has event date passed?
 
     model_config = ConfigDict(
         alias_generator=to_camel,

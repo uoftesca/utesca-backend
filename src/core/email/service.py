@@ -6,7 +6,12 @@ import logging
 from typing import Optional
 import resend
 from core.config import get_settings
-from .templates import build_confirmation_email, build_application_received_email
+from .templates import (
+    build_confirmation_email,
+    build_application_received_email,
+    build_attendance_confirmed_email,
+    build_attendance_declined_email,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +73,7 @@ class EmailService:
         event_title: str,
         event_datetime: str,
         event_location: str,
-        rsvp_token: str,
+        registration_id: str,
         base_url: str,
     ) -> bool:
         """
@@ -80,7 +85,7 @@ class EmailService:
             event_title: Event title
             event_datetime: Formatted datetime string (Toronto time)
             event_location: Event location
-            rsvp_token: RSVP confirmation token
+            registration_id: Registration ID for RSVP link
             base_url: Base URL for RSVP link
 
         Returns:
@@ -92,7 +97,7 @@ class EmailService:
             event_title=event_title,
             event_datetime=event_datetime,
             event_location=event_location,
-            rsvp_token=rsvp_token,
+            registration_id=registration_id,
             base_url=base_url,
         )
 
@@ -121,6 +126,74 @@ class EmailService:
         """
         subject = f"Application Received: {event_title}"
         html_body, text_body = build_application_received_email(
+            full_name=full_name,
+            event_title=event_title,
+            event_datetime=event_datetime,
+            event_location=event_location,
+        )
+
+        return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)
+
+    def send_attendance_confirmed(
+        self,
+        to: str,
+        full_name: Optional[str],
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+        registration_id: str,
+        base_url: str,
+    ) -> bool:
+        """
+        Send attendance confirmation email when user confirms via RSVP page.
+
+        Args:
+            to: Recipient email
+            full_name: Registrant's name (None if not available)
+            event_title: Event title
+            event_datetime: Formatted datetime string (Toronto time)
+            event_location: Event location
+            registration_id: Registration ID for RSVP link
+            base_url: Base URL for RSVP link
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        subject = f"You're Confirmed for {event_title}!"
+        html_body, text_body = build_attendance_confirmed_email(
+            full_name=full_name,
+            event_title=event_title,
+            event_datetime=event_datetime,
+            event_location=event_location,
+            registration_id=registration_id,
+            base_url=base_url,
+        )
+
+        return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)
+
+    def send_attendance_declined(
+        self,
+        to: str,
+        full_name: Optional[str],
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+    ) -> bool:
+        """
+        Send attendance decline confirmation email when user declines via RSVP page.
+
+        Args:
+            to: Recipient email
+            full_name: Registrant's name (None if not available)
+            event_title: Event title
+            event_datetime: Formatted datetime string (Toronto time)
+            event_location: Event location
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        subject = f"RSVP Response Received for {event_title}"
+        html_body, text_body = build_attendance_declined_email(
             full_name=full_name,
             event_title=event_title,
             event_datetime=event_datetime,

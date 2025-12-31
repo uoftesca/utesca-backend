@@ -21,6 +21,7 @@ class StatusBreakdown(BaseModel):
     accepted: int
     rejected: int
     confirmed: int
+    not_attending: int
     checked_in: int
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

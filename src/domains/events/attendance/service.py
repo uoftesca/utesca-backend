@@ -43,9 +43,15 @@ class AttendanceService:
     def check_in_attendee(self, registration_id: UUID, checked_in_by: UUID) -> CheckInResponse:
         registration = self._get_registration_or_404(registration_id)
         if registration.status not in ("accepted", "confirmed"):
+            # Explicitly prevent check-in for not_attending, rejected, and submitted statuses
+            if registration.status == "not_attending":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot check in a registration marked as not attending",
+                )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only accepted or confirmed registrations can be checked in",
+                detail="Only accepted registrations can be checked in",
             )
 
         updated = self.att_repo.check_in(
@@ -75,6 +81,12 @@ class AttendanceService:
                     detail=f"Registration {rid} not found",
                 )
             if reg.status not in ("accepted", "confirmed"):
+                # Explicitly prevent check-in for not_attending, rejected, and submitted statuses
+                if reg.status == "not_attending":
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Registration {rid} is marked as not attending and cannot be checked in",
+                    )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Registration {rid} not eligible for check-in",

@@ -30,6 +30,7 @@ class AnalyticsRepository:
             accepted=int(data.get("accepted_count", 0) or 0),
             rejected=int(data.get("rejected_count", 0) or 0),
             confirmed=int(data.get("confirmed_count", 0) or 0),
+            not_attending=int(data.get("not_attending_count", 0) or 0),
             checked_in=int(data.get("checked_in_count", 0) or 0),
         )
 
@@ -57,10 +58,15 @@ class AnalyticsRepository:
             + breakdown.accepted
             + breakdown.rejected
             + breakdown.confirmed
+            + breakdown.not_attending
         )
+        # Approval rate = (accepted + confirmed + not_attending) / total * 100
         approval_rate = (
-            ((breakdown.accepted + breakdown.rejected) / total) * 100 if total else 0
+            ((breakdown.accepted + breakdown.confirmed + breakdown.not_attending) / total) * 100
+            if total
+            else 0
         )
+        # Attendance rate = checked_in / confirmed * 100 (only confirmed attendees)
         attendance_rate = (
             (breakdown.checked_in / breakdown.confirmed) * 100 if breakdown.confirmed else 0
         )

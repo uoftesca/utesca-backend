@@ -29,6 +29,9 @@ from .repository import RegistrationsRepository
 
 
 REGISTRATION_NOT_FOUND = "Registration not found"
+EVENT_NOT_FOUND = "Event not found"
+REGISTRATION_NOT_ACCESSIBLE = "Registration not found or not accessible"
+NOT_ELIGIBLE_FOR_CONFIRMATION = "Registration is not eligible for confirmation"
 
 
 class RegistrationService:
@@ -161,7 +164,7 @@ class RegistrationService:
         if not event:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Event not found",
+                detail=EVENT_NOT_FOUND,
             )
         if event.status != "published":
             raise HTTPException(
@@ -225,13 +228,11 @@ class RegistrationService:
 
         auto_accept = bool(form_schema.get("auto_accept"))
         status_value: RegistrationStatus = "accepted" if auto_accept else "submitted"
-        rsvp_token = str(uuid.uuid4()) if auto_accept else None
 
         registration = self.reg_repo.create_registration(
             event_id=event.id,
             form_data=form_data,
             status=status_value,
-            rsvp_token=rsvp_token,
         )
 
         # Link files after successful creation
@@ -322,7 +323,7 @@ class RegistrationService:
                     event_title=event.title,
                     event_datetime=event_datetime_str,
                     event_location=event.location or "TBA",
-                    rsvp_token=registration.rsvp_token,
+                    registration_id=str(registration.id),
                     base_url=base_url,
                 )
             else:
@@ -349,6 +350,139 @@ class RegistrationService:
             # Log but don't raise - email failures should not block registration
             logger.error(
                 f"Error sending confirmation email for registration {registration.id}: {str(e)}",
+                exc_info=True,
+            )
+
+    def send_attendance_confirmed_email(self, registration: RegistrationResponse, event) -> None:
+        """
+        Send attendance confirmation email after user confirms via RSVP page.
+
+        Email sending failures are logged but do not block the confirmation.
+        This method is called as a background task.
+
+        Args:
+            registration: The registration record
+            event: The event object
+        """
+        from core.email import EmailService
+        from utils.timezone import format_datetime_toronto
+        from core.config import get_settings
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Extract email from form_data
+            email = registration.form_data.get("email")
+            if not email:
+                logger.warning(
+                    f"No email found in form_data for registration {registration.id}. "
+                    "Skipping attendance confirmation email."
+                )
+                return
+
+            # Extract user's name (with fallback)
+            full_name = self._extract_name(registration.form_data)
+
+            # Format event datetime to Toronto timezone
+            event_datetime_str = format_datetime_toronto(event.date_time)
+
+            # Get base URL from settings
+            settings = get_settings()
+            base_url = settings.BASE_URL
+
+            # Initialize email service
+            email_service = EmailService()
+
+            # Send attendance confirmed email
+            success = email_service.send_attendance_confirmed(
+                to=email,
+                full_name=full_name,
+                event_title=event.title,
+                event_datetime=event_datetime_str,
+                event_location=event.location or "TBA",
+                registration_id=str(registration.id),
+                base_url=base_url,
+            )
+
+            if success:
+                logger.info(
+                    f"Attendance confirmation email sent successfully for registration {registration.id} "
+                    f"to {email}"
+                )
+            else:
+                logger.warning(
+                    f"Failed to send attendance confirmation email for registration {registration.id} "
+                    f"to {email}"
+                )
+
+        except Exception as e:
+            # Log but don't raise - email failures should not block confirmation
+            logger.error(
+                f"Error sending attendance confirmation email for registration {registration.id}: {str(e)}",
+                exc_info=True,
+            )
+
+    def send_attendance_declined_email(self, registration: RegistrationResponse, event) -> None:
+        """
+        Send attendance decline confirmation email after user declines via RSVP page.
+
+        Email sending failures are logged but do not block the decline action.
+        This method is called as a background task.
+
+        Args:
+            registration: The registration record
+            event: The event object
+        """
+        from core.email import EmailService
+        from utils.timezone import format_datetime_toronto
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Extract email from form_data
+            email = registration.form_data.get("email")
+            if not email:
+                logger.warning(
+                    f"No email found in form_data for registration {registration.id}. "
+                    "Skipping attendance decline email."
+                )
+                return
+
+            # Extract user's name (with fallback)
+            full_name = self._extract_name(registration.form_data)
+
+            # Format event datetime to Toronto timezone
+            event_datetime_str = format_datetime_toronto(event.date_time)
+
+            # Initialize email service
+            email_service = EmailService()
+
+            # Send attendance declined email
+            success = email_service.send_attendance_declined(
+                to=email,
+                full_name=full_name,
+                event_title=event.title,
+                event_datetime=event_datetime_str,
+                event_location=event.location or "TBA",
+            )
+
+            if success:
+                logger.info(
+                    f"Attendance decline email sent successfully for registration {registration.id} "
+                    f"to {email}"
+                )
+            else:
+                logger.warning(
+                    f"Failed to send attendance decline email for registration {registration.id} "
+                    f"to {email}"
+                )
+
+        except Exception as e:
+            # Log but don't raise - email failures should not block decline action
+            logger.error(
+                f"Error sending attendance decline email for registration {registration.id}: {str(e)}",
                 exc_info=True,
             )
 
@@ -394,39 +528,6 @@ class RegistrationService:
 
         self.files_repo.delete_file_by_id(file_id)
 
-    def rsvp_details(self, token: str):
-        registration = self.reg_repo.get_registration_by_rsvp_token(token)
-        if not registration:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid RSVP token"
-            )
-        if registration.status not in ("accepted", "confirmed"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Registration is not eligible for confirmation",
-            )
-        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
-        if not event:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Event not found"
-            )
-        return registration, event
-
-    def rsvp_confirm(self, token: str):
-        registration = self.reg_repo.get_registration_by_rsvp_token(token)
-        if not registration:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid RSVP token"
-            )
-        if registration.status not in ("accepted", "confirmed"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Registration is not eligible for confirmation",
-            )
-        updated = self.confirm_rsvp(token)
-        event = self.events_repo.get_by_id(UUID(str(updated.event_id)))
-        return updated, event
-
     def accept_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)
         if not registration:
@@ -437,13 +538,11 @@ class RegistrationService:
                 detail="Only submitted registrations can be accepted",
             )
 
-        rsvp_token = registration.rsvp_token or str(uuid.uuid4())
         updated = self.reg_repo.update_status(
             registration_id=registration_id,
             status="accepted",
             reviewer_id=reviewer_id,
             reviewed_at=datetime.now(timezone.utc),
-            rsvp_token=rsvp_token,
         )
         if not updated:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
@@ -468,20 +567,193 @@ class RegistrationService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
         return updated
 
-    def confirm_rsvp(self, token: str) -> RegistrationResponse:
-        registration = self.reg_repo.get_registration_by_rsvp_token(token)
+    def _has_event_passed(self, event_date: datetime) -> bool:
+        """
+        Check if the event date has passed.
+
+        Args:
+            event_date: The event's date_time
+
+        Returns:
+            True if event has passed, False otherwise
+        """
+        now = datetime.now(timezone.utc)
+        event_dt = event_date if event_date.tzinfo else event_date.replace(tzinfo=timezone.utc)
+        return now > event_dt
+
+    def rsvp_details(self, registration_id: UUID) -> tuple:
+        """
+        Get RSVP details for public access.
+
+        Returns registration and event details with metadata about allowed actions.
+        Only accessible if status is in ['accepted', 'confirmed', 'not_attending'].
+
+        Args:
+            registration_id: The registration ID
+
+        Returns:
+            Tuple of (registration, event, metadata_dict)
+
+        Raises:
+            HTTPException: If registration not found or not accessible
+        """
+        registration = self.reg_repo.get_registration_public(registration_id)
         if not registration:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid RSVP token")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=REGISTRATION_NOT_ACCESSIBLE,
+            )
+
+        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
+        if not event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=EVENT_NOT_FOUND,
+            )
+
+        # Calculate metadata for UI
+        event_has_passed = self._has_event_passed(event.date_time)
+        current_status = registration.status
+
+        # Terminal statuses that cannot be changed
+        is_final = current_status in ("not_attending", "rejected")
+
+        # Can confirm if accepted and event hasn't passed
+        can_confirm = current_status == "accepted" and not event_has_passed and not is_final
+
+        # Can decline if (accepted or confirmed) and event hasn't passed
+        can_decline = current_status in ("accepted", "confirmed") and not event_has_passed and not is_final
+
+        metadata = {
+            "current_status": current_status,
+            "can_confirm": can_confirm,
+            "can_decline": can_decline,
+            "is_final": is_final,
+            "event_has_passed": event_has_passed,
+        }
+
+        return registration, event, metadata
+
+    def rsvp_confirm(self, registration_id: UUID) -> RegistrationResponse:
+        """
+        Confirm attendance.
+
+        Validates that:
+        - Registration exists and is accessible
+        - Current status is 'accepted'
+        - Event has not passed
+
+        Args:
+            registration_id: The registration ID
+
+        Returns:
+            Updated registration
+
+        Raises:
+            HTTPException: If validation fails
+        """
+        registration = self.reg_repo.get_registration_public(registration_id)
+        if not registration:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=REGISTRATION_NOT_ACCESSIBLE,
+            )
+
+        # Get event to check if it has passed
+        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
+        if not event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=EVENT_NOT_FOUND,
+            )
+
+        # Check if event has passed
+        if self._has_event_passed(event.date_time):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot confirm attendance - event has already passed",
+            )
+
+        # Allow idempotent confirmation
         if registration.status == "confirmed":
             return registration
+
+        # Only accept 'accepted' status for confirmation
         if registration.status != "accepted":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Registration is not eligible for confirmation",
+                detail=NOT_ELIGIBLE_FOR_CONFIRMATION,
             )
-        updated = self.reg_repo.set_confirmed(token, confirmed_at=datetime.now(timezone.utc))
+
+        updated = self.reg_repo.confirm_registration(registration_id, confirmed_at=datetime.now(timezone.utc))
         if not updated:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to confirm RSVP")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to confirm attendance",
+            )
+
+        return updated
+
+    def rsvp_decline(self, registration_id: UUID) -> RegistrationResponse:
+        """
+        Decline attendance (set status to not_attending).
+
+        This is a TERMINAL operation - cannot be reversed.
+
+        Validates that:
+        - Registration exists and is accessible
+        - Current status is 'accepted' or 'confirmed'
+        - Event has not passed
+
+        Args:
+            registration_id: The registration ID
+
+        Returns:
+            Updated registration
+
+        Raises:
+            HTTPException: If validation fails
+        """
+        registration = self.reg_repo.get_registration_public(registration_id)
+        if not registration:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=REGISTRATION_NOT_ACCESSIBLE,
+            )
+
+        # Get event to check if it has passed
+        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
+        if not event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=EVENT_NOT_FOUND,
+            )
+
+        # Check if event has passed
+        if self._has_event_passed(event.date_time):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot decline attendance - event has already passed",
+            )
+
+        # Allow idempotent decline
+        if registration.status == "not_attending":
+            return registration
+
+        # Only allow decline from 'accepted' or 'confirmed'
+        if registration.status not in ("accepted", "confirmed"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration is not eligible for declining",
+            )
+
+        updated = self.reg_repo.set_not_attending(registration_id, declined_at=datetime.now(timezone.utc))
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to decline attendance",
+            )
+
         return updated
 
     def list_registrations(

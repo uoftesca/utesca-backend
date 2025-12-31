@@ -9,6 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+from core.config import settings
 from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
 from domains.auth.models import UserResponse
 from domains.events.analytics.service import AnalyticsService
@@ -77,7 +78,7 @@ async def update_status(
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
     rsvp_link = (
-        f"https://utesca.ca/rsvp/{updated.rsvp_token}" if updated.status == "accepted" else None
+        f"{settings.BASE_URL}/rsvp/{updated.id}" if updated.status == "accepted" else None
     )
     return {"success": True, "registration": updated, "rsvp_link": rsvp_link}
 
