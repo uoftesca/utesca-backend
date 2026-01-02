@@ -1,0 +1,164 @@
+"""
+Repository for event registrations data access.
+"""
+
+from datetime import datetime
+from typing import List, Optional, Tuple
+from uuid import UUID
+
+from supabase import Client
+
+from .models import RegistrationResponse, RegistrationStatus
+
+
+class RegistrationsRepository:
+    """Data access layer for event_registrations table."""
+
+    def __init__(self, client: Client, schema: str):
+        self.client = client
+        self.schema = schema
+
+    def create_registration(
+        self,
+        event_id: UUID,
+        form_data: dict,
+        status: RegistrationStatus,
+        rsvp_token: Optional[str] = None,
+    ) -> RegistrationResponse:
+        insert_data = {
+            "event_id": str(event_id),
+            "form_data": form_data,
+            "status": status,
+            "rsvp_token": rsvp_token,
+        }
+
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .insert(insert_data, returning="representation")
+            .execute()
+        )
+
+        if not result.data:
+            raise ValueError("Failed to create registration")
+
+        return RegistrationResponse.model_validate(result.data[0])
+
+    def get_registration_by_id(self, registration_id: UUID) -> Optional[RegistrationResponse]:
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("*")
+            .eq("id", str(registration_id))
+            .execute()
+        )
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])
+
+    def get_registration_by_rsvp_token(self, token: str) -> Optional[RegistrationResponse]:
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("*")
+            .eq("rsvp_token", token)
+            .execute()
+        )
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])
+
+    def list_registrations(
+        self,
+        event_id: UUID,
+        status: Optional[str],
+        page: int,
+        limit: int,
+        search: Optional[str],
+    ) -> Tuple[List[RegistrationResponse], int]:
+        offset = (page - 1) * limit
+        query = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("*", count="exact")
+            .eq("event_id", str(event_id))
+        )
+
+        if status:
+            query = query.eq("status", status)
+
+        if search:
+            term = f"%{search}%"
+            query = query.or_(
+                f"form_data->>full_name.ilike.{term},form_data->>email.ilike.{term}"
+            )
+
+        # Supabase pagination uses inclusive range
+        query = query.order("submitted_at", desc=True).range(offset, offset + limit - 1)
+        result = query.execute()
+
+        total = result.count or 0
+        registrations = [RegistrationResponse.model_validate(item) for item in result.data or []]
+        return registrations, total
+
+    def count_by_event(self, event_id: UUID) -> int:
+        """
+        Return the total number of registrations for an event.
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("id", count="exact")
+            .eq("event_id", str(event_id))
+            .execute()
+        )
+        return result.count or 0
+
+    def update_status(
+        self,
+        registration_id: UUID,
+        status: RegistrationStatus,
+        reviewer_id: UUID,
+        reviewed_at: datetime,
+        rsvp_token: Optional[str] = None,
+    ) -> Optional[RegistrationResponse]:
+        update_data = {
+            "status": status,
+            "reviewed_by": str(reviewer_id),
+            "reviewed_at": reviewed_at.isoformat(),
+        }
+        if rsvp_token:
+            update_data["rsvp_token"] = rsvp_token
+
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .update(update_data, returning="representation")
+            .eq("id", str(registration_id))
+            .execute()
+        )
+
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])
+
+    def set_confirmed(self, token: str, confirmed_at: datetime) -> Optional[RegistrationResponse]:
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .update(
+                {
+                    "status": "confirmed",
+                    "confirmed_at": confirmed_at.isoformat(),
+                },
+                returning="representation",
+            )
+            .eq("rsvp_token", token)
+            .eq("status", "accepted")
+            .execute()
+        )
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])
+
+
