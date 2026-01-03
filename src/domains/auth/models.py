@@ -6,17 +6,28 @@ These models define the request/response schemas for authentication endpoints.
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from pydantic.alias_generators import to_camel
-from typing import Optional, Literal
+from typing import Optional, Literal, TypedDict
 from datetime import datetime
 from uuid import UUID
 
 
 # ============================================================================
-# Enums (matching database schema)
+# Enums and Types (matching database schema)
 # ============================================================================
 
 UserRole = Literal["co_president", "vp", "director"]
 EmailNotificationPreference = Literal["all", "urgent_only", "none"]
+
+
+class NotificationPreferences(TypedDict):
+    """
+    Granular notification preferences stored as JSONB in database.
+
+    Allows users to control which types of email notifications they receive.
+    """
+    announcements: EmailNotificationPreference
+    rsvp_changes: bool
+    new_application_submitted: bool
 
 
 # ============================================================================
@@ -44,7 +55,7 @@ class UpdateProfileRequest(BaseModel):
 
     preferred_name: Optional[str] = None
     photo_url: Optional[str] = None
-    announcement_email_preference: Optional[EmailNotificationPreference] = None
+    notification_preferences: Optional[NotificationPreferences] = None
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -89,7 +100,7 @@ class UserResponse(BaseModel):
     preferred_name: Optional[str] = None
     photo_url: Optional[str] = None
     invited_by: Optional[UUID] = None
-    announcement_email_preference: EmailNotificationPreference
+    notification_preferences: NotificationPreferences
     created_at: datetime
     updated_at: datetime
 

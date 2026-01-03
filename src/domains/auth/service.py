@@ -135,8 +135,8 @@ class AuthService:
                 update_data["preferred_name"] = request.preferred_name
             if request.photo_url is not None:
                 update_data["photo_url"] = request.photo_url
-            if request.announcement_email_preference is not None:
-                update_data["announcement_email_preference"] = request.announcement_email_preference
+            if request.notification_preferences is not None:
+                update_data["notification_preferences"] = request.notification_preferences
 
             if not update_data:
                 raise HTTPException(
@@ -277,7 +277,11 @@ class AuthService:
                 "department_id": metadata.get("department_id"),
                 "preferred_name": request.preferred_name,
                 "invited_by": metadata.get("invited_by"),
-                "announcement_email_preference": "all",
+                "notification_preferences": {
+                    "announcements": "all",
+                    "rsvp_changes": True,
+                    "new_application_submitted": True,
+                },
             }
 
             print(f"Creating user record: {user_data}")

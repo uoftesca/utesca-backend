@@ -128,3 +128,33 @@ class UserRepository:
             return None
 
         return UserResponse(**result.data[0])
+
+    def get_users_with_notification_enabled(
+        self,
+        notification_type: str
+    ) -> List[UserResponse]:
+        """
+        Fetch all users who have a specific notification type enabled.
+
+        Uses PostgreSQL JSONB querying to filter by notification_preferences.
+
+        Args:
+            notification_type: Key in notification_preferences JSONB
+                              (e.g., 'rsvp_changes', 'new_application_submitted')
+
+        Returns:
+            List of users with notification enabled for the specified type
+        """
+        # PostgreSQL JSONB query: notification_preferences->>'rsvp_changes' = 'true'
+        result = (
+            self.client.schema(self.schema)
+            .table("users")
+            .select("*")
+            .eq(f"notification_preferences->>{notification_type}", "true")
+            .execute()
+        )
+
+        if not result.data:
+            return []
+
+        return [UserResponse(**user) for user in result.data]
