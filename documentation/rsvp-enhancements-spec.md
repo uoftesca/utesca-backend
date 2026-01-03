@@ -341,13 +341,16 @@ Simple formatted text with same information for email clients that don't support
 
 **File 1**: `utesca-backend/src/core/email/templates.py`
 
-Add `build_rsvp_decline_leadership_notification()` function (see implementation plan).
+Add `build_rsvp_decline_notification()` function:
+- Builds HTML and plain text email for RSVP decline notifications
+- Includes attendee information and event details
+- Professional template matching existing email design
 
 **File 2**: `utesca-backend/src/core/email/service.py`
 
-Add `send_rsvp_decline_notification_to_leadership()` method:
-- Accepts list of recipient emails
-- Sends individual emails to each
+Add `send_rsvp_decline_notification()` method:
+- Accepts list of recipient emails (subscribed users)
+- Sends individual emails to each recipient
 - Returns success if at least one email sent
 - Logs send counts for monitoring
 
@@ -356,8 +359,9 @@ Add `send_rsvp_decline_notification_to_leadership()` method:
 Add `send_decline_notification_to_subscribed_users()` method:
 - Queries all users with RSVP notifications enabled via UserRepository
 - Uses `get_users_with_notification_enabled("rsvp_changes")` (role-agnostic)
+- Filters by notification preference, not role
 - Extracts attendee info from registration form_data
-- Calls EmailService
+- Calls EmailService with list of subscriber emails
 - Catches all exceptions (defensive programming)
 
 **File 4**: `utesca-backend/src/domains/events/registrations/public_api.py`
@@ -366,6 +370,7 @@ Modify `decline_rsvp` endpoint:
 - Capture `previous_status` before decline operation
 - Add background task for subscriber notification if `previous_status == "confirmed"`
 - Runs asynchronously after user response sent
+- Email sending does not block decline operation
 
 ### Edge Cases
 
