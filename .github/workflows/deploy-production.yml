@@ -2,30 +2,56 @@ name: Deploy to Production
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    # Grant permission to create deployments
+    permissions:
+      contents: read            # needed to check out code
+      deployments: write        # necessary to create GitHub Deployments
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Create a GitHub Deployment
-        id: deployment
-        uses: chrnorm/deployment-action@releases/v1
+      # Create the deployment (GitHub Deployment object)
+      - name: Create GitHub Deployment
+        id: create_deploy
+        uses: chrnorm/deployment-action@v2
         with:
-          environment: production
           token: ${{ secrets.GITHUB_TOKEN }}
-          transient-environment: false
-          production-environment: true
+          environment: production
+          environment-url: https://api.utesca.ca
 
-      - name: Update Deployment Status to success
-        uses: chrnorm/deployment-status@releases/v1
+      # Run deployment to Heroku
+      # - name: Deploy to Heroku
+      #   run: |
+      #     # Example: push container and release
+      #     heroku container:push web --app $HEROKU_APP
+      #     heroku container:release web --app $HEROKU_APP
+      #   env:
+      #     HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+      #     HEROKU_APP: your-heroku-app-name
+
+      # After deploy success, update deployment status
+      - name: Mark Deployment Success
+        if: success()
+        uses: chrnorm/deployment-status@v2
         with:
-          environment: production
           token: ${{ secrets.GITHUB_TOKEN }}
+          deployment-id: ${{ steps.create_deploy.outputs.deployment_id }}
+          environment-url: https://api.utesca.ca
           state: success
-          
+
+      # If the deployment fails, report failure
+      - name: Mark Deployment Failure
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          deployment-id: ${{ steps.create_deploy.outputs.deployment_id }}
+          environment-url: https://api.utesca.ca
+          state: failure
