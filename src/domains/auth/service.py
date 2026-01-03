@@ -137,6 +137,8 @@ class AuthService:
                 update_data["photo_url"] = request.photo_url
             if request.announcement_email_preference is not None:
                 update_data["announcement_email_preference"] = request.announcement_email_preference
+            if request.linkedin_url is not None:
+                update_data["linkedin_url"] = request.linkedin_url
 
             if not update_data:
                 raise HTTPException(

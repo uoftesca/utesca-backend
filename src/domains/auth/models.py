@@ -45,6 +45,7 @@ class UpdateProfileRequest(BaseModel):
     preferred_name: Optional[str] = None
     photo_url: Optional[str] = None
     announcement_email_preference: Optional[EmailNotificationPreference] = None
+    linkedin_url: Optional[str] = None
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -88,6 +89,7 @@ class UserResponse(BaseModel):
     department_id: Optional[UUID] = None
     preferred_name: Optional[str] = None
     photo_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
     invited_by: Optional[UUID] = None
     announcement_email_preference: EmailNotificationPreference
     created_at: datetime
