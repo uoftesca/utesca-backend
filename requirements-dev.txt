@@ -1,0 +1,21 @@
+# Development and CI/CD Dependencies
+
+# Linting and Formatting
+ruff>=0.8.4
+
+# Type Checking
+mypy>=1.13.0
+types-requests>=2.31.0
+types-pytz==2025.2.0.20251108
+
+# Security Scanning
+bandit[toml]>=1.7.10
+
+# Testing
+pytest>=8.4.2
+pytest-cov>=6.0.0
+pytest-asyncio>=0.24.0
+httpx>=0.28.1  # For testing FastAPI with async
+
+# Coverage
+coverage[toml]>=7.6.9

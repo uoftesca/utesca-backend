@@ -96,7 +96,7 @@ def get_settings() -> Settings:
         settings = get_settings()
         print(settings.db_schema)  # 'test' or 'prod' based on ENVIRONMENT
     """
-    return Settings()
+    return Settings()  # type: ignore[call-arg]  # BaseSettings loads from env vars
 
 
 # Convenience export
