@@ -107,11 +107,6 @@ def change_password(
     **Errors:**
     - 400: New password does not meet requirements or passwords don't match
     - 401: Current password is incorrect
-    - 429: Too many password change attempts (rate limited: 5 per hour)
-
-    **Rate Limiting:**
-    - Maximum 5 attempts per hour per user
-    - Rate limit is reset on successful password change
     """
     service = UserService()
     return service.change_password(request, current_user)

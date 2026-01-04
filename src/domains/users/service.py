@@ -5,10 +5,8 @@ This module handles business logic for user management.
 """
 
 from fastapi import HTTPException, status
-from typing import Optional, List, Dict
+from typing import Optional, List
 from uuid import UUID
-from datetime import datetime, timedelta
-from threading import Lock
 from supabase import create_client, Client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
@@ -17,98 +15,6 @@ from core.config import get_settings
 from domains.auth.models import UserResponse
 from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse, ChangePasswordRequest, ChangePasswordResponse
 from .repository import UserRepository
-
-
-# ============================================================================
-# Rate Limiter for Password Changes
-# ============================================================================
-
-class RateLimiter:
-    """
-    Thread-safe in-memory rate limiter.
-    
-    Tracks attempts per user and enforces rate limits within a time window.
-    """
-
-    def __init__(self, max_attempts: int = 5, window_seconds: int = 3600):
-        """
-        Initialize rate limiter.
-
-        Args:
-            max_attempts: Maximum number of attempts allowed
-            window_seconds: Time window in seconds (default: 3600 = 1 hour)
-        """
-        self.max_attempts = max_attempts
-        self.window_seconds = window_seconds
-        self._attempts: Dict[str, List[datetime]] = {}
-        self._lock = Lock()
-
-    def check_rate_limit(self, user_id: UUID) -> bool:
-        """
-        Check if user has exceeded rate limit.
-
-        Args:
-            user_id: User UUID to check
-
-        Returns:
-            True if within rate limit, False if exceeded
-        """
-        user_id_str = str(user_id)
-        now = datetime.now()
-        cutoff_time = now - timedelta(seconds=self.window_seconds)
-
-        with self._lock:
-            # Get attempts for this user
-            attempts = self._attempts.get(user_id_str, [])
-
-            # Remove old attempts outside the time window
-            attempts = [attempt for attempt in attempts if attempt > cutoff_time]
-
-            # Check if limit exceeded
-            if len(attempts) >= self.max_attempts:
-                return False
-
-            # Record this attempt
-            attempts.append(now)
-            self._attempts[user_id_str] = attempts
-
-            return True
-
-    def reset(self, user_id: UUID):
-        """
-        Reset rate limit for a user (e.g., after successful operation).
-
-        Args:
-            user_id: User UUID to reset
-        """
-        user_id_str = str(user_id)
-        with self._lock:
-            if user_id_str in self._attempts:
-                del self._attempts[user_id_str]
-
-    def get_remaining_attempts(self, user_id: UUID) -> int:
-        """
-        Get remaining attempts for a user.
-
-        Args:
-            user_id: User UUID to check
-
-        Returns:
-            Number of remaining attempts
-        """
-        user_id_str = str(user_id)
-        now = datetime.now()
-        cutoff_time = now - timedelta(seconds=self.window_seconds)
-
-        with self._lock:
-            attempts = self._attempts.get(user_id_str, [])
-            attempts = [attempt for attempt in attempts if attempt > cutoff_time]
-            remaining = max(0, self.max_attempts - len(attempts))
-            return remaining
-
-
-# Global rate limiter instance for password changes
-password_change_rate_limiter = RateLimiter(max_attempts=5, window_seconds=3600)
 
 
 class UserService:
@@ -490,22 +396,6 @@ class UserService:
         """
         return {"error": error_message}
 
-    def _check_password_change_rate_limit(self, user_id: UUID) -> None:
-        """
-        Check if user has exceeded password change rate limit.
-
-        Args:
-            user_id: User UUID to check
-
-        Raises:
-            HTTPException: If rate limit exceeded
-        """
-        if not password_change_rate_limiter.check_rate_limit(user_id):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=self._format_error_response("Too many password change attempts. Please try again later."),
-            )
-
     def _validate_password_confirmation(
         self, new_password: str, confirm_password: str
     ) -> None:
@@ -665,15 +555,6 @@ class UserService:
                 detail=self._format_error_response("Failed to update password"),
             )
 
-    def _reset_password_change_rate_limit(self, user_id: UUID) -> None:
-        """
-        Reset password change rate limit for user.
-
-        Args:
-            user_id: User UUID to reset rate limit for
-        """
-        password_change_rate_limiter.reset(user_id)
-
     def change_password(
         self, request: ChangePasswordRequest, current_user: UserResponse
     ) -> ChangePasswordResponse:
@@ -688,13 +569,10 @@ class UserService:
             ChangePasswordResponse: Success message
 
         Raises:
-            HTTPException: If validation fails, rate limit exceeded, or update fails
+            HTTPException: If validation fails or update fails
         """
         try:
-            user_id = current_user.id
-
             # Validate permissions and inputs
-            self._check_password_change_rate_limit(user_id)
             self._validate_password_confirmation(request.new_password, request.confirm_password)
             self._validate_new_password_requirements(request.new_password)
 
@@ -703,9 +581,6 @@ class UserService:
 
             # Update password
             self._update_password_in_supabase(current_user.user_id, request.new_password)
-
-            # Reset rate limit on success
-            self._reset_password_change_rate_limit(user_id)
 
             return ChangePasswordResponse(message="Password updated successfully")
 
