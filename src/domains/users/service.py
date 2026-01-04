@@ -384,18 +384,6 @@ class UserService:
         return errors
 
 
-    def _format_error_response(self, error_message: str) -> dict:
-        """
-        Format error response according to API spec.
-
-        Args:
-            error_message: Error message to format
-
-        Returns:
-            Formatted error dictionary with "error" key
-        """
-        return {"error": error_message}
-
     def _validate_password_confirmation(
         self, new_password: str, confirm_password: str
     ) -> None:
@@ -412,7 +400,7 @@ class UserService:
         if new_password != confirm_password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"error": "New password and confirmation password do not match"},
+                detail="New password and confirmation password do not match",
             )
 
     def _validate_new_password_requirements(self, password: str) -> None:
@@ -435,71 +423,11 @@ class UserService:
                 },
             )
 
-    def _create_temp_supabase_client(self) -> Client:
-        """
-        Create a temporary Supabase client for password verification.
-
-        Returns:
-            Client: Supabase client instance
-        """
-        return create_client(
-            self.settings.SUPABASE_URL, self.settings.SUPABASE_KEY
-        )
-
-    def _attempt_password_verification(
-        self, client: Client, email: str, password: str
-    ) -> bool:
-        """
-        Attempt to verify password by signing in.
-
-        Args:
-            client: Supabase client instance
-            email: User's email
-            password: Password to verify
-
-        Returns:
-            True if password is correct, False otherwise
-
-        Raises:
-            AuthInvalidCredentialsError: If credentials are invalid
-            AuthApiError: If there's an auth API error
-        """
-        auth_response = client.auth.sign_in_with_password({
-            "email": email,
-            "password": password,
-        })
-        return auth_response.session is not None and auth_response.user is not None
-
-    def _handle_auth_exception_for_password_verification(
-        self, e: Exception
-    ) -> None:
-        """
-        Handle authentication exceptions during password verification.
-
-        Args:
-            e: Exception that occurred
-
-        Raises:
-            HTTPException: With appropriate error message
-        """
-        if isinstance(e, AuthInvalidCredentialsError):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail={"error": "Current password is incorrect"},
-            )
-        if isinstance(e, AuthApiError) and e.code == "invalid_credentials":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail={"error": "Current password is incorrect"},
-            )
-        # Re-raise if it's not an invalid credentials error
-        raise
-
     def _verify_current_password(
         self, email: str, current_password: str
     ) -> None:
         """
-        Verify that the current password is correct.
+        Verify that the current password is correct by attempting sign in.
 
         Args:
             email: User's email
@@ -509,25 +437,31 @@ class UserService:
             HTTPException: If current password is incorrect or verification fails
         """
         try:
-            temp_client = self._create_temp_supabase_client()
-            is_valid = self._attempt_password_verification(
-                temp_client, email, current_password
+            temp_client = create_client(
+                self.settings.SUPABASE_URL, self.settings.SUPABASE_KEY
             )
+            auth_response = temp_client.auth.sign_in_with_password({
+                "email": email,
+                "password": current_password,
+            })
 
-            if not is_valid:
+            if not (auth_response.session and auth_response.user):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail={"error": "Current password is incorrect"},
+                    detail="Current password is incorrect",
                 )
-        except (AuthInvalidCredentialsError, AuthApiError) as e:
-            self._handle_auth_exception_for_password_verification(e)
         except HTTPException:
             raise
+        except (AuthInvalidCredentialsError, AuthApiError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is incorrect",
+            )
         except Exception as e:
             print(f"Error verifying current password: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=self._format_error_response("Failed to verify current password"),
+                detail="Failed to verify current password",
             )
 
     def _update_password_in_supabase(
@@ -552,7 +486,7 @@ class UserService:
             print(f"Error updating password: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=self._format_error_response("Failed to update password"),
+                detail="Failed to update password",
             )
 
     def change_password(
@@ -590,5 +524,5 @@ class UserService:
             print(f"Error changing password: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=self._format_error_response(f"Failed to change password: {str(e)}"),
+                detail=f"Failed to change password: {str(e)}",
             )
