@@ -147,6 +147,7 @@ async def rsvp_details(
         can_decline=metadata["can_decline"],
         is_final=metadata["is_final"],
         event_has_passed=metadata["event_has_passed"],
+        within_rsvp_cutoff=metadata["within_rsvp_cutoff"],
     )
 
 

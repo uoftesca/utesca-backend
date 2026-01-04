@@ -3,7 +3,6 @@ Business logic for event registrations.
 """
 
 import re
-import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -32,6 +31,8 @@ REGISTRATION_NOT_FOUND = "Registration not found"
 EVENT_NOT_FOUND = "Event not found"
 REGISTRATION_NOT_ACCESSIBLE = "Registration not found or not accessible"
 NOT_ELIGIBLE_FOR_CONFIRMATION = "Registration is not eligible for confirmation"
+EVENT_PASSED = "Cannot confirm attendance - event has already passed"
+RSVP_CUTOFF_PASSED = "Cannot change RSVP - cutoff is 24 hours before event"
 
 
 class RegistrationService:
@@ -596,6 +597,26 @@ class RegistrationService:
         event_dt = event_date if event_date.tzinfo else event_date.replace(tzinfo=timezone.utc)
         return now > event_dt
 
+    def _is_within_rsvp_cutoff(self, event_date: datetime) -> bool:
+        """
+        Check if current time is within the 24-hour RSVP cutoff period.
+
+        Returns True if we are within 24 hours of the event (cutoff has passed).
+        Returns False if we are more than 24 hours before the event (changes allowed).
+
+        Args:
+            event_date: The event's date_time
+
+        Returns:
+            True if within 24-hour cutoff (changes NOT allowed), False otherwise
+        """
+        from datetime import timedelta
+
+        now = datetime.now(timezone.utc)
+        event_dt = event_date if event_date.tzinfo else event_date.replace(tzinfo=timezone.utc)
+        cutoff_time = event_dt - timedelta(hours=24)
+        return now >= cutoff_time
+
     def rsvp_details(self, registration_id: UUID) -> tuple:
         """
         Get RSVP details for public access.
@@ -628,16 +649,17 @@ class RegistrationService:
 
         # Calculate metadata for UI
         event_has_passed = self._has_event_passed(event.date_time)
+        within_rsvp_cutoff = self._is_within_rsvp_cutoff(event.date_time)
         current_status = registration.status
 
         # Terminal statuses that cannot be changed
         is_final = current_status in ("not_attending", "rejected")
 
-        # Can confirm if accepted and event hasn't passed
-        can_confirm = current_status == "accepted" and not event_has_passed and not is_final
+        # Can confirm if accepted and event hasn't passed and not within cutoff
+        can_confirm = current_status == "accepted" and not event_has_passed and not within_rsvp_cutoff and not is_final
 
-        # Can decline if (accepted or confirmed) and event hasn't passed
-        can_decline = current_status in ("accepted", "confirmed") and not event_has_passed and not is_final
+        # Can decline if (accepted or confirmed) and event hasn't passed and not within cutoff
+        can_decline = current_status in ("accepted", "confirmed") and not event_has_passed and not within_rsvp_cutoff and not is_final
 
         metadata = {
             "current_status": current_status,
@@ -645,6 +667,7 @@ class RegistrationService:
             "can_decline": can_decline,
             "is_final": is_final,
             "event_has_passed": event_has_passed,
+            "within_rsvp_cutoff": within_rsvp_cutoff,
         }
 
         return registration, event, metadata
@@ -686,7 +709,14 @@ class RegistrationService:
         if self._has_event_passed(event.date_time):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot confirm attendance - event has already passed",
+                detail=EVENT_PASSED,
+            )
+
+        # Check if within 24-hour RSVP cutoff
+        if self._is_within_rsvp_cutoff(event.date_time):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RSVP_CUTOFF_PASSED,
             )
 
         # Allow idempotent confirmation
@@ -749,6 +779,13 @@ class RegistrationService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot decline attendance - event has already passed",
+            )
+
+        # Check if within 24-hour RSVP cutoff
+        if self._is_within_rsvp_cutoff(event.date_time):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RSVP_CUTOFF_PASSED,
             )
 
         # Allow idempotent decline

@@ -291,6 +291,7 @@ class RsvpDetailsByIdResponse(BaseModel):
     can_decline: bool  # Can user decline?
     is_final: bool  # Is status final (no more changes)?
     event_has_passed: bool  # Has event date passed?
+    within_rsvp_cutoff: bool  # Within 24-hour cutoff period?
 
     model_config = ConfigDict(
         alias_generator=to_camel,
