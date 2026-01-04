@@ -5,11 +5,11 @@ This module handles business logic for department management.
 """
 
 from fastapi import HTTPException, status
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 from supabase import create_client, Client
 
-from core.database import get_supabase_client, get_schema
+from core.database import get_schema
 from core.config import get_settings
 from .models import DepartmentResponse, DepartmentListResponse, YearsResponse
 from .repository import DepartmentRepository

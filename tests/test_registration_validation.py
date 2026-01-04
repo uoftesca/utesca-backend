@@ -1,5 +1,3 @@
-import pytest
-
 from domains.events.registrations.service import RegistrationService
 from domains.events.registrations.models import FileMeta
 

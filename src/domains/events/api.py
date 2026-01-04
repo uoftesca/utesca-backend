@@ -4,12 +4,12 @@ Event API endpoints.
 Provides REST API endpoints for event management.
 """
 
-from fastapi import APIRouter, Depends, Query, status, HTTPException
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 from typing import Optional
 from uuid import UUID
 
-from domains.auth.dependencies import get_current_user, get_current_vp_or_admin, get_optional_user
+from domains.auth.dependencies import get_current_vp_or_admin, get_optional_user
 from domains.auth.models import UserResponse
 from .models import (
     EventCreate,

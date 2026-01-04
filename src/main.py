@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize Supabase client (cached)
     try:
-        client = get_supabase_client()
+        _ = get_supabase_client()
         print("SUCCESS: Connected to Supabase")
     except Exception as e:
         print(f"ERROR: Failed to connect to Supabase: {e}")
@@ -114,7 +114,7 @@ async def health_check():
     """
     try:
         # Test database connection
-        client = get_supabase_client()
+        _ = get_supabase_client()
 
         return JSONResponse({
             "status": "healthy",

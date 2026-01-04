@@ -5,7 +5,6 @@ This module handles user invitation and profile management.
 """
 
 from fastapi import HTTPException, status
-from typing import Optional
 from uuid import UUID
 from supabase import create_client, Client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
@@ -371,7 +370,7 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=e.message if hasattr(e, 'message') else str(e),
             )
-        except Exception as e:
+        except Exception:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred during sign in. Please try again.",

@@ -6,7 +6,7 @@ Pydantic models for event-related data structures.
 
 from pydantic import BaseModel, Field, ConfigDict
 from pydantic.alias_generators import to_camel
-from typing import Any, List, Optional, Literal
+from typing import List, Optional, Literal
 from datetime import datetime
 from uuid import UUID
 

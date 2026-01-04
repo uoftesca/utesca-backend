@@ -9,7 +9,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from uuid import UUID
 
-from core.database import get_supabase_client, get_schema
+from core.database import get_schema
 from .models import UserResponse
 from .repository import UserRepository
 

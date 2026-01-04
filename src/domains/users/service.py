@@ -9,7 +9,7 @@ from typing import Optional
 from uuid import UUID
 from supabase import create_client, Client
 
-from core.database import get_supabase_client, get_schema
+from core.database import get_schema
 from core.config import get_settings
 from domains.auth.models import UserResponse
 from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse

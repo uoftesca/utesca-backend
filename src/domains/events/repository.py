@@ -6,7 +6,6 @@ This module handles all database operations related to events.
 
 from typing import List, Optional, Tuple
 from uuid import UUID
-from datetime import datetime
 from supabase import Client
 
 from .models import (

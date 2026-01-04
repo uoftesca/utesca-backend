@@ -7,11 +7,10 @@ These models define the request/response schemas for user endpoints.
 from pydantic import BaseModel, Field, ConfigDict
 from pydantic.alias_generators import to_camel
 from typing import List, Optional
-from datetime import datetime
 from uuid import UUID
 
 # Import from auth domain to reuse
-from domains.auth.models import UserResponse, UserRole, EmailNotificationPreference
+from domains.auth.models import UserResponse, UserRole
 
 
 # ============================================================================
