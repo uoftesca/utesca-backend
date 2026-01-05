@@ -4,21 +4,23 @@ Authentication service - Business logic for authentication operations.
 This module handles user invitation and profile management.
 """
 
-from fastapi import HTTPException, status
 from uuid import UUID
-from supabase import create_client, Client
+
+from fastapi import HTTPException, status
+from supabase import Client, create_client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
-from core.database import get_supabase_client, get_schema
 from core.config import get_settings
+from core.database import get_schema, get_supabase_client
+
 from .models import (
-    UserResponse,
-    InviteUserRequest,
-    UpdateProfileRequest,
-    InviteUserResponse,
     CompleteOnboardingRequest,
+    InviteUserRequest,
+    InviteUserResponse,
     SignInRequest,
     SignInResponse,
+    UpdateProfileRequest,
+    UserResponse,
 )
 from .repository import UserRepository
 
@@ -107,7 +109,7 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to invite user: {str(e)}",
-            )
+            ) from e
 
     def update_profile(
         self,
@@ -164,7 +166,7 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update profile: {str(e)}",
-            )
+            ) from e
 
     def get_user_by_id(self, user_id: UUID) -> UserResponse:
         """
@@ -197,7 +199,7 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch user: {str(e)}",
-            )
+            ) from e
 
     def complete_onboarding(
         self,
@@ -305,7 +307,7 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to complete onboarding: {str(e)}",
-            )
+            ) from e
 
     def sign_in(self, request: SignInRequest) -> SignInResponse:
         """
@@ -363,16 +365,16 @@ class AuthService:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
-                )
+                ) from e
 
             # Other auth errors (rate limiting, user banned, etc.)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=e.message if hasattr(e, 'message') else str(e),
-            )
-        except Exception:
+            ) from e
+        except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred during sign in. Please try again.",
-            )
+            ) from e
 

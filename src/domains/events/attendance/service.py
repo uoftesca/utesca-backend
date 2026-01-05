@@ -13,9 +13,10 @@ from core.config import get_settings
 from core.database import get_schema
 from domains.events.registrations.models import RegistrationResponse
 from domains.events.registrations.repository import RegistrationsRepository
+
+from ..repository import EventRepository
 from .models import BulkCheckInResponse, BulkCheckInResult, CheckInResponse
 from .repository import AttendanceRepository
-from ..repository import EventRepository
 
 
 class AttendanceService:

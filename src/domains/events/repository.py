@@ -6,13 +6,14 @@ This module handles all database operations related to events.
 
 from typing import List, Optional, Tuple
 from uuid import UUID
+
 from supabase import Client
 
 from .models import (
-    EventResponse,
     EventCreate,
-    EventUpdate,
+    EventResponse,
     EventStatus,
+    EventUpdate,
     RegistrationFormSchema,
 )
 

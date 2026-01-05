@@ -10,22 +10,23 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from supabase import Client, create_client
+
 from core.config import get_settings
 from core.database import get_schema
+
 from ..models import RegistrationFormSchema
 from ..repository import EventRepository
 from .files_repository import RegistrationFilesRepository
 from .models import (
     FileMeta,
+    FileUploadRequest,
     RegistrationListPagination,
     RegistrationListResponse,
     RegistrationResponse,
     RegistrationStatus,
     RegistrationWithFilesResponse,
-    FileUploadRequest,
 )
 from .repository import RegistrationsRepository
-
 
 REGISTRATION_NOT_FOUND = "Registration not found"
 EVENT_NOT_FOUND = "Event not found"
@@ -298,10 +299,11 @@ class RegistrationService:
             registration: The created registration
             event: The event object
         """
+        import logging
+
+        from core.config import get_settings
         from core.email import EmailService
         from utils.timezone import format_datetime_toronto
-        from core.config import get_settings
-        import logging
 
         logger = logging.getLogger(__name__)
 
@@ -380,10 +382,11 @@ class RegistrationService:
             registration: The registration record
             event: The event object
         """
+        import logging
+
+        from core.config import get_settings
         from core.email import EmailService
         from utils.timezone import format_datetime_toronto
-        from core.config import get_settings
-        import logging
 
         logger = logging.getLogger(__name__)
 
@@ -450,9 +453,10 @@ class RegistrationService:
             registration: The registration record
             event: The event object
         """
+        import logging
+
         from core.email import EmailService
         from utils.timezone import format_datetime_toronto
-        import logging
 
         logger = logging.getLogger(__name__)
 
@@ -659,7 +663,12 @@ class RegistrationService:
         can_confirm = current_status == "accepted" and not event_has_passed and not within_rsvp_cutoff and not is_final
 
         # Can decline if (accepted or confirmed) and event hasn't passed and not within cutoff
-        can_decline = current_status in ("accepted", "confirmed") and not event_has_passed and not within_rsvp_cutoff and not is_final
+        can_decline = (
+            current_status in ("accepted", "confirmed")
+            and not event_has_passed
+            and not within_rsvp_cutoff
+            and not is_final
+        )
 
         metadata = {
             "current_status": current_status,

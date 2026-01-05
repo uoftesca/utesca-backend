@@ -4,15 +4,16 @@ User API endpoints.
 This module defines the FastAPI router for user-related endpoints.
 """
 
-from fastapi import APIRouter, status, Query, Depends
 from typing import Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, Query, status
+
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
-from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse
-from .service import UserService
 
+from .models import DeleteUserResponse, UpdateUserRequest, UserListResponse
+from .service import UserService
 
 # Create router
 router = APIRouter()

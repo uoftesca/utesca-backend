@@ -3,7 +3,7 @@ Email template builders for various email types.
 Returns both HTML and plain text versions for better email client compatibility.
 """
 
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 # UTESCA logo URL
 LOGO_URL = "https://raw.githubusercontent.com/uoftesca/utesca-frontend/main/public/UTESCA-red-black.png?raw=true"

@@ -20,11 +20,11 @@ from fastapi import APIRouter
 # Domain router imports
 from domains.auth.api import router as auth_router
 from domains.departments.api import router as departments_router
-from domains.users.api import router as users_router
 from domains.events.api import router as events_router
 from domains.events.attendance.api import router as attendance_router
-from domains.events.registrations.public_api import router as registrations_public_router
 from domains.events.registrations.portal_api import router as registrations_portal_router
+from domains.events.registrations.public_api import router as registrations_public_router
+from domains.users.api import router as users_router
 
 # Create main API router
 api_router = APIRouter()

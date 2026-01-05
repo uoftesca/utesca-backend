@@ -14,6 +14,7 @@ from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
 from domains.auth.models import UserResponse
 from domains.events.analytics.service import AnalyticsService
 from domains.events.registrations.models import RegistrationStatusUpdate
+
 from .service import RegistrationService
 
 router = APIRouter()

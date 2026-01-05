@@ -9,15 +9,16 @@ Environment:
 - Automatically connects to the correct schema based on ENVIRONMENT variable
 """
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
-from core.config import get_settings
-from core.database import get_supabase_client, get_schema
-from api.v1.router import api_router
-import logging
 
+from api.v1.router import api_router
+from core.config import get_settings
+from core.database import get_schema, get_supabase_client
 
 # Configure logging
 logging.basicConfig(

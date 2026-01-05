@@ -4,12 +4,12 @@ Pydantic models for authentication domain.
 These models define the request/response schemas for authentication endpoints.
 """
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from pydantic.alias_generators import to_camel
-from typing import Optional, Literal, TypedDict
 from datetime import datetime
+from typing import Literal, Optional, TypedDict
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic.alias_generators import to_camel
 
 # ============================================================================
 # Enums and Types (matching database schema)
@@ -41,7 +41,9 @@ class InviteUserRequest(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     role: UserRole
-    display_role: str = Field(..., min_length=1, max_length=255, description="e.g., 'VP of Events', 'Marketing Director'")
+    display_role: str = Field(
+        ..., min_length=1, max_length=255, description="e.g., 'VP of Events', 'Marketing Director'"
+    )
     department_id: Optional[UUID] = None
 
     model_config = ConfigDict(

@@ -4,13 +4,16 @@ Email service for sending transactional emails via Resend.
 
 import logging
 from typing import Optional
+
 import resend
+
 from core.config import get_settings
+
 from .templates import (
-    build_confirmation_email,
     build_application_received_email,
     build_attendance_confirmed_email,
     build_attendance_declined_email,
+    build_confirmation_email,
 )
 
 logger = logging.getLogger(__name__)

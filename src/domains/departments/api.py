@@ -4,15 +4,16 @@ Department API endpoints.
 This module defines the FastAPI router for department-related endpoints.
 """
 
-from fastapi import APIRouter, status, Query, Depends
 from typing import Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, Query, status
+
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
-from .models import DepartmentResponse, DepartmentListResponse, YearsResponse
-from .service import DepartmentService
 
+from .models import DepartmentListResponse, DepartmentResponse, YearsResponse
+from .service import DepartmentService
 
 # Create router
 router = APIRouter()

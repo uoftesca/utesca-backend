@@ -8,9 +8,10 @@ from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
+
+from ..repository import EventRepository
 from .models import AnalyticsResponse
 from .repository import AnalyticsRepository
-from ..repository import EventRepository
 
 
 class AnalyticsService:

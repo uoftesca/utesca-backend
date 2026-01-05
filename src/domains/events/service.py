@@ -15,6 +15,7 @@ from supabase import Client, create_client
 from core.config import get_settings
 from core.database import get_schema
 from utils.google_drive_service import generate_direct_link
+
 from .models import (
     EventCreate,
     EventListResponse,
@@ -172,7 +173,7 @@ class EventService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to create event: {str(e)}",
-            )
+            ) from e
 
     def update_event(self, event_id: UUID, event_data: EventUpdate) -> EventResponse:
         """

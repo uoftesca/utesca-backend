@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, status
 
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
+
 from .models import BulkCheckInRequest, BulkCheckInResponse, CheckInResponse
 from .service import AttendanceService
 

@@ -6,6 +6,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
+from utils.rate_limit import rate_limit
+
 from .models import (
     FileDeleteRequest,
     FileDeleteResponse,
@@ -19,7 +21,6 @@ from .models import (
     RsvpRegistrationDetails,
 )
 from .service import RegistrationService
-from utils.rate_limit import rate_limit
 
 router = APIRouter()
 
@@ -103,7 +104,10 @@ async def register(
     message = (
         "Registration confirmed! Check your email for next steps to confirm your attendance."
         if registration.status == "accepted"
-        else "Registration submitted! Check your email for confirmation and updates. We'll review your application and be in touch soon."
+        else (
+            "Registration submitted! Check your email for confirmation and updates. "
+            "We'll review your application and be in touch soon."
+        )
     )
 
     return {
@@ -222,7 +226,10 @@ async def decline_rsvp(
 
     return RsvpDeclineResponse(
         success=True,
-        message=f"You are no longer attending {event.title if event else 'this event'}. We have received your RSVP response. This change is final.",
+        message=(
+            f"You are no longer attending {event.title if event else 'this event'}. "
+            "We have received your RSVP response. This change is final."
+        ),
         final=True,
     )
 

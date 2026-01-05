@@ -4,12 +4,12 @@ Pydantic models for departments domain.
 These models define the request/response schemas for department endpoints.
 """
 
-from pydantic import BaseModel, ConfigDict
-from pydantic.alias_generators import to_camel
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
 # ============================================================================
 # Response Models

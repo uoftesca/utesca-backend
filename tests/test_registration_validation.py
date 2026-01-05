@@ -1,5 +1,5 @@
-from domains.events.registrations.service import RegistrationService
 from domains.events.registrations.models import FileMeta
+from domains.events.registrations.service import RegistrationService
 
 # RUN TESTS:
 # export PYTHONPATH=$PYTHONPATH:$(pwd)/src

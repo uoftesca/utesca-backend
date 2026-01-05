@@ -6,6 +6,7 @@ This module handles all database operations related to users.
 
 from typing import List, Optional, Tuple
 from uuid import UUID
+
 from supabase import Client
 
 from domains.auth.models import UserResponse

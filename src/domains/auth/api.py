@@ -4,21 +4,21 @@ Authentication API endpoints.
 This module defines the FastAPI router for authentication-related endpoints.
 """
 
-from fastapi import APIRouter, Depends, status
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, status
+
+from .dependencies import get_auth_user_id, get_current_admin, get_current_user
 from .models import (
-    UserResponse,
+    CompleteOnboardingRequest,
     InviteUserRequest,
     InviteUserResponse,
-    UpdateProfileRequest,
-    CompleteOnboardingRequest,
     SignInRequest,
     SignInResponse,
+    UpdateProfileRequest,
+    UserResponse,
 )
 from .service import AuthService
-from .dependencies import get_current_user, get_current_admin, get_auth_user_id
-
 
 # Create router
 router = APIRouter()

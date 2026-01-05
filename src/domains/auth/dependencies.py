@@ -4,15 +4,16 @@ Authentication dependencies for FastAPI endpoints.
 This module provides dependency functions for authentication and authorization.
 """
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from uuid import UUID
 
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from core.database import get_schema
+
 from .models import UserResponse
 from .repository import UserRepository
-
 
 security = HTTPBearer()
 optional_security = HTTPBearer(auto_error=False)
@@ -34,8 +35,9 @@ async def get_current_user(
         HTTPException: If token is invalid or user not found
     """
     try:
-        from core.config import get_settings
         from supabase import create_client
+
+        from core.config import get_settings
 
         settings = get_settings()
         schema = get_schema()
@@ -76,7 +78,7 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
-        )
+        ) from e
 
 
 async def get_current_admin(
@@ -121,8 +123,9 @@ async def get_auth_user_id(
         HTTPException: If token is invalid
     """
     try:
-        from core.config import get_settings
         from supabase import create_client
+
+        from core.config import get_settings
 
         settings = get_settings()
 
@@ -150,7 +153,7 @@ async def get_auth_user_id(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
-        )
+        ) from e
 
 
 async def get_current_vp_or_admin(
@@ -197,8 +200,9 @@ async def get_optional_user(
         return None
 
     try:
-        from core.config import get_settings
         from supabase import create_client
+
+        from core.config import get_settings
 
         settings = get_settings()
         schema = get_schema()

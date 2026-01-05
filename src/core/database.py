@@ -5,8 +5,10 @@ This module provides utilities for connecting to Supabase and setting the
 correct PostgreSQL schema (test or prod) based on the environment.
 """
 
-from supabase import create_client, Client
 from functools import lru_cache
+
+from supabase import Client, create_client
+
 from .config import get_settings
 
 

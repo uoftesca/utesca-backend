@@ -7,6 +7,7 @@ separating data access from business logic and authentication concerns.
 
 from typing import Optional
 from uuid import UUID
+
 from supabase import Client
 
 from .models import UserResponse

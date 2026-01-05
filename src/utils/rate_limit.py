@@ -12,7 +12,6 @@ from typing import Deque, Dict, Tuple
 from fastapi import HTTPException, status
 from starlette.requests import Request
 
-
 # key: (ip, bucket) -> deque[timestamps]
 _requests: Dict[Tuple[str, str], Deque[float]] = {}
 

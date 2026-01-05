@@ -2,7 +2,7 @@
 Email service module for transactional emails.
 """
 
-from .service import EmailService
 from .models import EmailRecipient, EmailSendResult
+from .service import EmailService
 
 __all__ = ["EmailService", "EmailRecipient", "EmailSendResult"]

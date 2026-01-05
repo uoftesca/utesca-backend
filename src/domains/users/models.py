@@ -4,14 +4,14 @@ Pydantic models for users domain.
 These models define the request/response schemas for user endpoints.
 """
 
-from pydantic import BaseModel, Field, ConfigDict
-from pydantic.alias_generators import to_camel
 from typing import List, Optional
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
+
 # Import from auth domain to reuse
 from domains.auth.models import UserResponse, UserRole
-
 
 # ============================================================================
 # Request Models

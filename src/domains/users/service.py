@@ -4,15 +4,17 @@ User service - Business logic for user management operations.
 This module handles business logic for user management.
 """
 
-from fastapi import HTTPException, status
 from typing import Optional
 from uuid import UUID
-from supabase import create_client, Client
 
-from core.database import get_schema
+from fastapi import HTTPException, status
+from supabase import Client, create_client
+
 from core.config import get_settings
+from core.database import get_schema
 from domains.auth.models import UserResponse
-from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse
+
+from .models import DeleteUserResponse, UpdateUserRequest, UserListResponse
 from .repository import UserRepository
 
 
@@ -106,7 +108,7 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch users: {str(e)}",
-            )
+            ) from e
 
     def get_user_by_id(self, user_id: UUID) -> UserResponse:
         """
@@ -139,7 +141,7 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch user: {str(e)}",
-            )
+            ) from e
 
     def _can_manage_user(
         self, current_user: UserResponse, target_user: UserResponse
@@ -303,7 +305,7 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update user: {str(e)}",
-            )
+            ) from e
 
     def delete_user(
         self, user_id: UUID, current_user: UserResponse
@@ -360,4 +362,4 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to delete user: {str(e)}",
-            )
+            ) from e
