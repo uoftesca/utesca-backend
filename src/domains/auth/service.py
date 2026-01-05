@@ -48,9 +48,7 @@ class AuthService:
         """
         return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
-    def invite_user(
-        self, request: InviteUserRequest, invited_by_user_id: UUID
-    ) -> InviteUserResponse:
+    def invite_user(self, request: InviteUserRequest, invited_by_user_id: UUID) -> InviteUserResponse:
         """
         Invite a new user to the portal.
 
@@ -150,11 +148,7 @@ class AuthService:
             # Update user in database
             result = cast(
                 APIResponse,
-                self.supabase.schema(self.schema)
-                .table("users")
-                .update(update_data)
-                .eq("id", str(user_id))
-                .execute(),
+                self.supabase.schema(self.schema).table("users").update(update_data).eq("id", str(user_id)).execute(),
             )
 
             if not result.data or len(result.data) == 0:

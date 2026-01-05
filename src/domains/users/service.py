@@ -15,6 +15,7 @@ from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 from core.config import get_settings
 from core.database import get_schema, get_supabase_client
 from domains.auth.models import UserResponse
+
 from .models import (
     ChangePasswordRequest,
     ChangePasswordResponse,
@@ -23,7 +24,6 @@ from .models import (
     UserListResponse,
 )
 from .repository import UserRepository
-
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +52,7 @@ class UserService:
             Client: Supabase client with admin privileges
         """
         if self._admin_client is None:
-            self._admin_client = create_client(
-                self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY
-            )
+            self._admin_client = create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
         return self._admin_client
 
     def get_users(
@@ -226,9 +224,7 @@ class UserService:
             )
 
         # Department changes require co-president
-        is_dept_change = (
-            request.department_id is not None and request.department_id != target_user.department_id
-        )
+        is_dept_change = request.department_id is not None and request.department_id != target_user.department_id
         if is_dept_change and current_user.role != "co_president":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -314,9 +310,7 @@ class UserService:
             logger.warning(f"Failed to update auth metadata: {e}")
             # Continue even if metadata update fails (users table is source of truth)
 
-    def update_user(
-        self, user_id: UUID, request: UpdateUserRequest, current_user: UserResponse
-    ) -> UserResponse:
+    def update_user(self, user_id: UUID, request: UpdateUserRequest, current_user: UserResponse) -> UserResponse:
         """
         Update a user's information.
 
@@ -515,9 +509,7 @@ class UserService:
                 detail="Failed to update password",
             ) from e
 
-    def change_password(
-        self, request: ChangePasswordRequest, current_user: UserResponse
-    ) -> ChangePasswordResponse:
+    def change_password(self, request: ChangePasswordRequest, current_user: UserResponse) -> ChangePasswordResponse:
         """
         Change user password.
 

@@ -21,9 +21,7 @@ from core.config import get_settings
 from core.database import get_schema, get_supabase_client
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 # Get settings instance
 settings = get_settings()

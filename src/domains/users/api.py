@@ -9,10 +9,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from fastapi import APIRouter, Depends, Query, status
-
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
+
 from .models import (
     ChangePasswordRequest,
     ChangePasswordResponse,
