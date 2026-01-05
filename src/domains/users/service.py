@@ -4,8 +4,9 @@ User service - Business logic for user management operations.
 This module handles business logic for user management.
 """
 
+import logging
 from fastapi import HTTPException, status
-from typing import Optional, List
+from typing import Optional
 from uuid import UUID
 from supabase import create_client, Client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
@@ -13,8 +14,20 @@ from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 from core.database import get_supabase_client, get_schema
 from core.config import get_settings
 from domains.auth.models import UserResponse
-from .models import UserListResponse, UpdateUserRequest, DeleteUserResponse, ChangePasswordRequest, ChangePasswordResponse
+from .models import (
+    UserListResponse,
+    UpdateUserRequest,
+    DeleteUserResponse,
+    ChangePasswordRequest,
+    ChangePasswordResponse,
+)
 from .repository import UserRepository
+
+
+logger = logging.getLogger(__name__)
+
+# Error message constants
+USER_NOT_FOUND = "User not found"
 
 
 class UserService:
@@ -23,20 +36,25 @@ class UserService:
     def __init__(self):
         self.settings = get_settings()
         self.schema = get_schema()
-        # Use admin client to bypass RLS (endpoints are protected by authentication)
-        self.supabase = self._get_admin_client()
-        self.repository = UserRepository(self.supabase, self.schema)
+        self.supabase = get_supabase_client()
+        self._admin_client: Optional[Client] = None
+        self.repository = UserRepository(self._get_admin_client(), self.schema)
 
     def _get_admin_client(self) -> Client:
         """
         Get Supabase client with service role key for admin operations.
 
+        This bypasses RLS policies. Access control is enforced at the endpoint level
+        by requiring authentication.
+
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(
-            self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        if self._admin_client is None:
+            self._admin_client = create_client(
+                self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY
+            )
+        return self._admin_client
 
     def get_users(
         self,
@@ -103,7 +121,7 @@ class UserService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error fetching users: {e}")
+            logger.error(f"Error fetching users: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch users: {str(e)}",
@@ -128,7 +146,7 @@ class UserService:
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found",
+                    detail=USER_NOT_FOUND,
                 )
 
             return user
@@ -136,15 +154,13 @@ class UserService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error fetching user: {e}")
+            logger.error(f"Error fetching user: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch user: {str(e)}",
             )
 
-    def _can_manage_user(
-        self, current_user: UserResponse, target_user: UserResponse
-    ) -> bool:
+    def _can_manage_user(self, current_user: UserResponse, target_user: UserResponse) -> bool:
         """
         Check if current user has permission to manage target user.
 
@@ -169,6 +185,134 @@ class UserService:
 
         return False
 
+    def _validate_update_permissions(
+        self,
+        request: UpdateUserRequest,
+        current_user: UserResponse,
+        target_user: UserResponse,
+    ) -> None:
+        """
+        Validate that current user has permission to perform the requested update.
+
+        Args:
+            request: Update request with fields to change
+            current_user: User performing the update
+            target_user: User being updated
+
+        Raises:
+            HTTPException: If user lacks permission for the requested changes
+        """
+        # Check basic permission to manage user
+        if not self._can_manage_user(current_user, target_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to manage this user",
+            )
+
+        # Role changes require co-president
+        is_role_change = request.role is not None and request.role != target_user.role
+        if is_role_change and current_user.role != "co_president":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only co-presidents can change user roles",
+            )
+
+        # Cannot change co-president's role
+        if is_role_change and target_user.role == "co_president":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot change the role of a co-president",
+            )
+
+        # Department changes require co-president
+        is_dept_change = (
+            request.department_id is not None and request.department_id != target_user.department_id
+        )
+        if is_dept_change and current_user.role != "co_president":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only co-presidents can change user departments",
+            )
+
+    def _build_update_data(self, request: UpdateUserRequest) -> dict:
+        """
+        Build update data dictionary from request.
+
+        Args:
+            request: Update request with fields to change
+
+        Returns:
+            Dictionary of fields to update
+
+        Raises:
+            HTTPException: If no fields to update
+        """
+        update_data = {}
+        if request.first_name is not None:
+            update_data["first_name"] = request.first_name
+        if request.last_name is not None:
+            update_data["last_name"] = request.last_name
+        if request.display_role is not None:
+            update_data["display_role"] = request.display_role
+        if request.role is not None:
+            update_data["role"] = request.role
+        if request.department_id is not None:
+            update_data["department_id"] = str(request.department_id)
+
+        if not update_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No fields to update",
+            )
+
+        return update_data
+
+    def _sync_auth_metadata(self, target_user: UserResponse, request: UpdateUserRequest) -> None:
+        """
+        Synchronize user metadata to auth.users table.
+
+        This keeps auth.users.user_metadata in sync with the users table.
+        Failures are logged but don't cause the operation to fail since
+        the users table is the source of truth.
+
+        Args:
+            target_user: The user being updated
+            request: The update request containing fields to sync
+        """
+        try:
+            metadata_update = {}
+            if request.first_name is not None:
+                metadata_update["first_name"] = request.first_name
+            if request.last_name is not None:
+                metadata_update["last_name"] = request.last_name
+            if request.display_role is not None:
+                metadata_update["display_role"] = request.display_role
+            if request.role is not None:
+                metadata_update["role"] = request.role
+            if request.department_id is not None:
+                metadata_update["department_id"] = str(request.department_id)
+
+            if not metadata_update:
+                return
+
+            admin_client = self._get_admin_client()
+
+            # Get current metadata first
+            auth_user = admin_client.auth.admin.get_user_by_id(str(target_user.user_id))
+            current_metadata = auth_user.user.user_metadata or {}
+
+            # Merge updates into existing metadata
+            updated_metadata = {**current_metadata, **metadata_update}
+
+            # Update auth user metadata
+            admin_client.auth.admin.update_user_by_id(
+                uid=str(target_user.user_id),
+                attributes={"user_metadata": updated_metadata},
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update auth metadata: {e}")
+            # Continue even if metadata update fails (users table is source of truth)
+
     def update_user(
         self, user_id: UUID, request: UpdateUserRequest, current_user: UserResponse
     ) -> UserResponse:
@@ -192,123 +336,39 @@ class UserService:
             if not target_user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found",
+                    detail=USER_NOT_FOUND,
                 )
 
-            # 2. Validate permission
-            if not self._can_manage_user(current_user, target_user):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You don't have permission to manage this user",
-                )
+            # 2. Validate permissions for requested changes
+            self._validate_update_permissions(request, current_user, target_user)
 
-            # 3. Validate role change (only co-presidents)
-            if request.role is not None and request.role != target_user.role:
-                if current_user.role != "co_president":
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Only co-presidents can change user roles",
-                    )
+            # 3. Build update data
+            update_data = self._build_update_data(request)
 
-                # Prevent changing a co-president's role
-                if target_user.role == "co_president":
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Cannot change the role of a co-president",
-                    )
+            # 4. Update users table via repository
+            updated_user = self.repository.update(user_id, update_data)
 
-            # 4. Validate department change (only co-presidents)
-            if (
-                request.department_id is not None
-                and request.department_id != target_user.department_id
-            ):
-                if current_user.role != "co_president":
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Only co-presidents can change user departments",
-                    )
-
-            # 5. Build update data (only include fields that are provided)
-            update_data = {}
-            if request.first_name is not None:
-                update_data["first_name"] = request.first_name
-            if request.last_name is not None:
-                update_data["last_name"] = request.last_name
-            if request.display_role is not None:
-                update_data["display_role"] = request.display_role
-            if request.role is not None:
-                update_data["role"] = request.role
-            if request.department_id is not None:
-                update_data["department_id"] = str(request.department_id)
-
-            if not update_data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="No fields to update",
-                )
-
-            # 6. Update users table
-            result = (
-                self.supabase.schema(self.schema)
-                .table("users")
-                .update(update_data)
-                .eq("id", str(user_id))
-                .execute()
-            )
-
-            if not result.data or len(result.data) == 0:
+            if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to update user",
                 )
 
-            # 7. Update auth.users.user_metadata to keep synchronized
-            try:
-                metadata_update = {}
-                if request.first_name is not None:
-                    metadata_update["first_name"] = request.first_name
-                if request.last_name is not None:
-                    metadata_update["last_name"] = request.last_name
-                if request.display_role is not None:
-                    metadata_update["display_role"] = request.display_role
-                if request.role is not None:
-                    metadata_update["role"] = request.role
-                if request.department_id is not None:
-                    metadata_update["department_id"] = str(request.department_id)
+            # 5. Sync auth.users.user_metadata (non-blocking)
+            self._sync_auth_metadata(target_user, request)
 
-                if metadata_update:
-                    # Get current metadata first
-                    auth_user = self.supabase.auth.admin.get_user_by_id(
-                        str(target_user.user_id)
-                    )
-                    current_metadata = auth_user.user.user_metadata or {}
-
-                    # Merge updates into existing metadata
-                    updated_metadata = {**current_metadata, **metadata_update}
-
-                    # Update auth user metadata
-                    self.supabase.auth.admin.update_user_by_id(
-                        uid=str(target_user.user_id),
-                        attributes={"user_metadata": updated_metadata},
-                    )
-            except Exception as e:
-                print(f"Warning: Failed to update auth metadata: {e}")
-                # Continue even if metadata update fails (users table is source of truth)
-
-            return UserResponse(**result.data[0])
+            return updated_user
 
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error updating user: {e}")
+            logger.error(f"Error updating user: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update user: {str(e)}",
             )
 
-    def delete_user(
-        self, user_id: UUID, current_user: UserResponse
-    ) -> DeleteUserResponse:
+    def delete_user(self, user_id: UUID, current_user: UserResponse) -> DeleteUserResponse:
         """
         Delete a user from the system.
 
@@ -335,7 +395,7 @@ class UserService:
             if not target_user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found",
+                    detail=USER_NOT_FOUND,
                 )
 
             # 3. Validate permission
@@ -346,7 +406,8 @@ class UserService:
                 )
 
             # 4. Delete from auth.users (will cascade to {schema}.users)
-            self.supabase.auth.admin.delete_user(str(target_user.user_id))
+            admin_client = self._get_admin_client()
+            admin_client.auth.admin.delete_user(str(target_user.user_id))
 
             return DeleteUserResponse(
                 success=True,
@@ -357,49 +418,26 @@ class UserService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error deleting user: {e}")
+            logger.error(f"Error deleting user: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to delete user: {str(e)}",
             )
 
-# ============================================================================
-# Password Validation and Change
-# ============================================================================
+    # ============================================================================
+    # Password Validation and Change
+    # ============================================================================
 
-    def _validate_password_requirements(self, password: str) -> List[str]:
+    def _validate_new_password(self, new_password: str, confirm_password: str) -> None:
         """
-        Validate password meets requirements.
-
-        Requirements:
-        - Minimum 8 characters
+        Validate new password meets requirements and matches confirmation.
 
         Args:
-            password: Password to validate
-
-        Returns:
-            List of validation error messages (empty if valid)
-        """
-        errors = []
-
-        if len(password) < 8:
-            errors.append("Must be at least 8 characters")
-
-        return errors
-
-
-    def _validate_password_confirmation(
-        self, new_password: str, confirm_password: str
-    ) -> None:
-        """
-        Validate that new password and confirmation password match.
-
-        Args:
-            new_password: New password
+            new_password: New password to validate
             confirm_password: Confirmation password
 
         Raises:
-            HTTPException: If passwords don't match
+            HTTPException: If validation fails
         """
         if new_password != confirm_password:
             raise HTTPException(
@@ -407,29 +445,13 @@ class UserService:
                 detail="New password and confirmation password do not match",
             )
 
-    def _validate_new_password_requirements(self, password: str) -> None:
-        """
-        Validate new password meets requirements.
-
-        Args:
-            password: New password to validate
-
-        Raises:
-            HTTPException: If password doesn't meet requirements
-        """
-        password_errors = self._validate_password_requirements(password)
-        if password_errors:
+        if len(new_password) < 8:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "error": "New password does not meet requirements",
-                    "details": password_errors
-                },
+                detail="Password must be at least 8 characters",
             )
 
-    def _verify_current_password(
-        self, email: str, current_password: str
-    ) -> None:
+    def _verify_current_password(self, email: str, current_password: str) -> None:
         """
         Verify that the current password is correct by attempting sign in.
 
@@ -441,13 +463,13 @@ class UserService:
             HTTPException: If current password is incorrect or verification fails
         """
         try:
-            temp_client = create_client(
-                self.settings.SUPABASE_URL, self.settings.SUPABASE_KEY
+            temp_client = create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_KEY)
+            auth_response = temp_client.auth.sign_in_with_password(
+                {
+                    "email": email,
+                    "password": current_password,
+                }
             )
-            auth_response = temp_client.auth.sign_in_with_password({
-                "email": email,
-                "password": current_password,
-            })
 
             if not (auth_response.session and auth_response.user):
                 raise HTTPException(
@@ -462,15 +484,13 @@ class UserService:
                 detail="Current password is incorrect",
             )
         except Exception as e:
-            print(f"Error verifying current password: {e}")
+            logger.error(f"Error verifying current password: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to verify current password",
             )
 
-    def _update_password_in_supabase(
-        self, auth_user_id: UUID, new_password: str
-    ) -> None:
+    def _update_password_in_supabase(self, auth_user_id: UUID, new_password: str) -> None:
         """
         Update user password in Supabase Auth.
 
@@ -482,12 +502,13 @@ class UserService:
             HTTPException: If password update fails
         """
         try:
-            self.supabase.auth.admin.update_user_by_id(
+            admin_client = self._get_admin_client()
+            admin_client.auth.admin.update_user_by_id(
                 uid=str(auth_user_id),
                 attributes={"password": new_password},
             )
         except Exception as e:
-            print(f"Error updating password: {e}")
+            logger.error(f"Error updating password: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to update password",
@@ -510,9 +531,8 @@ class UserService:
             HTTPException: If validation fails or update fails
         """
         try:
-            # Validate permissions and inputs
-            self._validate_password_confirmation(request.new_password, request.confirm_password)
-            self._validate_new_password_requirements(request.new_password)
+            # Validate new password
+            self._validate_new_password(request.new_password, request.confirm_password)
 
             # Verify current password
             self._verify_current_password(current_user.email, request.current_password)
@@ -525,7 +545,7 @@ class UserService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error changing password: {e}")
+            logger.error(f"Error changing password: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to change password: {str(e)}",
