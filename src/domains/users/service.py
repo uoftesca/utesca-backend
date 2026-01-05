@@ -363,6 +363,10 @@ class UserService:
                 detail=f"Failed to delete user: {str(e)}",
             )
 
+# ============================================================================
+# Password Validation and Change
+# ============================================================================
+
     def _validate_password_requirements(self, password: str) -> List[str]:
         """
         Validate password meets requirements.

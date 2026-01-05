@@ -80,14 +80,9 @@ class DeleteUserResponse(BaseModel):
 class ChangePasswordResponse(BaseModel):
     """Response after changing password."""
 
-    message: str = Field(..., examples=["Password updated successfully"])
+    message: str 
 
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        json_schema_extra={
-            "example": {
-                "message": "Password updated successfully"
-            }
-        }
     )

@@ -9,14 +9,13 @@ Environment:
 - Automatically connects to the correct schema based on ENVIRONMENT variable
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from core.config import get_settings
 from core.database import get_supabase_client, get_schema
 from api.v1.router import api_router
-from starlette.requests import Request
 
 
 
@@ -126,29 +125,6 @@ async def health_check():
                 "database_connected": False
             }
         )
-
-
-# HTTPException handler - format responses with "error" key instead of "detail"
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """
-    Custom HTTPException handler to format error responses with "error" key.
-
-    Converts FastAPI's default {"detail": "..."} format to {"error": "..."}.
-    If detail is already a dict (for structured errors), return it as-is.
-    """
-    if isinstance(exc.detail, dict):
-        # Detail is already structured (e.g., {"error": "...", "details": [...]})
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=exc.detail
-        )
-
-    # Detail is a simple string
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": exc.detail}
-    )
 
 
 # Global exception handler

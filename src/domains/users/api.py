@@ -91,7 +91,6 @@ def change_password(
 
     **Authentication:**
     - Requires valid JWT token
-    - Users can only change their own password
 
     **Request Body:**
     - `current_password`: User's current password
