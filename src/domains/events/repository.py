@@ -87,13 +87,7 @@ class EventRepository:
         Returns:
             EventResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .select("*")
-            .eq("id", str(event_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").select("*").eq("id", str(event_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
@@ -110,13 +104,7 @@ class EventRepository:
         Returns:
             EventResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .select("*")
-            .eq("slug", slug)
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").select("*").eq("slug", slug).execute()
 
         if not result.data:
             return None
@@ -143,16 +131,11 @@ class EventRepository:
         """
         # Prepare data for insertion (use by_alias=False to get snake_case for database)
         # Use mode='json' to serialize datetime objects to ISO strings
-        insert_data = event_data.model_dump(mode='json', exclude_none=True, by_alias=False)
+        insert_data = event_data.model_dump(mode="json", exclude_none=True, by_alias=False)
         if created_by is not None:
             insert_data["created_by"] = str(created_by)
 
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .insert(insert_data)
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").insert(insert_data).execute()
 
         if not result.data or len(result.data) == 0:
             raise ValueError("Failed to create event")
@@ -172,19 +155,13 @@ class EventRepository:
         """
         # Prepare data for update (exclude None values, use by_alias=False to get snake_case for database)
         # Use mode='json' to serialize datetime objects to ISO strings
-        update_data = event_data.model_dump(mode='json', exclude_none=True, by_alias=False)
+        update_data = event_data.model_dump(mode="json", exclude_none=True, by_alias=False)
 
         if not update_data:
             # No fields to update
             return self.get_by_id(event_id)
 
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .update(update_data)
-            .eq("id", str(event_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").update(update_data).eq("id", str(event_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
@@ -203,13 +180,7 @@ class EventRepository:
             EventResponse if updated, None otherwise
         """
         update_data = {"registration_form_schema": schema.model_dump(mode="json")}
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .update(update_data)
-            .eq("id", str(event_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").update(update_data).eq("id", str(event_id)).execute()
         if not result.data:
             return None
         return EventResponse(**result.data[0])
@@ -224,13 +195,7 @@ class EventRepository:
         Returns:
             True if deleted, False otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .delete()
-            .eq("id", str(event_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").delete().eq("id", str(event_id)).execute()
 
         # Supabase delete returns empty data array on success
         # Check if any rows were affected by checking the result

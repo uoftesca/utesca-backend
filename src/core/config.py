@@ -16,6 +16,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+
 class Settings(BaseSettings):
     """
     Application settings loaded from environment variables.
@@ -49,7 +50,7 @@ class Settings(BaseSettings):
     # CORS settings (for Next.js frontend)
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",  # Local Next.js dev
-        "https://utesca.ca",       # Production frontend
+        "https://utesca.ca",  # Production frontend
         "https://www.utesca.ca",
         "http://127.0.0.1:3000",
     ]

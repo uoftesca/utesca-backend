@@ -60,4 +60,3 @@ def rate_limit(bucket: str, limit: int, window_seconds: int = 60):
         q.append(now)
 
     return _enforce
-

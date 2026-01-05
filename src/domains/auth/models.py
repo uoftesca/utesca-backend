@@ -25,6 +25,7 @@ class NotificationPreferences(TypedDict):
 
     Allows users to control which types of email notifications they receive.
     """
+
     announcements: EmailNotificationPreference
     rsvp_changes: bool
     new_application_submitted: bool
@@ -33,6 +34,7 @@ class NotificationPreferences(TypedDict):
 # ============================================================================
 # Request Models
 # ============================================================================
+
 
 class InviteUserRequest(BaseModel):
     """Request to invite a new user."""
@@ -46,10 +48,7 @@ class InviteUserRequest(BaseModel):
     )
     department_id: Optional[UUID] = None
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class UpdateProfileRequest(BaseModel):
@@ -59,10 +58,7 @@ class UpdateProfileRequest(BaseModel):
     photo_url: Optional[str] = None
     notification_preferences: Optional[NotificationPreferences] = None
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class CompleteOnboardingRequest(BaseModel):
@@ -71,10 +67,7 @@ class CompleteOnboardingRequest(BaseModel):
     password: str = Field(..., min_length=8, description="User's chosen password")
     preferred_name: Optional[str] = Field(None, max_length=255, description="Optional preferred name")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class SignInRequest(BaseModel):
@@ -87,6 +80,7 @@ class SignInRequest(BaseModel):
 # ============================================================================
 # Response Models
 # ============================================================================
+
 
 class UserResponse(BaseModel):
     """User profile response."""
@@ -106,11 +100,7 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
 class InviteUserResponse(BaseModel):
@@ -130,7 +120,4 @@ class SignInResponse(BaseModel):
     refresh_token: str
     user: UserResponse
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

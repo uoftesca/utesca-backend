@@ -45,12 +45,11 @@ class RegistrationService:
     def __init__(self):
         settings = get_settings()
         self.schema = get_schema()
-        self.supabase: Client = create_client(
-            settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.reg_repo = RegistrationsRepository(self.supabase, self.schema)
         self.files_repo = RegistrationFilesRepository(self.supabase, self.schema)
+
     # -------------------------------------------------------------------------
     # Validation helpers
     # -------------------------------------------------------------------------
@@ -190,9 +189,7 @@ class RegistrationService:
                 detail="Registration deadline has passed for this event.",
             )
 
-    def _disable_auto_accept_if_capacity_reached(
-        self, event, form_schema: RegistrationFormSchema
-    ) -> None:
+    def _disable_auto_accept_if_capacity_reached(self, event, form_schema: RegistrationFormSchema) -> None:
         """
         When capacity is reached, flip auto_accept off so future submissions are reviewed.
         """
@@ -212,9 +209,7 @@ class RegistrationService:
         event = self._get_event_or_404(event_slug)
         self._enforce_deadline(event)
 
-        form_schema_model: RegistrationFormSchema = (
-            event.registration_form_schema or RegistrationFormSchema()
-        )
+        form_schema_model: RegistrationFormSchema = event.registration_form_schema or RegistrationFormSchema()
         form_schema = form_schema_model.model_dump()
         files = self.files_repo.get_files_by_upload_session(upload_session_id)
         files_by_field: Dict[str, List[FileMeta]] = defaultdict(list)
@@ -312,8 +307,7 @@ class RegistrationService:
             email = registration.form_data.get("email")
             if not email:
                 logger.warning(
-                    f"No email found in form_data for registration {registration.id}. "
-                    "Skipping confirmation email."
+                    f"No email found in form_data for registration {registration.id}. Skipping confirmation email."
                 )
                 return
 
@@ -354,15 +348,9 @@ class RegistrationService:
                 )
 
             if success:
-                logger.info(
-                    f"Confirmation email sent successfully for registration {registration.id} "
-                    f"to {email}"
-                )
+                logger.info(f"Confirmation email sent successfully for registration {registration.id} to {email}")
             else:
-                logger.warning(
-                    f"Failed to send confirmation email for registration {registration.id} "
-                    f"to {email}"
-                )
+                logger.warning(f"Failed to send confirmation email for registration {registration.id} to {email}")
 
         except Exception as e:
             # Log but don't raise - email failures should not block registration
@@ -426,13 +414,11 @@ class RegistrationService:
 
             if success:
                 logger.info(
-                    f"Attendance confirmation email sent successfully for registration {registration.id} "
-                    f"to {email}"
+                    f"Attendance confirmation email sent successfully for registration {registration.id} to {email}"
                 )
             else:
                 logger.warning(
-                    f"Failed to send attendance confirmation email for registration {registration.id} "
-                    f"to {email}"
+                    f"Failed to send attendance confirmation email for registration {registration.id} to {email}"
                 )
 
         except Exception as e:
@@ -489,15 +475,9 @@ class RegistrationService:
             )
 
             if success:
-                logger.info(
-                    f"Attendance decline email sent successfully for registration {registration.id} "
-                    f"to {email}"
-                )
+                logger.info(f"Attendance decline email sent successfully for registration {registration.id} to {email}")
             else:
-                logger.warning(
-                    f"Failed to send attendance decline email for registration {registration.id} "
-                    f"to {email}"
-                )
+                logger.warning(f"Failed to send attendance decline email for registration {registration.id} to {email}")
 
         except Exception as e:
             # Log but don't raise - email failures should not block decline action
@@ -531,9 +511,7 @@ class RegistrationService:
         )
         return created
 
-    def delete_uploaded_file(
-        self, event_slug: str, file_id: UUID, upload_session_id: str, field_name: str
-    ) -> None:
+    def delete_uploaded_file(self, event_slug: str, file_id: UUID, upload_session_id: str, field_name: str) -> None:
         event = self._get_event_or_404(event_slug)
         file_meta = self.files_repo.get_file_by_id(file_id)
         if not file_meta:
@@ -829,9 +807,7 @@ class RegistrationService:
             event_id=event_id, status=status, page=page, limit=limit, search=search
         )
         total_pages = (total + limit - 1) // limit if limit else 1
-        pagination = RegistrationListPagination(
-            total=total, page=page, limit=limit, total_pages=total_pages
-        )
+        pagination = RegistrationListPagination(total=total, page=page, limit=limit, total_pages=total_pages)
         return RegistrationListResponse(registrations=registrations, pagination=pagination)
 
     def get_registration_detail(self, registration_id: UUID) -> RegistrationWithFilesResponse:
@@ -842,4 +818,3 @@ class RegistrationService:
         return RegistrationWithFilesResponse(**registration.model_dump(), files=files)
 
     # Analytics removed (moved to analytics subdomain)
-

@@ -180,6 +180,7 @@ class FileUploadRequest(BaseModel):
         populate_by_name=True,
     )
 
+
 class FileUploadResponse(BaseModel):
     """Response after uploading a file."""
 
@@ -297,4 +298,3 @@ class RsvpDetailsByIdResponse(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True,
     )
-

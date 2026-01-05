@@ -75,9 +75,7 @@ class RegistrationsRepository:
 
         if search:
             term = f"%{search}%"
-            query = query.or_(
-                f"form_data->>full_name.ilike.{term},form_data->>email.ilike.{term}"
-            )
+            query = query.or_(f"form_data->>full_name.ilike.{term},form_data->>email.ilike.{term}")
 
         # Supabase pagination uses inclusive range
         query = query.order("submitted_at", desc=True).range(offset, offset + limit - 1)
@@ -188,5 +186,3 @@ class RegistrationsRepository:
         if not result.data:
             return None
         return RegistrationResponse.model_validate(result.data[0])
-
-

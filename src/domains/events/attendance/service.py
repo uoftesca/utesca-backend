@@ -25,9 +25,7 @@ class AttendanceService:
     def __init__(self):
         settings = get_settings()
         self.schema = get_schema()
-        self.supabase: Client = create_client(
-            settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.reg_repo = RegistrationsRepository(self.supabase, self.schema)
         self.att_repo = AttendanceRepository(self.supabase, self.schema)
@@ -98,9 +96,7 @@ class AttendanceService:
             checked_in_by=checked_in_by,
             checked_in_at=datetime.now(timezone.utc),
         )
-        results = [
-            BulkCheckInResult(id=item.id, checked_in=item.checked_in) for item in updated
-        ]
+        results = [BulkCheckInResult(id=item.id, checked_in=item.checked_in) for item in updated]
         return BulkCheckInResponse(
             checked_in_count=len(updated),
             results=results,
@@ -115,4 +111,3 @@ class AttendanceService:
                 detail="Event not found",
             )
         return self.att_repo.get_check_in_stats(event_id)
-

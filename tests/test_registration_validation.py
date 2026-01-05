@@ -8,6 +8,7 @@ from domains.events.registrations.service import RegistrationService
 # pytest --cov=src --cov-report=html tests/test_registration_validation.py
 # Open htmlcov/index.html to see the results
 
+
 class ValidationOnlyService(RegistrationService):
     """
     Thin subclass to avoid hitting Supabase during tests.
@@ -57,9 +58,7 @@ def test_choice_validation():
             }
         ]
     }
-    errors = service.validate_form_data(
-        form_data={"size": "XL"}, form_schema=form_schema, files_by_field={}
-    )
+    errors = service.validate_form_data(form_data={"size": "XL"}, form_schema=form_schema, files_by_field={})
     assert errors and "allowed options" in errors[0]["message"]
 
 
@@ -78,17 +77,13 @@ def test_file_validation_size_and_type():
     files_by_field = {
         "resume": [make_file("resume", size=2_000_000, mime="application/pdf")],
     }
-    errors = service.validate_form_data(
-        form_data={}, form_schema=form_schema, files_by_field=files_by_field
-    )
+    errors = service.validate_form_data(form_data={}, form_schema=form_schema, files_by_field=files_by_field)
     assert errors and "must be <=" in errors[0]["message"]
 
     files_by_field = {
         "resume": [make_file("resume", size=500_000, mime="application/msword")],
     }
-    errors = service.validate_form_data(
-        form_data={}, form_schema=form_schema, files_by_field=files_by_field
-    )
+    errors = service.validate_form_data(form_data={}, form_schema=form_schema, files_by_field=files_by_field)
     assert errors and "must be one of" in errors[0]["message"]
 
 
@@ -157,11 +152,5 @@ def test_extract_name_priority():
     assert service._extract_name(form_data) == "Camel Case"
 
     # When both exist for first/last name, camelCase should win
-    form_data = {
-        "firstName": "Camel",
-        "lastName": "Case",
-        "first_name": "Snake",
-        "last_name": "Case"
-    }
+    form_data = {"firstName": "Camel", "lastName": "Case", "first_name": "Snake", "last_name": "Case"}
     assert service._extract_name(form_data) == "Camel Case"
-

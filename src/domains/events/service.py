@@ -46,9 +46,7 @@ class EventService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(
-            self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
     def _convert_google_drive_url_if_needed(self, url: Optional[str]) -> Optional[str]:
         """
@@ -159,9 +157,7 @@ class EventService:
         """
         try:
             if event_data.image_url:
-                event_data.image_url = self._convert_google_drive_url_if_needed(
-                    event_data.image_url
-                )
+                event_data.image_url = self._convert_google_drive_url_if_needed(event_data.image_url)
 
             if not event_data.slug:
                 year = event_data.date_time.year
@@ -180,9 +176,7 @@ class EventService:
         Update an existing event.
         """
         if event_data.image_url:
-            event_data.image_url = self._convert_google_drive_url_if_needed(
-                event_data.image_url
-            )
+            event_data.image_url = self._convert_google_drive_url_if_needed(event_data.image_url)
 
         current = self.repository.get_by_id(event_id)
         if not current:
@@ -239,4 +233,3 @@ class EventService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to delete event with id {event_id}",
             )
-

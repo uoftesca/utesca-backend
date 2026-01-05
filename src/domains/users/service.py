@@ -35,9 +35,7 @@ class UserService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(
-            self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
     def get_users(
         self,
@@ -143,9 +141,7 @@ class UserService:
                 detail=f"Failed to fetch user: {str(e)}",
             ) from e
 
-    def _can_manage_user(
-        self, current_user: UserResponse, target_user: UserResponse
-    ) -> bool:
+    def _can_manage_user(self, current_user: UserResponse, target_user: UserResponse) -> bool:
         """
         Check if current user has permission to manage target user.
 
@@ -170,9 +166,7 @@ class UserService:
 
         return False
 
-    def update_user(
-        self, user_id: UUID, request: UpdateUserRequest, current_user: UserResponse
-    ) -> UserResponse:
+    def update_user(self, user_id: UUID, request: UpdateUserRequest, current_user: UserResponse) -> UserResponse:
         """
         Update a user's information.
 
@@ -219,10 +213,7 @@ class UserService:
                     )
 
             # 4. Validate department change (only co-presidents)
-            if (
-                request.department_id is not None
-                and request.department_id != target_user.department_id
-            ):
+            if request.department_id is not None and request.department_id != target_user.department_id:
                 if current_user.role != "co_president":
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -250,11 +241,7 @@ class UserService:
 
             # 6. Update users table
             result = (
-                self.supabase.schema(self.schema)
-                .table("users")
-                .update(update_data)
-                .eq("id", str(user_id))
-                .execute()
+                self.supabase.schema(self.schema).table("users").update(update_data).eq("id", str(user_id)).execute()
             )
 
             if not result.data or len(result.data) == 0:
@@ -279,9 +266,7 @@ class UserService:
 
                 if metadata_update:
                     # Get current metadata first
-                    auth_user = self.supabase.auth.admin.get_user_by_id(
-                        str(target_user.user_id)
-                    )
+                    auth_user = self.supabase.auth.admin.get_user_by_id(str(target_user.user_id))
                     current_metadata = auth_user.user.user_metadata or {}
 
                     # Merge updates into existing metadata
@@ -307,9 +292,7 @@ class UserService:
                 detail=f"Failed to update user: {str(e)}",
             ) from e
 
-    def delete_user(
-        self, user_id: UUID, current_user: UserResponse
-    ) -> DeleteUserResponse:
+    def delete_user(self, user_id: UUID, current_user: UserResponse) -> DeleteUserResponse:
         """
         Delete a user from the system.
 

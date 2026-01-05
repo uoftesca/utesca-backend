@@ -21,10 +21,7 @@ from core.config import get_settings
 from core.database import get_schema, get_supabase_client
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 # Get settings instance
 settings = get_settings()
@@ -95,14 +92,16 @@ async def root():
 
     Returns basic information about the API and its current configuration.
     """
-    return JSONResponse({
-        "message": "UTESCA Portal API",
-        "version": "1.0.0",
-        "environment": settings.ENVIRONMENT,
-        "schema": get_schema(),
-        "docs": f"{settings.API_V1_PREFIX}/docs",
-        "status": "healthy"
-    })
+    return JSONResponse(
+        {
+            "message": "UTESCA Portal API",
+            "version": "1.0.0",
+            "environment": settings.ENVIRONMENT,
+            "schema": get_schema(),
+            "docs": f"{settings.API_V1_PREFIX}/docs",
+            "status": "healthy",
+        }
+    )
 
 
 # Health check endpoint
@@ -117,20 +116,17 @@ async def health_check():
         # Test database connection
         _ = get_supabase_client()
 
-        return JSONResponse({
-            "status": "healthy",
-            "environment": settings.ENVIRONMENT,
-            "database_schema": get_schema(),
-            "database_connected": True
-        })
+        return JSONResponse(
+            {
+                "status": "healthy",
+                "environment": settings.ENVIRONMENT,
+                "database_schema": get_schema(),
+                "database_connected": True,
+            }
+        )
     except Exception as e:
         return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "error": str(e),
-                "database_connected": False
-            }
+            status_code=503, content={"status": "unhealthy", "error": str(e), "database_connected": False}
         )
 
 
@@ -149,10 +145,7 @@ async def global_exception_handler(request, exc):
 
     return JSONResponse(
         status_code=500,
-        content={
-            "error": "Internal server error",
-            "detail": error_detail if not settings.is_production else None
-        }
+        content={"error": "Internal server error", "detail": error_detail if not settings.is_production else None},
     )
 
 
@@ -165,5 +158,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,  # Auto-reload on code changes (development only)
-        log_level="info"
+        log_level="info",
     )

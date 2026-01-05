@@ -43,10 +43,7 @@ async def get_current_user(
         schema = get_schema()
 
         # Create admin client to verify JWT
-        admin_client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
 
         # Verify JWT token and get user
         user_response = admin_client.auth.get_user(credentials.credentials)
@@ -130,10 +127,7 @@ async def get_auth_user_id(
         settings = get_settings()
 
         # Create admin client to verify JWT
-        admin_client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
 
         # Verify JWT token and get user
         user_response = admin_client.auth.get_user(credentials.credentials)
@@ -208,10 +202,7 @@ async def get_optional_user(
         schema = get_schema()
 
         # Create admin client to verify JWT
-        admin_client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
 
         # Verify JWT token and get user
         user_response = admin_client.auth.get_user(credentials.credentials)

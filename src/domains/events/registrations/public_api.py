@@ -232,4 +232,3 @@ async def decline_rsvp(
         ),
         final=True,
     )
-

@@ -34,25 +34,25 @@ def _extract_file_id(url: str) -> Optional[str]:
         return None
 
     # Pattern 1: /file/d/{fileId}/
-    pattern1 = r'/file/d/([a-zA-Z0-9_-]+)'
+    pattern1 = r"/file/d/([a-zA-Z0-9_-]+)"
     match = re.search(pattern1, url)
     if match:
         return match.group(1)
 
     # Pattern 2: /folders/{fileId}
-    pattern2 = r'/folders/([a-zA-Z0-9_-]+)'
+    pattern2 = r"/folders/([a-zA-Z0-9_-]+)"
     match = re.search(pattern2, url)
     if match:
         return match.group(1)
 
     # Pattern 3: ?id={fileId} or &id={fileId}
-    pattern3 = r'[?&]id=([a-zA-Z0-9_-]+)'
+    pattern3 = r"[?&]id=([a-zA-Z0-9_-]+)"
     match = re.search(pattern3, url)
     if match:
         return match.group(1)
 
     # Pattern 4: /d/{fileId}/ (more general pattern)
-    pattern4 = r'/d/([a-zA-Z0-9_-]+)'
+    pattern4 = r"/d/([a-zA-Z0-9_-]+)"
     match = re.search(pattern4, url)
     if match:
         return match.group(1)
@@ -82,9 +82,7 @@ def generate_direct_link(url: str) -> GoogleDriveDirectLinkResponse:
     # Validate input
     if not url or not isinstance(url, str):
         return GoogleDriveDirectLinkResponse(
-            original_url=url or "",
-            direct_url=None,
-            error="Invalid URL: URL must be a non-empty string"
+            original_url=url or "", direct_url=None, error="Invalid URL: URL must be a non-empty string"
         )
 
     url = url.strip()
@@ -92,9 +90,7 @@ def generate_direct_link(url: str) -> GoogleDriveDirectLinkResponse:
     # Check if it's a Google Drive URL
     if "drive.google.com" not in url:
         return GoogleDriveDirectLinkResponse(
-            original_url=url,
-            direct_url=None,
-            error="Invalid URL: Not a Google Drive URL"
+            original_url=url, direct_url=None, error="Invalid URL: Not a Google Drive URL"
         )
 
     # Extract file ID
@@ -102,17 +98,10 @@ def generate_direct_link(url: str) -> GoogleDriveDirectLinkResponse:
 
     if not file_id:
         return GoogleDriveDirectLinkResponse(
-            original_url=url,
-            direct_url=None,
-            error="Invalid URL: Could not extract file ID from Google Drive URL"
+            original_url=url, direct_url=None, error="Invalid URL: Could not extract file ID from Google Drive URL"
         )
 
     # Generate direct download link
     direct_url = f"https://drive.google.com/uc?export=download&id={file_id}"
 
-    return GoogleDriveDirectLinkResponse(
-        original_url=url,
-        direct_url=direct_url,
-        error=None
-    )
-
+    return GoogleDriveDirectLinkResponse(original_url=url, direct_url=direct_url, error=None)

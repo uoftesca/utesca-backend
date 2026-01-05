@@ -23,6 +23,7 @@ router = APIRouter()
 # User Endpoints
 # ============================================================================
 
+
 @router.get(
     "",
     response_model=UserListResponse,
@@ -31,9 +32,7 @@ router = APIRouter()
     description="Get list of users with optional filtering and pagination (requires authentication)",
 )
 def list_users(
-    department_id: Optional[UUID] = Query(
-        None, description="Filter by department ID"
-    ),
+    department_id: Optional[UUID] = Query(None, description="Filter by department ID"),
     role: Optional[str] = Query(None, description="Filter by role (co_president, vp, director)"),
     year: Optional[int] = Query(None, description="Filter by year"),
     search: Optional[str] = Query(None, description="Search in name, email, or role"),
@@ -198,6 +197,7 @@ def delete_user(
 # ============================================================================
 # Health Check / Test Endpoint
 # ============================================================================
+
 
 @router.get(
     "/status",

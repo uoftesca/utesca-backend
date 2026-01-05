@@ -37,13 +37,7 @@ class UserRepository:
         Returns:
             UserResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("users")
-            .select("*")
-            .eq("user_id", str(auth_user_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("users").select("*").eq("user_id", str(auth_user_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
@@ -60,13 +54,7 @@ class UserRepository:
         Returns:
             UserResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("users")
-            .select("*")
-            .eq("id", str(user_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("users").select("*").eq("id", str(user_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
@@ -83,13 +71,7 @@ class UserRepository:
         Returns:
             UserResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("users")
-            .select("*")
-            .eq("email", email.lower())
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("users").select("*").eq("email", email.lower()).execute()
 
         if not result.data or len(result.data) == 0:
             return None

@@ -15,6 +15,7 @@ from pydantic.alias_generators import to_camel
 # Response Models
 # ============================================================================
 
+
 class DepartmentResponse(BaseModel):
     """Single department response."""
 
@@ -23,11 +24,7 @@ class DepartmentResponse(BaseModel):
     year: int
     created_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
 class DepartmentListResponse(BaseModel):
@@ -43,7 +40,4 @@ class YearsResponse(BaseModel):
     years: List[int]
     current_year: int
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

@@ -117,23 +117,14 @@ class UserRepository:
         Returns:
             UserResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("users")
-            .select("*")
-            .eq("id", str(user_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("users").select("*").eq("id", str(user_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
 
         return UserResponse(**result.data[0])
 
-    def get_users_with_notification_enabled(
-        self,
-        notification_type: str
-    ) -> List[UserResponse]:
+    def get_users_with_notification_enabled(self, notification_type: str) -> List[UserResponse]:
         """
         Fetch all users who have a specific notification type enabled.
 

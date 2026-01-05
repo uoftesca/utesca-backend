@@ -17,6 +17,7 @@ from domains.auth.models import UserResponse, UserRole
 # Request Models
 # ============================================================================
 
+
 class UpdateUserRequest(BaseModel):
     """Request to update a user's information (admin operation)."""
 
@@ -26,15 +27,13 @@ class UpdateUserRequest(BaseModel):
     role: Optional[UserRole] = Field(None, description="Can only be changed by co-presidents")
     department_id: Optional[UUID] = Field(None, description="Can only be changed by co-presidents")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 # ============================================================================
 # Response Models
 # ============================================================================
+
 
 class UserListResponse(BaseModel):
     """List of users with metadata."""
@@ -44,10 +43,7 @@ class UserListResponse(BaseModel):
     page: Optional[int] = None
     page_size: Optional[int] = None
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class DeleteUserResponse(BaseModel):
@@ -57,7 +53,4 @@ class DeleteUserResponse(BaseModel):
     message: str
     deleted_user_id: UUID
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

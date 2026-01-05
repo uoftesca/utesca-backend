@@ -23,6 +23,7 @@ router = APIRouter()
 # Department Endpoints
 # ============================================================================
 
+
 @router.get(
     "",
     response_model=DepartmentListResponse,
@@ -32,13 +33,9 @@ router = APIRouter()
 )
 async def list_departments(
     year: Optional[int] = Query(
-        None,
-        description="Filter by specific year. Defaults to current academic year if not provided."
+        None, description="Filter by specific year. Defaults to current academic year if not provided."
     ),
-    all: bool = Query(
-        False,
-        description="If true, return departments from all years (overrides year parameter)"
-    ),
+    all: bool = Query(False, description="If true, return departments from all years (overrides year parameter)"),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -90,12 +87,7 @@ async def get_available_years(
     return service.get_available_years()
 
 
-@router.get(
-    "/status",
-    summary="Departments Status",
-    description="Check departments service status",
-    tags=["Health"]
-)
+@router.get("/status", summary="Departments Status", description="Check departments service status", tags=["Health"])
 async def departments_status():
     """
     Check departments service status.

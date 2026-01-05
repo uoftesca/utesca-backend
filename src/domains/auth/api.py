@@ -28,6 +28,7 @@ router = APIRouter()
 # Authentication Endpoints
 # ============================================================================
 
+
 @router.post(
     "/sign-in",
     response_model=SignInResponse,
@@ -165,6 +166,7 @@ async def update_profile(
 # ============================================================================
 # Health Check / Test Endpoint
 # ============================================================================
+
 
 @router.get(
     "/status",

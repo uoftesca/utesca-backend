@@ -55,4 +55,3 @@ async def get_check_in_stats(
     service: AttendanceService = Depends(get_attendance_service),
 ):
     return service.get_check_in_stats(event_id)
-

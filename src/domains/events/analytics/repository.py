@@ -20,9 +20,7 @@ class AnalyticsRepository:
 
     def get_status_counts(self, event_id: UUID) -> StatusBreakdown:
         result = (
-            self.client.schema(self.schema)
-            .rpc("get_event_registration_stats", {"p_event_id": str(event_id)})
-            .execute()
+            self.client.schema(self.schema).rpc("get_event_registration_stats", {"p_event_id": str(event_id)}).execute()
         )
         data = (result.data or [{}])[0]
         return StatusBreakdown(
@@ -62,14 +60,10 @@ class AnalyticsRepository:
         )
         # Approval rate = (accepted + confirmed + not_attending) / total * 100
         approval_rate = (
-            ((breakdown.accepted + breakdown.confirmed + breakdown.not_attending) / total) * 100
-            if total
-            else 0
+            ((breakdown.accepted + breakdown.confirmed + breakdown.not_attending) / total) * 100 if total else 0
         )
         # Attendance rate = checked_in / confirmed * 100 (only confirmed attendees)
-        attendance_rate = (
-            (breakdown.checked_in / breakdown.confirmed) * 100 if breakdown.confirmed else 0
-        )
+        attendance_rate = (breakdown.checked_in / breakdown.confirmed) * 100 if breakdown.confirmed else 0
         timeline = self.get_timeline(event_id)
         return AnalyticsResponse(
             total_registrations=total,
@@ -78,4 +72,3 @@ class AnalyticsRepository:
             attendance_rate=round(attendance_rate, 2),
             registration_timeline=timeline,
         )
-

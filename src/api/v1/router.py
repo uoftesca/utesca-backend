@@ -47,8 +47,4 @@ async def api_status():
 
     Returns the status of the API v1 and available endpoints.
     """
-    return {
-        "status": "ok",
-        "version": "1.0.0",
-        "message": "UTESCA Portal API v1 - Domain routers will be added here"
-    }
+    return {"status": "ok", "version": "1.0.0", "message": "UTESCA Portal API v1 - Domain routers will be added here"}

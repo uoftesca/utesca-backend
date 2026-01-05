@@ -66,14 +66,9 @@ class DepartmentService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(
-            self.settings.SUPABASE_URL,
-            self.settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
-    def get_departments(
-        self, year: Optional[int] = None, all_years: bool = False
-    ) -> DepartmentListResponse:
+    def get_departments(self, year: Optional[int] = None, all_years: bool = False) -> DepartmentListResponse:
         """
         Get list of departments, optionally filtered by year.
 
@@ -98,10 +93,7 @@ class DepartmentService:
 
             departments = self.repository.get_all(year=filter_year)
 
-            return DepartmentListResponse(
-                year=filter_year,
-                departments=departments
-            )
+            return DepartmentListResponse(year=filter_year, departments=departments)
 
         except HTTPException:
             raise
@@ -159,10 +151,7 @@ class DepartmentService:
             years = self.repository.get_available_years()
             current_year = get_current_academic_year()
 
-            return YearsResponse(
-                years=years if years else [current_year],
-                current_year=current_year
-            )
+            return YearsResponse(years=years if years else [current_year], current_year=current_year)
 
         except HTTPException:
             raise

@@ -41,16 +41,9 @@ class AuthService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(
-            self.settings.SUPABASE_URL,
-            self.settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
-    def invite_user(
-        self,
-        request: InviteUserRequest,
-        invited_by_user_id: UUID
-    ) -> InviteUserResponse:
+    def invite_user(self, request: InviteUserRequest, invited_by_user_id: UUID) -> InviteUserResponse:
         """
         Invite a new user to the portal.
 
@@ -87,7 +80,7 @@ class AuthService:
                 options={
                     "data": user_metadata,
                     "redirect_to": redirect_to,
-                }
+                },
             )
 
             if not result or not result.user:
@@ -146,10 +139,9 @@ class AuthService:
                 )
 
             # Update user in database
-            result = self.supabase.schema(self.schema).table("users") \
-                .update(update_data) \
-                .eq("id", str(user_id)) \
-                .execute()
+            result = (
+                self.supabase.schema(self.schema).table("users").update(update_data).eq("id", str(user_id)).execute()
+            )
 
             if not result.data or len(result.data) == 0:
                 raise HTTPException(
@@ -244,8 +236,7 @@ class AuthService:
                 update_attributes["user_metadata"] = updated_metadata
 
             update_result = admin_client.auth.admin.update_user_by_id(
-                uid=str(auth_user_id),
-                attributes=update_attributes
+                uid=str(auth_user_id), attributes=update_attributes
             )
 
             if not update_result or not update_result.user:
@@ -288,9 +279,7 @@ class AuthService:
             print(f"Creating user record: {user_data}")
 
             # Use admin client to bypass RLS policies
-            result = admin_client.schema(self.schema).table("users") \
-                .insert(user_data) \
-                .execute()
+            result = admin_client.schema(self.schema).table("users").insert(user_data).execute()
 
             if not result.data or len(result.data) == 0:
                 raise HTTPException(
@@ -324,10 +313,12 @@ class AuthService:
         """
         try:
             # Sign in with Supabase Auth
-            auth_response = self.supabase.auth.sign_in_with_password({
-                "email": request.email,
-                "password": request.password,
-            })
+            auth_response = self.supabase.auth.sign_in_with_password(
+                {
+                    "email": request.email,
+                    "password": request.password,
+                }
+            )
 
             if not auth_response.session or not auth_response.user:
                 raise HTTPException(
@@ -360,8 +351,9 @@ class AuthService:
             print(f"Auth error signing in: {e}")
 
             # Check for invalid credentials error code
-            if isinstance(e, AuthInvalidCredentialsError) or \
-               (isinstance(e, AuthApiError) and e.code == "invalid_credentials"):
+            if isinstance(e, AuthInvalidCredentialsError) or (
+                isinstance(e, AuthApiError) and e.code == "invalid_credentials"
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
@@ -370,11 +362,10 @@ class AuthService:
             # Other auth errors (rate limiting, user banned, etc.)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message if hasattr(e, 'message') else str(e),
+                detail=e.message if hasattr(e, "message") else str(e),
             ) from e
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred during sign in. Please try again.",
             ) from e
-
