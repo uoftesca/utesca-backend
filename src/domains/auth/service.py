@@ -48,7 +48,9 @@ class AuthService:
         """
         return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
-    def invite_user(self, request: InviteUserRequest, invited_by_user_id: UUID) -> InviteUserResponse:
+    def invite_user(
+        self, request: InviteUserRequest, invited_by_user_id: UUID
+    ) -> InviteUserResponse:
         """
         Invite a new user to the portal.
 
@@ -136,6 +138,8 @@ class AuthService:
                 update_data["photo_url"] = request.photo_url
             if request.notification_preferences is not None:
                 update_data["notification_preferences"] = request.notification_preferences
+            if request.linkedin_url is not None:
+                update_data["linkedin_url"] = request.linkedin_url
 
             if not update_data:
                 raise HTTPException(
@@ -146,7 +150,11 @@ class AuthService:
             # Update user in database
             result = cast(
                 APIResponse,
-                self.supabase.schema(self.schema).table("users").update(update_data).eq("id", str(user_id)).execute(),
+                self.supabase.schema(self.schema)
+                .table("users")
+                .update(update_data)
+                .eq("id", str(user_id))
+                .execute(),
             )
 
             if not result.data or len(result.data) == 0:
@@ -238,7 +246,10 @@ class AuthService:
                 current_metadata = current_user.user.user_metadata or {}
 
                 # Merge preferred_name into existing metadata
-                updated_metadata: dict[str, Any] = {**current_metadata, "preferred_name": request.preferred_name}
+                updated_metadata: dict[str, Any] = {
+                    **current_metadata,
+                    "preferred_name": request.preferred_name,
+                }
                 update_attributes["user_metadata"] = updated_metadata
 
             update_result = admin_client.auth.admin.update_user_by_id(

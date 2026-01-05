@@ -30,6 +30,16 @@ class UpdateUserRequest(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
+class ChangePasswordRequest(BaseModel):
+    """Request to change user password."""
+
+    current_password: str = Field(..., min_length=1, description="Current password")
+    new_password: str = Field(..., min_length=8, description="New password (minimum 8 characters)")
+    confirm_password: str = Field(..., min_length=8, description="Confirm new password")
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
 # ============================================================================
 # Response Models
 # ============================================================================
@@ -52,5 +62,13 @@ class DeleteUserResponse(BaseModel):
     success: bool
     message: str
     deleted_user_id: UUID
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class ChangePasswordResponse(BaseModel):
+    """Response after changing password."""
+
+    message: str
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

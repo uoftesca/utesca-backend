@@ -21,7 +21,9 @@ from core.config import get_settings
 from core.database import get_schema, get_supabase_client
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 # Get settings instance
 settings = get_settings()
@@ -126,7 +128,8 @@ async def health_check():
         )
     except Exception as e:
         return JSONResponse(
-            status_code=503, content={"status": "unhealthy", "error": str(e), "database_connected": False}
+            status_code=503,
+            content={"status": "unhealthy", "error": str(e), "database_connected": False},
         )
 
 
@@ -145,7 +148,10 @@ async def global_exception_handler(request, exc):
 
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal server error", "detail": error_detail if not settings.is_production else None},
+        content={
+            "error": "Internal server error",
+            "detail": error_detail if not settings.is_production else None,
+        },
     )
 
 

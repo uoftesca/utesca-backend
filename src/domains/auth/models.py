@@ -57,6 +57,7 @@ class UpdateProfileRequest(BaseModel):
     preferred_name: Optional[str] = None
     photo_url: Optional[str] = None
     notification_preferences: Optional[NotificationPreferences] = None
+    linkedin_url: Optional[str] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -65,7 +66,9 @@ class CompleteOnboardingRequest(BaseModel):
     """Request to complete onboarding after accepting invite."""
 
     password: str = Field(..., min_length=8, description="User's chosen password")
-    preferred_name: Optional[str] = Field(None, max_length=255, description="Optional preferred name")
+    preferred_name: Optional[str] = Field(
+        None, max_length=255, description="Optional preferred name"
+    )
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -95,6 +98,7 @@ class UserResponse(BaseModel):
     department_id: Optional[UUID] = None
     preferred_name: Optional[str] = None
     photo_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
     invited_by: Optional[UUID] = None
     notification_preferences: NotificationPreferences
     created_at: datetime

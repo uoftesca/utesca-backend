@@ -117,7 +117,13 @@ class UserRepository:
         Returns:
             UserResponse if found, None otherwise
         """
-        result = self.client.schema(self.schema).table("users").select("*").eq("id", str(user_id)).execute()
+        result = (
+            self.client.schema(self.schema)
+            .table("users")
+            .select("*")
+            .eq("id", str(user_id))
+            .execute()
+        )
 
         if not result.data or len(result.data) == 0:
             return None
@@ -150,3 +156,46 @@ class UserRepository:
             return []
 
         return [UserResponse(**user) for user in result.data]
+
+    def update(self, user_id: UUID, update_data: dict) -> Optional[UserResponse]:
+        """
+        Update user by ID.
+
+        Args:
+            user_id: User UUID
+            update_data: Dictionary of fields to update
+
+        Returns:
+            Updated UserResponse if found, None otherwise
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("users")
+            .update(update_data)
+            .eq("id", str(user_id))
+            .execute()
+        )
+
+        if not result.data or len(result.data) == 0:
+            return None
+
+        return UserResponse(**result.data[0])
+
+    def delete(self, user_id: UUID) -> bool:
+        """
+        Delete user by ID.
+
+        Note: This only deletes from the users table. For full deletion
+        including auth.users, use the Supabase admin API.
+
+        Args:
+            user_id: User UUID
+
+        Returns:
+            True if user was deleted, False if not found
+        """
+        result = (
+            self.client.schema(self.schema).table("users").delete().eq("id", str(user_id)).execute()
+        )
+
+        return len(result.data) > 0 if result.data else False
