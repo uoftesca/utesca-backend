@@ -237,7 +237,8 @@ class AuthService:
                 update_attributes["user_metadata"] = updated_metadata
 
             update_result = admin_client.auth.admin.update_user_by_id(
-                uid=str(auth_user_id), attributes=update_attributes  # type: ignore[arg-type]
+                uid=str(auth_user_id),
+                attributes=update_attributes,  # type: ignore[arg-type]
             )
 
             if not update_result or not update_result.user:
@@ -339,7 +340,7 @@ class AuthService:
 
             return SignInResponse(
                 access_token=auth_response.session.access_token,
-                token_type="bearer",
+                token_type="bearer",  # nosec B106 - Standard OAuth2 token type per RFC 6750
                 expires_in=auth_response.session.expires_in or 3600,
                 refresh_token=auth_response.session.refresh_token or "",
                 user=user_data,

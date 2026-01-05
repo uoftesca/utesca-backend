@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     PROJECT_NAME: str = "UTESCA Portal"
 
+    # Server configuration
+    SERVER_HOST: str = "127.0.0.1"  # Use 127.0.0.1 for local dev, 0.0.0.0 for Docker/production
+    SERVER_PORT: int = 8000
+
     # Supabase credentials (single database with test and prod schemas)
     SUPABASE_URL: str
     SUPABASE_KEY: str
