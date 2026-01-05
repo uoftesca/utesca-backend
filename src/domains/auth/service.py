@@ -5,10 +5,11 @@ This module handles user invitation and profile management.
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from postgrest import APIResponse
 from supabase import Client, create_client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
@@ -143,8 +144,9 @@ class AuthService:
                 )
 
             # Update user in database
-            result = (
-                self.supabase.schema(self.schema).table("users").update(update_data).eq("id", str(user_id)).execute()
+            result = cast(
+                APIResponse,
+                self.supabase.schema(self.schema).table("users").update(update_data).eq("id", str(user_id)).execute(),
             )
 
             if not result.data or len(result.data) == 0:
@@ -153,7 +155,7 @@ class AuthService:
                     detail="User not found",
                 )
 
-            return UserResponse(**result.data[0])
+            return UserResponse(**cast(dict[str, Any], result.data[0]))
 
         except HTTPException:
             raise
@@ -284,7 +286,10 @@ class AuthService:
             logger.info("Creating user record for user %s", auth_user_id)
 
             # Use admin client to bypass RLS policies
-            result = admin_client.schema(self.schema).table("users").insert(user_data).execute()
+            result = cast(
+                APIResponse,
+                admin_client.schema(self.schema).table("users").insert(user_data).execute(),
+            )
 
             if not result.data or len(result.data) == 0:
                 raise HTTPException(
@@ -292,7 +297,7 @@ class AuthService:
                     detail="Failed to create user profile",
                 )
 
-            return UserResponse(**result.data[0])
+            return UserResponse(**cast(dict[str, Any], result.data[0]))
 
         except HTTPException:
             raise
