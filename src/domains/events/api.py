@@ -54,7 +54,7 @@ async def get_events(
     # If no user is authenticated, only return published events
     # For authenticated users, use the status filter if provided, otherwise return all
     if current_user is None:
-        status_filter = "published"
+        status_filter: Optional[EventStatus] = "published"
     else:
         # Authenticated users can see all events (use status filter if provided)
         status_filter = status

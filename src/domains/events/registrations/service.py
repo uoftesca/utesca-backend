@@ -153,7 +153,10 @@ class RegistrationService:
 
             validator = validators.get(field_type)
             if validator:
-                validator(field, files if field_type == "file" else value, errors)
+                if field_type == "file":
+                    validator(field, files, errors)
+                else:
+                    validator(field, value, errors)  # type: ignore[arg-type]
 
         return errors
 
@@ -258,11 +261,11 @@ class RegistrationService:
         """
         # Try fullName first (new standard)
         if full_name := form_data.get("fullName"):
-            return full_name.strip()
+            return str(full_name).strip()
 
         # Legacy fallback for snake_case
         if full_name := form_data.get("full_name"):
-            return full_name.strip()
+            return str(full_name).strip()
 
         # Try firstName + lastName (new standard)
         first = form_data.get("firstName", "")

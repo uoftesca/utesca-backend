@@ -4,6 +4,7 @@ Authentication service - Business logic for authentication operations.
 This module handles user invitation and profile management.
 """
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -124,7 +125,7 @@ class AuthService:
         """
         try:
             # Build update data (only include fields that are provided)
-            update_data = {}
+            update_data: dict[str, Any] = {}
             if request.preferred_name is not None:
                 update_data["preferred_name"] = request.preferred_name
             if request.photo_url is not None:
@@ -223,7 +224,7 @@ class AuthService:
             print(f"Updating password for user {auth_user_id}")
 
             # Prepare update attributes
-            update_attributes = {"password": request.password}
+            update_attributes: dict[str, Any] = {"password": request.password}
 
             # If preferred_name is provided, also update user_metadata
             if request.preferred_name:
@@ -232,11 +233,11 @@ class AuthService:
                 current_metadata = current_user.user.user_metadata or {}
 
                 # Merge preferred_name into existing metadata
-                updated_metadata = {**current_metadata, "preferred_name": request.preferred_name}
+                updated_metadata: dict[str, Any] = {**current_metadata, "preferred_name": request.preferred_name}
                 update_attributes["user_metadata"] = updated_metadata
 
             update_result = admin_client.auth.admin.update_user_by_id(
-                uid=str(auth_user_id), attributes=update_attributes
+                uid=str(auth_user_id), attributes=update_attributes  # type: ignore[arg-type]
             )
 
             if not update_result or not update_result.user:

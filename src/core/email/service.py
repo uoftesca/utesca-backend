@@ -50,7 +50,7 @@ class EmailService:
             True if sent successfully, False otherwise
         """
         try:
-            params = {
+            params: resend.Emails.SendParams = {
                 "from": self.from_email,
                 "to": [to],
                 "subject": subject,
