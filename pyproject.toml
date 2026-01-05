@@ -49,7 +49,7 @@ exclude = [
 
 [tool.ruff]
 # Ruff configuration (if needed)
-line-length = 100
+line-length = 120
 target-version = "py313"
 
 [tool.ruff.lint]
@@ -61,7 +61,12 @@ select = [
     "B",  # flake8-bugbear
     "C4", # flake8-comprehensions
 ]
-ignore = []
+ignore = [
+    "B008",  # Do not perform function calls in argument defaults - FastAPI requires this pattern
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/core/email/templates.py" = ["E501"]  # HTML email templates have long lines
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
