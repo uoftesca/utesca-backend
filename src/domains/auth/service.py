@@ -4,6 +4,7 @@ Authentication service - Business logic for authentication operations.
 This module handles user invitation and profile management.
 """
 
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -24,6 +25,8 @@ from .models import (
     UserResponse,
 )
 from .repository import UserRepository
+
+logger = logging.getLogger(__name__)
 
 
 class AuthService:
@@ -99,7 +102,7 @@ class AuthService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error inviting user: {e}")
+            logger.exception("Error inviting user: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to invite user: {str(e)}",
@@ -155,7 +158,7 @@ class AuthService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error updating profile: {e}")
+            logger.exception("Error updating profile: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update profile: {str(e)}",
@@ -188,7 +191,7 @@ class AuthService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error fetching user: {e}")
+            logger.exception("Error fetching user: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch user: {str(e)}",
@@ -221,7 +224,7 @@ class AuthService:
             admin_client = self._get_admin_client()
 
             # 1. Update password and preferred_name in Supabase Auth
-            print(f"Updating password for user {auth_user_id}")
+            logger.info("Updating password for user %s", auth_user_id)
 
             # Prepare update attributes
             update_attributes: dict[str, Any] = {"password": request.password}
@@ -278,7 +281,7 @@ class AuthService:
                 },
             }
 
-            print(f"Creating user record: {user_data}")
+            logger.info("Creating user record for user %s", auth_user_id)
 
             # Use admin client to bypass RLS policies
             result = admin_client.schema(self.schema).table("users").insert(user_data).execute()
@@ -294,7 +297,7 @@ class AuthService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error completing onboarding: {e}")
+            logger.exception("Error completing onboarding: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to complete onboarding: {str(e)}",
@@ -350,7 +353,7 @@ class AuthService:
             raise
         except (AuthInvalidCredentialsError, AuthApiError) as e:
             # Handle Supabase auth-specific errors
-            print(f"Auth error signing in: {e}")
+            logger.warning("Auth error signing in: %s", e)
 
             # Check for invalid credentials error code
             if isinstance(e, AuthInvalidCredentialsError) or (
