@@ -12,9 +12,9 @@ export PYTHONPATH="${PYTHONPATH}:${PWD}/src"
 mypy src/
 
 echo "Running Bandit security scan..."
-bandit -r src/
+bandit -r src/ --exclude ./src/.venv,src/.venv,.venv
 
 echo "Running tests with coverage..."
 pytest
 
-echo "✅ All checks passed!"
+echo "All checks passed!"
