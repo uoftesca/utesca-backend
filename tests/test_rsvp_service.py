@@ -14,20 +14,20 @@ Run tests with:
     pytest tests/test_rsvp_service.py -v --cov=domains.events.registrations.service
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
-from domains.events.registrations.service import (
-    RegistrationService,
-    REGISTRATION_NOT_ACCESSIBLE,
-    EVENT_NOT_FOUND,
-    RSVP_CUTOFF_PASSED,
-    NOT_ELIGIBLE_FOR_CONFIRMATION,
-)
 
+from domains.events.registrations.service import (
+    EVENT_NOT_FOUND,
+    NOT_ELIGIBLE_FOR_CONFIRMATION,
+    REGISTRATION_NOT_ACCESSIBLE,
+    RSVP_CUTOFF_PASSED,
+    RegistrationService,
+)
 
 # ============================================================================
 # Test Fixtures
