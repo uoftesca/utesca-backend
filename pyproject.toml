@@ -62,11 +62,11 @@ select = [
     "C4", # flake8-comprehensions
 ]
 ignore = [
-    "B008",  # Do not perform function calls in argument defaults - FastAPI requires this pattern
+    "B008", # Do not perform function calls in argument defaults - FastAPI requires this pattern
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"src/core/email/templates.py" = ["E501"]  # HTML email templates have long lines
+"src/core/email/templates.py" = ["E501"] # HTML email templates have long lines
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -74,3 +74,9 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 addopts = "-v --strict-markers"
+filterwarnings = [
+    # Ignore deprecation warnings from third-party packages
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::pydantic.warnings.PydanticDeprecatedSince212",
+]
