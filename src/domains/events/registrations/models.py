@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed"]
+RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed", "not_attending"]
 
 
 class FileMeta(BaseModel):
@@ -46,7 +46,6 @@ class RegistrationBase(BaseModel):
     submitted_at: datetime
     reviewed_by: Optional[UUID] = None
     reviewed_at: Optional[datetime] = None
-    rsvp_token: Optional[str] = None
     confirmed_at: Optional[datetime] = None
     checked_in: bool
     checked_in_at: Optional[datetime] = None
@@ -141,6 +140,7 @@ class RegistrationStatusBreakdown(BaseModel):
     accepted: int
     rejected: int
     confirmed: int
+    not_attending: int
     checked_in: int
 
     model_config = ConfigDict(
@@ -179,6 +179,7 @@ class FileUploadRequest(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True,
     )
+
 
 class FileUploadResponse(BaseModel):
     """Response after uploading a file."""
@@ -228,15 +229,72 @@ class RsvpDetailsResponse(BaseModel):
     )
 
 
-class RsvpConfirmResponse(BaseModel):
-    """Response after confirming RSVP."""
+class RsvpEventDetails(BaseModel):
+    """Event details for RSVP response."""
 
-    success: bool
-    message: str
-    event: dict
+    title: str
+    date_time: datetime | None
+    location: str | None
+    description: str | None
 
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
     )
 
+
+class RsvpRegistrationDetails(BaseModel):
+    """Registration details for RSVP response."""
+
+    status: RegistrationStatus
+    submitted_at: datetime
+    confirmed_at: datetime | None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class RsvpConfirmResponse(BaseModel):
+    """Response after confirming RSVP."""
+
+    success: bool
+    message: str
+    event: RsvpEventDetails
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class RsvpDeclineResponse(BaseModel):
+    """Response after declining RSVP."""
+
+    success: bool
+    message: str
+    final: bool  # Indicates this change is final
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class RsvpDetailsByIdResponse(BaseModel):
+    """Response for viewing RSVP details by registration ID."""
+
+    event: RsvpEventDetails
+    registration: RsvpRegistrationDetails
+    current_status: RegistrationStatus
+    can_confirm: bool  # Can user confirm attendance?
+    can_decline: bool  # Can user decline?
+    is_final: bool  # Is status final (no more changes)?
+    event_has_passed: bool  # Has event date passed?
+    within_rsvp_cutoff: bool  # Within 24-hour cutoff period?
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )

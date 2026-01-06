@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
+
 from .models import (
     ChangePasswordRequest,
     ChangePasswordResponse,
@@ -19,7 +20,6 @@ from .models import (
     UserListResponse,
 )
 from .service import UserService
-
 
 # Create router
 router = APIRouter()

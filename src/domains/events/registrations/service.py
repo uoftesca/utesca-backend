@@ -3,7 +3,6 @@ Business logic for event registrations.
 """
 
 import re
-import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -11,24 +10,30 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from supabase import Client, create_client
+
 from core.config import get_settings
 from core.database import get_schema
+
 from ..models import RegistrationFormSchema
 from ..repository import EventRepository
 from .files_repository import RegistrationFilesRepository
 from .models import (
     FileMeta,
+    FileUploadRequest,
     RegistrationListPagination,
     RegistrationListResponse,
     RegistrationResponse,
     RegistrationStatus,
     RegistrationWithFilesResponse,
-    FileUploadRequest,
 )
 from .repository import RegistrationsRepository
 
-
 REGISTRATION_NOT_FOUND = "Registration not found"
+EVENT_NOT_FOUND = "Event not found"
+REGISTRATION_NOT_ACCESSIBLE = "Registration not found or not accessible"
+NOT_ELIGIBLE_FOR_CONFIRMATION = "Registration is not eligible for confirmation"
+EVENT_PASSED = "Cannot confirm attendance - event has already passed"
+RSVP_CUTOFF_PASSED = "Cannot change RSVP - cutoff is 24 hours before event"
 
 
 class RegistrationService:
@@ -40,12 +45,11 @@ class RegistrationService:
     def __init__(self):
         settings = get_settings()
         self.schema = get_schema()
-        self.supabase: Client = create_client(
-            settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.reg_repo = RegistrationsRepository(self.supabase, self.schema)
         self.files_repo = RegistrationFilesRepository(self.supabase, self.schema)
+
     # -------------------------------------------------------------------------
     # Validation helpers
     # -------------------------------------------------------------------------
@@ -149,7 +153,10 @@ class RegistrationService:
 
             validator = validators.get(field_type)
             if validator:
-                validator(field, files if field_type == "file" else value, errors)
+                if field_type == "file":
+                    validator(field, files, errors)
+                else:
+                    validator(field, value, errors)  # type: ignore[arg-type]
 
         return errors
 
@@ -161,7 +168,7 @@ class RegistrationService:
         if not event:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Event not found",
+                detail=EVENT_NOT_FOUND,
             )
         if event.status != "published":
             raise HTTPException(
@@ -185,9 +192,7 @@ class RegistrationService:
                 detail="Registration deadline has passed for this event.",
             )
 
-    def _disable_auto_accept_if_capacity_reached(
-        self, event, form_schema: RegistrationFormSchema
-    ) -> None:
+    def _disable_auto_accept_if_capacity_reached(self, event, form_schema: RegistrationFormSchema) -> None:
         """
         When capacity is reached, flip auto_accept off so future submissions are reviewed.
         """
@@ -207,9 +212,7 @@ class RegistrationService:
         event = self._get_event_or_404(event_slug)
         self._enforce_deadline(event)
 
-        form_schema_model: RegistrationFormSchema = (
-            event.registration_form_schema or RegistrationFormSchema()
-        )
+        form_schema_model: RegistrationFormSchema = event.registration_form_schema or RegistrationFormSchema()
         form_schema = form_schema_model.model_dump()
         files = self.files_repo.get_files_by_upload_session(upload_session_id)
         files_by_field: Dict[str, List[FileMeta]] = defaultdict(list)
@@ -225,13 +228,11 @@ class RegistrationService:
 
         auto_accept = bool(form_schema.get("auto_accept"))
         status_value: RegistrationStatus = "accepted" if auto_accept else "submitted"
-        rsvp_token = str(uuid.uuid4()) if auto_accept else None
 
         registration = self.reg_repo.create_registration(
             event_id=event.id,
             form_data=form_data,
             status=status_value,
-            rsvp_token=rsvp_token,
         )
 
         # Link files after successful creation
@@ -244,6 +245,249 @@ class RegistrationService:
         self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
 
         return registration
+
+    def _extract_name(self, form_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Extract user's name from form data with fallback logic.
+
+        Tries in order: fullName → firstName + lastName → None
+        (Supports legacy snake_case for backward compatibility)
+
+        Args:
+            form_data: Form submission data
+
+        Returns:
+            User's name or None if no name fields found
+        """
+        # Try fullName first (new standard)
+        if full_name := form_data.get("fullName"):
+            return str(full_name).strip()
+
+        # Legacy fallback for snake_case
+        if full_name := form_data.get("full_name"):
+            return str(full_name).strip()
+
+        # Try firstName + lastName (new standard)
+        first = form_data.get("firstName", "")
+        last = form_data.get("lastName", "")
+
+        # Legacy fallback for snake_case
+        if not first:
+            first = form_data.get("first_name", "")
+        if not last:
+            last = form_data.get("last_name", "")
+
+        first = first.strip()
+        last = last.strip()
+
+        if first or last:
+            return f"{first} {last}".strip()
+
+        # No name found
+        return None
+
+    def send_confirmation_email(self, registration: RegistrationResponse, event) -> None:
+        """
+        Send confirmation email after successful registration.
+
+        Email sending failures are logged but do not block registration.
+        This method is called as a background task.
+
+        Args:
+            registration: The created registration
+            event: The event object
+        """
+        import logging
+
+        from core.config import get_settings
+        from core.email import EmailService
+        from utils.timezone import format_datetime_toronto
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Extract email from form_data
+            email = registration.form_data.get("email")
+            if not email:
+                logger.warning(
+                    f"No email found in form_data for registration {registration.id}. Skipping confirmation email."
+                )
+                return
+
+            # Extract user's name (with fallback)
+            full_name = self._extract_name(registration.form_data)
+
+            # Format event datetime to Toronto timezone
+            event_datetime_str = format_datetime_toronto(event.date_time)
+
+            # Get base URL from settings
+            settings = get_settings()
+            base_url = settings.BASE_URL
+
+            # Initialize email service
+            email_service = EmailService()
+
+            # Determine if auto-accepted
+            auto_accept = registration.status == "accepted"
+
+            # Send appropriate email based on auto_accept
+            if auto_accept:
+                success = email_service.send_registration_confirmation(
+                    to=email,
+                    full_name=full_name,
+                    event_title=event.title,
+                    event_datetime=event_datetime_str,
+                    event_location=event.location or "TBA",
+                    registration_id=str(registration.id),
+                    base_url=base_url,
+                )
+            else:
+                success = email_service.send_application_received(
+                    to=email,
+                    full_name=full_name,
+                    event_title=event.title,
+                    event_datetime=event_datetime_str,
+                    event_location=event.location or "TBA",
+                )
+
+            if success:
+                logger.info(f"Confirmation email sent successfully for registration {registration.id} to {email}")
+            else:
+                logger.warning(f"Failed to send confirmation email for registration {registration.id} to {email}")
+
+        except Exception as e:
+            # Log but don't raise - email failures should not block registration
+            logger.error(
+                f"Error sending confirmation email for registration {registration.id}: {str(e)}",
+                exc_info=True,
+            )
+
+    def send_attendance_confirmed_email(self, registration: RegistrationResponse, event) -> None:
+        """
+        Send attendance confirmation email after user confirms via RSVP page.
+
+        Email sending failures are logged but do not block the confirmation.
+        This method is called as a background task.
+
+        Args:
+            registration: The registration record
+            event: The event object
+        """
+        import logging
+
+        from core.config import get_settings
+        from core.email import EmailService
+        from utils.timezone import format_datetime_toronto
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Extract email from form_data
+            email = registration.form_data.get("email")
+            if not email:
+                logger.warning(
+                    f"No email found in form_data for registration {registration.id}. "
+                    "Skipping attendance confirmation email."
+                )
+                return
+
+            # Extract user's name (with fallback)
+            full_name = self._extract_name(registration.form_data)
+
+            # Format event datetime to Toronto timezone
+            event_datetime_str = format_datetime_toronto(event.date_time)
+
+            # Get base URL from settings
+            settings = get_settings()
+            base_url = settings.BASE_URL
+
+            # Initialize email service
+            email_service = EmailService()
+
+            # Send attendance confirmed email
+            success = email_service.send_attendance_confirmed(
+                to=email,
+                full_name=full_name,
+                event_title=event.title,
+                event_datetime=event_datetime_str,
+                event_location=event.location or "TBA",
+                registration_id=str(registration.id),
+                base_url=base_url,
+            )
+
+            if success:
+                logger.info(
+                    f"Attendance confirmation email sent successfully for registration {registration.id} to {email}"
+                )
+            else:
+                logger.warning(
+                    f"Failed to send attendance confirmation email for registration {registration.id} to {email}"
+                )
+
+        except Exception as e:
+            # Log but don't raise - email failures should not block confirmation
+            logger.error(
+                f"Error sending attendance confirmation email for registration {registration.id}: {str(e)}",
+                exc_info=True,
+            )
+
+    def send_attendance_declined_email(self, registration: RegistrationResponse, event) -> None:
+        """
+        Send attendance decline confirmation email after user declines via RSVP page.
+
+        Email sending failures are logged but do not block the decline action.
+        This method is called as a background task.
+
+        Args:
+            registration: The registration record
+            event: The event object
+        """
+        import logging
+
+        from core.email import EmailService
+        from utils.timezone import format_datetime_toronto
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Extract email from form_data
+            email = registration.form_data.get("email")
+            if not email:
+                logger.warning(
+                    f"No email found in form_data for registration {registration.id}. "
+                    "Skipping attendance decline email."
+                )
+                return
+
+            # Extract user's name (with fallback)
+            full_name = self._extract_name(registration.form_data)
+
+            # Format event datetime to Toronto timezone
+            event_datetime_str = format_datetime_toronto(event.date_time)
+
+            # Initialize email service
+            email_service = EmailService()
+
+            # Send attendance declined email
+            success = email_service.send_attendance_declined(
+                to=email,
+                full_name=full_name,
+                event_title=event.title,
+                event_datetime=event_datetime_str,
+                event_location=event.location or "TBA",
+            )
+
+            if success:
+                logger.info(f"Attendance decline email sent successfully for registration {registration.id} to {email}")
+            else:
+                logger.warning(f"Failed to send attendance decline email for registration {registration.id} to {email}")
+
+        except Exception as e:
+            # Log but don't raise - email failures should not block decline action
+            logger.error(
+                f"Error sending attendance decline email for registration {registration.id}: {str(e)}",
+                exc_info=True,
+            )
 
     def upload_file(self, event_slug: str, payload: FileUploadRequest) -> FileMeta:
         event = self._get_event_or_404(event_slug)
@@ -270,9 +514,7 @@ class RegistrationService:
         )
         return created
 
-    def delete_uploaded_file(
-        self, event_slug: str, file_id: UUID, upload_session_id: str, field_name: str
-    ) -> None:
+    def delete_uploaded_file(self, event_slug: str, file_id: UUID, upload_session_id: str, field_name: str) -> None:
         event = self._get_event_or_404(event_slug)
         file_meta = self.files_repo.get_file_by_id(file_id)
         if not file_meta:
@@ -287,39 +529,6 @@ class RegistrationService:
 
         self.files_repo.delete_file_by_id(file_id)
 
-    def rsvp_details(self, token: str):
-        registration = self.reg_repo.get_registration_by_rsvp_token(token)
-        if not registration:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid RSVP token"
-            )
-        if registration.status not in ("accepted", "confirmed"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Registration is not eligible for confirmation",
-            )
-        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
-        if not event:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Event not found"
-            )
-        return registration, event
-
-    def rsvp_confirm(self, token: str):
-        registration = self.reg_repo.get_registration_by_rsvp_token(token)
-        if not registration:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid RSVP token"
-            )
-        if registration.status not in ("accepted", "confirmed"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Registration is not eligible for confirmation",
-            )
-        updated = self.confirm_rsvp(token)
-        event = self.events_repo.get_by_id(UUID(str(updated.event_id)))
-        return updated, event
-
     def accept_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)
         if not registration:
@@ -330,13 +539,11 @@ class RegistrationService:
                 detail="Only submitted registrations can be accepted",
             )
 
-        rsvp_token = registration.rsvp_token or str(uuid.uuid4())
         updated = self.reg_repo.update_status(
             registration_id=registration_id,
             status="accepted",
             reviewer_id=reviewer_id,
             reviewed_at=datetime.now(timezone.utc),
-            rsvp_token=rsvp_token,
         )
         if not updated:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
@@ -361,20 +568,234 @@ class RegistrationService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
         return updated
 
-    def confirm_rsvp(self, token: str) -> RegistrationResponse:
-        registration = self.reg_repo.get_registration_by_rsvp_token(token)
+    def _has_event_passed(self, event_date: datetime) -> bool:
+        """
+        Check if the event date has passed.
+
+        Args:
+            event_date: The event's date_time
+
+        Returns:
+            True if event has passed, False otherwise
+        """
+        now = datetime.now(timezone.utc)
+        event_dt = event_date if event_date.tzinfo else event_date.replace(tzinfo=timezone.utc)
+        return now > event_dt
+
+    def _is_within_rsvp_cutoff(self, event_date: datetime) -> bool:
+        """
+        Check if current time is within the 24-hour RSVP cutoff period.
+
+        Returns True if we are within 24 hours of the event (cutoff has passed).
+        Returns False if we are more than 24 hours before the event (changes allowed).
+
+        Args:
+            event_date: The event's date_time
+
+        Returns:
+            True if within 24-hour cutoff (changes NOT allowed), False otherwise
+        """
+        from datetime import timedelta
+
+        now = datetime.now(timezone.utc)
+        event_dt = event_date if event_date.tzinfo else event_date.replace(tzinfo=timezone.utc)
+        cutoff_time = event_dt - timedelta(hours=24)
+        return now >= cutoff_time
+
+    def rsvp_details(self, registration_id: UUID) -> tuple:
+        """
+        Get RSVP details for public access.
+
+        Returns registration and event details with metadata about allowed actions.
+        Only accessible if status is in ['accepted', 'confirmed', 'not_attending'].
+
+        Args:
+            registration_id: The registration ID
+
+        Returns:
+            Tuple of (registration, event, metadata_dict)
+
+        Raises:
+            HTTPException: If registration not found or not accessible
+        """
+        registration = self.reg_repo.get_registration_public(registration_id)
         if not registration:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid RSVP token")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=REGISTRATION_NOT_ACCESSIBLE,
+            )
+
+        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
+        if not event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=EVENT_NOT_FOUND,
+            )
+
+        # Calculate metadata for UI
+        event_has_passed = self._has_event_passed(event.date_time)
+        within_rsvp_cutoff = self._is_within_rsvp_cutoff(event.date_time)
+        current_status = registration.status
+
+        # Terminal statuses that cannot be changed
+        is_final = current_status in ("not_attending", "rejected")
+
+        # Can confirm if accepted and event hasn't passed and not within cutoff
+        can_confirm = current_status == "accepted" and not event_has_passed and not within_rsvp_cutoff and not is_final
+
+        # Can decline if (accepted or confirmed) and event hasn't passed and not within cutoff
+        can_decline = (
+            current_status in ("accepted", "confirmed")
+            and not event_has_passed
+            and not within_rsvp_cutoff
+            and not is_final
+        )
+
+        metadata = {
+            "current_status": current_status,
+            "can_confirm": can_confirm,
+            "can_decline": can_decline,
+            "is_final": is_final,
+            "event_has_passed": event_has_passed,
+            "within_rsvp_cutoff": within_rsvp_cutoff,
+        }
+
+        return registration, event, metadata
+
+    def rsvp_confirm(self, registration_id: UUID) -> RegistrationResponse:
+        """
+        Confirm attendance.
+
+        Validates that:
+        - Registration exists and is accessible
+        - Current status is 'accepted'
+        - Event has not passed
+
+        Args:
+            registration_id: The registration ID
+
+        Returns:
+            Updated registration
+
+        Raises:
+            HTTPException: If validation fails
+        """
+        registration = self.reg_repo.get_registration_public(registration_id)
+        if not registration:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=REGISTRATION_NOT_ACCESSIBLE,
+            )
+
+        # Get event to check if it has passed
+        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
+        if not event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=EVENT_NOT_FOUND,
+            )
+
+        # Check if event has passed
+        if self._has_event_passed(event.date_time):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=EVENT_PASSED,
+            )
+
+        # Check if within 24-hour RSVP cutoff
+        if self._is_within_rsvp_cutoff(event.date_time):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RSVP_CUTOFF_PASSED,
+            )
+
+        # Allow idempotent confirmation
         if registration.status == "confirmed":
             return registration
+
+        # Only accept 'accepted' status for confirmation
         if registration.status != "accepted":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Registration is not eligible for confirmation",
+                detail=NOT_ELIGIBLE_FOR_CONFIRMATION,
             )
-        updated = self.reg_repo.set_confirmed(token, confirmed_at=datetime.now(timezone.utc))
+
+        updated = self.reg_repo.confirm_registration(registration_id, confirmed_at=datetime.now(timezone.utc))
         if not updated:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to confirm RSVP")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to confirm attendance",
+            )
+
+        return updated
+
+    def rsvp_decline(self, registration_id: UUID) -> RegistrationResponse:
+        """
+        Decline attendance (set status to not_attending).
+
+        This is a TERMINAL operation - cannot be reversed.
+
+        Validates that:
+        - Registration exists and is accessible
+        - Current status is 'accepted' or 'confirmed'
+        - Event has not passed
+
+        Args:
+            registration_id: The registration ID
+
+        Returns:
+            Updated registration
+
+        Raises:
+            HTTPException: If validation fails
+        """
+        registration = self.reg_repo.get_registration_public(registration_id)
+        if not registration:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=REGISTRATION_NOT_ACCESSIBLE,
+            )
+
+        # Get event to check if it has passed
+        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
+        if not event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=EVENT_NOT_FOUND,
+            )
+
+        # Check if event has passed
+        if self._has_event_passed(event.date_time):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot decline attendance - event has already passed",
+            )
+
+        # Check if within 24-hour RSVP cutoff
+        if self._is_within_rsvp_cutoff(event.date_time):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RSVP_CUTOFF_PASSED,
+            )
+
+        # Allow idempotent decline
+        if registration.status == "not_attending":
+            return registration
+
+        # Only allow decline from 'accepted' or 'confirmed'
+        if registration.status not in ("accepted", "confirmed"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration is not eligible for declining",
+            )
+
+        updated = self.reg_repo.set_not_attending(registration_id, declined_at=datetime.now(timezone.utc))
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to decline attendance",
+            )
+
         return updated
 
     def list_registrations(
@@ -389,9 +810,7 @@ class RegistrationService:
             event_id=event_id, status=status, page=page, limit=limit, search=search
         )
         total_pages = (total + limit - 1) // limit if limit else 1
-        pagination = RegistrationListPagination(
-            total=total, page=page, limit=limit, total_pages=total_pages
-        )
+        pagination = RegistrationListPagination(total=total, page=page, limit=limit, total_pages=total_pages)
         return RegistrationListResponse(registrations=registrations, pagination=pagination)
 
     def get_registration_detail(self, registration_id: UUID) -> RegistrationWithFilesResponse:
@@ -402,4 +821,3 @@ class RegistrationService:
         return RegistrationWithFilesResponse(**registration.model_dump(), files=files)
 
     # Analytics removed (moved to analytics subdomain)
-

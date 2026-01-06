@@ -20,11 +20,11 @@ from fastapi import APIRouter
 # Domain router imports
 from domains.auth.api import router as auth_router
 from domains.departments.api import router as departments_router
-from domains.users.api import router as users_router
 from domains.events.api import router as events_router
 from domains.events.attendance.api import router as attendance_router
-from domains.events.registrations.public_api import router as registrations_public_router
 from domains.events.registrations.portal_api import router as registrations_portal_router
+from domains.events.registrations.public_api import router as registrations_public_router
+from domains.users.api import router as users_router
 
 # Create main API router
 api_router = APIRouter()
@@ -47,8 +47,4 @@ async def api_status():
 
     Returns the status of the API v1 and available endpoints.
     """
-    return {
-        "status": "ok",
-        "version": "1.0.0",
-        "message": "UTESCA Portal API v1 - Domain routers will be added here"
-    }
+    return {"status": "ok", "version": "1.0.0", "message": "UTESCA Portal API v1 - Domain routers will be added here"}

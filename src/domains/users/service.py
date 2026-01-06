@@ -5,24 +5,25 @@ This module handles business logic for user management.
 """
 
 import logging
-from fastapi import HTTPException, status
 from typing import Optional
 from uuid import UUID
-from supabase import create_client, Client
+
+from fastapi import HTTPException, status
+from supabase import Client, create_client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
-from core.database import get_supabase_client, get_schema
 from core.config import get_settings
+from core.database import get_schema, get_supabase_client
 from domains.auth.models import UserResponse
+
 from .models import (
-    UserListResponse,
-    UpdateUserRequest,
-    DeleteUserResponse,
     ChangePasswordRequest,
     ChangePasswordResponse,
+    DeleteUserResponse,
+    UpdateUserRequest,
+    UserListResponse,
 )
 from .repository import UserRepository
-
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +52,7 @@ class UserService:
             Client: Supabase client with admin privileges
         """
         if self._admin_client is None:
-            self._admin_client = create_client(
-                self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY
-            )
+            self._admin_client = create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
         return self._admin_client
 
     def get_users(
@@ -125,7 +124,7 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch users: {str(e)}",
-            )
+            ) from e
 
     def get_user_by_id(self, user_id: UUID) -> UserResponse:
         """
@@ -158,7 +157,7 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch user: {str(e)}",
-            )
+            ) from e
 
     def _can_manage_user(self, current_user: UserResponse, target_user: UserResponse) -> bool:
         """
@@ -225,9 +224,7 @@ class UserService:
             )
 
         # Department changes require co-president
-        is_dept_change = (
-            request.department_id is not None and request.department_id != target_user.department_id
-        )
+        is_dept_change = request.department_id is not None and request.department_id != target_user.department_id
         if is_dept_change and current_user.role != "co_president":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -313,9 +310,7 @@ class UserService:
             logger.warning(f"Failed to update auth metadata: {e}")
             # Continue even if metadata update fails (users table is source of truth)
 
-    def update_user(
-        self, user_id: UUID, request: UpdateUserRequest, current_user: UserResponse
-    ) -> UserResponse:
+    def update_user(self, user_id: UUID, request: UpdateUserRequest, current_user: UserResponse) -> UserResponse:
         """
         Update a user's information.
 
@@ -366,7 +361,7 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update user: {str(e)}",
-            )
+            ) from e
 
     def delete_user(self, user_id: UUID, current_user: UserResponse) -> DeleteUserResponse:
         """
@@ -422,7 +417,7 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to delete user: {str(e)}",
-            )
+            ) from e
 
     # ============================================================================
     # Password Validation and Change
@@ -478,17 +473,17 @@ class UserService:
                 )
         except HTTPException:
             raise
-        except (AuthInvalidCredentialsError, AuthApiError):
+        except (AuthInvalidCredentialsError, AuthApiError) as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Current password is incorrect",
-            )
+            ) from e
         except Exception as e:
             logger.error(f"Error verifying current password: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to verify current password",
-            )
+            ) from e
 
     def _update_password_in_supabase(self, auth_user_id: UUID, new_password: str) -> None:
         """
@@ -512,11 +507,9 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to update password",
-            )
+            ) from e
 
-    def change_password(
-        self, request: ChangePasswordRequest, current_user: UserResponse
-    ) -> ChangePasswordResponse:
+    def change_password(self, request: ChangePasswordRequest, current_user: UserResponse) -> ChangePasswordResponse:
         """
         Change user password.
 
@@ -549,4 +542,4 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to change password: {str(e)}",
-            )
+            ) from e

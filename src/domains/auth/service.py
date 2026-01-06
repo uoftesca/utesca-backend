@@ -4,24 +4,30 @@ Authentication service - Business logic for authentication operations.
 This module handles user invitation and profile management.
 """
 
-from fastapi import HTTPException, status
-from typing import Optional
+import logging
+from typing import Any, cast
 from uuid import UUID
-from supabase import create_client, Client
+
+from fastapi import HTTPException, status
+from postgrest import APIResponse
+from supabase import Client, create_client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
-from core.database import get_supabase_client, get_schema
 from core.config import get_settings
+from core.database import get_schema, get_supabase_client
+
 from .models import (
-    UserResponse,
-    InviteUserRequest,
-    UpdateProfileRequest,
-    InviteUserResponse,
     CompleteOnboardingRequest,
+    InviteUserRequest,
+    InviteUserResponse,
     SignInRequest,
     SignInResponse,
+    UpdateProfileRequest,
+    UserResponse,
 )
 from .repository import UserRepository
+
+logger = logging.getLogger(__name__)
 
 
 class AuthService:
@@ -40,16 +46,9 @@ class AuthService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(
-            self.settings.SUPABASE_URL,
-            self.settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
-    def invite_user(
-        self,
-        request: InviteUserRequest,
-        invited_by_user_id: UUID
-    ) -> InviteUserResponse:
+    def invite_user(self, request: InviteUserRequest, invited_by_user_id: UUID) -> InviteUserResponse:
         """
         Invite a new user to the portal.
 
@@ -86,7 +85,7 @@ class AuthService:
                 options={
                     "data": user_metadata,
                     "redirect_to": redirect_to,
-                }
+                },
             )
 
             if not result or not result.user:
@@ -104,11 +103,11 @@ class AuthService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error inviting user: {e}")
+            logger.exception("Error inviting user: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to invite user: {str(e)}",
-            )
+            ) from e
 
     def update_profile(
         self,
@@ -130,13 +129,13 @@ class AuthService:
         """
         try:
             # Build update data (only include fields that are provided)
-            update_data = {}
+            update_data: dict[str, Any] = {}
             if request.preferred_name is not None:
                 update_data["preferred_name"] = request.preferred_name
             if request.photo_url is not None:
                 update_data["photo_url"] = request.photo_url
-            if request.announcement_email_preference is not None:
-                update_data["announcement_email_preference"] = request.announcement_email_preference
+            if request.notification_preferences is not None:
+                update_data["notification_preferences"] = request.notification_preferences
             if request.linkedin_url is not None:
                 update_data["linkedin_url"] = request.linkedin_url
 
@@ -147,10 +146,10 @@ class AuthService:
                 )
 
             # Update user in database
-            result = self.supabase.schema(self.schema).table("users") \
-                .update(update_data) \
-                .eq("id", str(user_id)) \
-                .execute()
+            result = cast(
+                APIResponse,
+                self.supabase.schema(self.schema).table("users").update(update_data).eq("id", str(user_id)).execute(),
+            )
 
             if not result.data or len(result.data) == 0:
                 raise HTTPException(
@@ -158,16 +157,16 @@ class AuthService:
                     detail="User not found",
                 )
 
-            return UserResponse(**result.data[0])
+            return UserResponse(**cast(dict[str, Any], result.data[0]))
 
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error updating profile: {e}")
+            logger.exception("Error updating profile: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update profile: {str(e)}",
-            )
+            ) from e
 
     def get_user_by_id(self, user_id: UUID) -> UserResponse:
         """
@@ -196,11 +195,11 @@ class AuthService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error fetching user: {e}")
+            logger.exception("Error fetching user: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch user: {str(e)}",
-            )
+            ) from e
 
     def complete_onboarding(
         self,
@@ -229,10 +228,10 @@ class AuthService:
             admin_client = self._get_admin_client()
 
             # 1. Update password and preferred_name in Supabase Auth
-            print(f"Updating password for user {auth_user_id}")
+            logger.info("Updating password for user %s", auth_user_id)
 
             # Prepare update attributes
-            update_attributes = {"password": request.password}
+            update_attributes: dict[str, Any] = {"password": request.password}
 
             # If preferred_name is provided, also update user_metadata
             if request.preferred_name:
@@ -241,12 +240,15 @@ class AuthService:
                 current_metadata = current_user.user.user_metadata or {}
 
                 # Merge preferred_name into existing metadata
-                updated_metadata = {**current_metadata, "preferred_name": request.preferred_name}
+                updated_metadata: dict[str, Any] = {
+                    **current_metadata,
+                    "preferred_name": request.preferred_name,
+                }
                 update_attributes["user_metadata"] = updated_metadata
 
             update_result = admin_client.auth.admin.update_user_by_id(
                 uid=str(auth_user_id),
-                attributes=update_attributes
+                attributes=update_attributes,  # type: ignore[arg-type]
             )
 
             if not update_result or not update_result.user:
@@ -279,15 +281,20 @@ class AuthService:
                 "department_id": metadata.get("department_id"),
                 "preferred_name": request.preferred_name,
                 "invited_by": metadata.get("invited_by"),
-                "announcement_email_preference": "all",
+                "notification_preferences": {
+                    "announcements": "all",
+                    "rsvp_changes": True,
+                    "new_application_submitted": True,
+                },
             }
 
-            print(f"Creating user record: {user_data}")
+            logger.info("Creating user record for user %s", auth_user_id)
 
             # Use admin client to bypass RLS policies
-            result = admin_client.schema(self.schema).table("users") \
-                .insert(user_data) \
-                .execute()
+            result = cast(
+                APIResponse,
+                admin_client.schema(self.schema).table("users").insert(user_data).execute(),
+            )
 
             if not result.data or len(result.data) == 0:
                 raise HTTPException(
@@ -295,16 +302,16 @@ class AuthService:
                     detail="Failed to create user profile",
                 )
 
-            return UserResponse(**result.data[0])
+            return UserResponse(**cast(dict[str, Any], result.data[0]))
 
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Error completing onboarding: {e}")
+            logger.exception("Error completing onboarding: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to complete onboarding: {str(e)}",
-            )
+            ) from e
 
     def sign_in(self, request: SignInRequest) -> SignInResponse:
         """
@@ -321,10 +328,12 @@ class AuthService:
         """
         try:
             # Sign in with Supabase Auth
-            auth_response = self.supabase.auth.sign_in_with_password({
-                "email": request.email,
-                "password": request.password,
-            })
+            auth_response = self.supabase.auth.sign_in_with_password(
+                {
+                    "email": request.email,
+                    "password": request.password,
+                }
+            )
 
             if not auth_response.session or not auth_response.user:
                 raise HTTPException(
@@ -344,7 +353,7 @@ class AuthService:
 
             return SignInResponse(
                 access_token=auth_response.session.access_token,
-                token_type="bearer",
+                token_type="bearer",  # nosec B106 - Standard OAuth2 token type per RFC 6750
                 expires_in=auth_response.session.expires_in or 3600,
                 refresh_token=auth_response.session.refresh_token or "",
                 user=user_data,
@@ -354,24 +363,24 @@ class AuthService:
             raise
         except (AuthInvalidCredentialsError, AuthApiError) as e:
             # Handle Supabase auth-specific errors
-            print(f"Auth error signing in: {e}")
+            logger.warning("Auth error signing in: %s", e)
 
             # Check for invalid credentials error code
-            if isinstance(e, AuthInvalidCredentialsError) or \
-               (isinstance(e, AuthApiError) and e.code == "invalid_credentials"):
+            if isinstance(e, AuthInvalidCredentialsError) or (
+                isinstance(e, AuthApiError) and e.code == "invalid_credentials"
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
-                )
+                ) from e
 
             # Other auth errors (rate limiting, user banned, etc.)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=e.message if hasattr(e, 'message') else str(e),
-            )
+                detail=e.message if hasattr(e, "message") else str(e),
+            ) from e
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred during sign in. Please try again.",
-            )
-
+            ) from e

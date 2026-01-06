@@ -5,7 +5,7 @@ This module provides configuration, database connections, and shared utilities.
 """
 
 from .config import get_settings, settings
-from .database import get_supabase_client, get_schema
+from .database import get_schema, get_supabase_client
 
 __all__ = [
     "get_settings",

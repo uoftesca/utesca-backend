@@ -7,6 +7,7 @@ separating data access from business logic.
 
 from typing import List, Optional
 from uuid import UUID
+
 from supabase import Client
 
 from .models import DepartmentResponse
@@ -37,12 +38,7 @@ class DepartmentRepository:
             List of DepartmentResponse objects
         """
 
-        query = (
-            self.client.schema(self.schema)
-            .table("departments")
-            .select("*")
-            .order("name")
-        )
+        query = self.client.schema(self.schema).table("departments").select("*").order("name")
 
         if year is not None:
             query = query.eq("year", year)
@@ -64,13 +60,7 @@ class DepartmentRepository:
         Returns:
             DepartmentResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("departments")
-            .select("*")
-            .eq("id", str(department_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("departments").select("*").eq("id", str(department_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
@@ -84,12 +74,7 @@ class DepartmentRepository:
         Returns:
             List of years (integers) in descending order
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("departments")
-            .select("year")
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("departments").select("year").execute()
 
         if not result.data:
             return []

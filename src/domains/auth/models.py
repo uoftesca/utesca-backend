@@ -4,24 +4,37 @@ Pydantic models for authentication domain.
 These models define the request/response schemas for authentication endpoints.
 """
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from pydantic.alias_generators import to_camel
-from typing import Optional, Literal
 from datetime import datetime
+from typing import Literal, Optional, TypedDict
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic.alias_generators import to_camel
 
 # ============================================================================
-# Enums (matching database schema)
+# Enums and Types (matching database schema)
 # ============================================================================
 
 UserRole = Literal["co_president", "vp", "director"]
 EmailNotificationPreference = Literal["all", "urgent_only", "none"]
 
 
+class NotificationPreferences(TypedDict):
+    """
+    Granular notification preferences stored as JSONB in database.
+
+    Allows users to control which types of email notifications they receive.
+    """
+
+    announcements: EmailNotificationPreference
+    rsvp_changes: bool
+    new_application_submitted: bool
+
+
 # ============================================================================
 # Request Models
 # ============================================================================
+
 
 class InviteUserRequest(BaseModel):
     """Request to invite a new user."""
@@ -30,13 +43,12 @@ class InviteUserRequest(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     role: UserRole
-    display_role: str = Field(..., min_length=1, max_length=255, description="e.g., 'VP of Events', 'Marketing Director'")
+    display_role: str = Field(
+        ..., min_length=1, max_length=255, description="e.g., 'VP of Events', 'Marketing Director'"
+    )
     department_id: Optional[UUID] = None
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class UpdateProfileRequest(BaseModel):
@@ -44,13 +56,10 @@ class UpdateProfileRequest(BaseModel):
 
     preferred_name: Optional[str] = None
     photo_url: Optional[str] = None
-    announcement_email_preference: Optional[EmailNotificationPreference] = None
+    notification_preferences: Optional[NotificationPreferences] = None
     linkedin_url: Optional[str] = None
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class CompleteOnboardingRequest(BaseModel):
@@ -59,10 +68,7 @@ class CompleteOnboardingRequest(BaseModel):
     password: str = Field(..., min_length=8, description="User's chosen password")
     preferred_name: Optional[str] = Field(None, max_length=255, description="Optional preferred name")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class SignInRequest(BaseModel):
@@ -75,6 +81,7 @@ class SignInRequest(BaseModel):
 # ============================================================================
 # Response Models
 # ============================================================================
+
 
 class UserResponse(BaseModel):
     """User profile response."""
@@ -91,15 +98,11 @@ class UserResponse(BaseModel):
     photo_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     invited_by: Optional[UUID] = None
-    announcement_email_preference: EmailNotificationPreference
+    notification_preferences: NotificationPreferences
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
 class InviteUserResponse(BaseModel):
@@ -119,7 +122,4 @@ class SignInResponse(BaseModel):
     refresh_token: str
     user: UserResponse
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

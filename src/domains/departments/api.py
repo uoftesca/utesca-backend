@@ -4,15 +4,16 @@ Department API endpoints.
 This module defines the FastAPI router for department-related endpoints.
 """
 
-from fastapi import APIRouter, status, Query, Depends
 from typing import Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, Query, status
+
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
-from .models import DepartmentResponse, DepartmentListResponse, YearsResponse
-from .service import DepartmentService
 
+from .models import DepartmentListResponse, DepartmentResponse, YearsResponse
+from .service import DepartmentService
 
 # Create router
 router = APIRouter()
@@ -21,6 +22,7 @@ router = APIRouter()
 # ============================================================================
 # Department Endpoints
 # ============================================================================
+
 
 @router.get(
     "",
@@ -31,13 +33,9 @@ router = APIRouter()
 )
 async def list_departments(
     year: Optional[int] = Query(
-        None,
-        description="Filter by specific year. Defaults to current academic year if not provided."
+        None, description="Filter by specific year. Defaults to current academic year if not provided."
     ),
-    all: bool = Query(
-        False,
-        description="If true, return departments from all years (overrides year parameter)"
-    ),
+    all: bool = Query(False, description="If true, return departments from all years (overrides year parameter)"),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -89,12 +87,7 @@ async def get_available_years(
     return service.get_available_years()
 
 
-@router.get(
-    "/status",
-    summary="Departments Status",
-    description="Check departments service status",
-    tags=["Health"]
-)
+@router.get("/status", summary="Departments Status", description="Check departments service status", tags=["Health"])
 async def departments_status():
     """
     Check departments service status.

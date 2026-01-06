@@ -9,10 +9,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+from core.config import settings
 from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
 from domains.auth.models import UserResponse
 from domains.events.analytics.service import AnalyticsService
 from domains.events.registrations.models import RegistrationStatusUpdate
+
 from .service import RegistrationService
 
 router = APIRouter()
@@ -76,9 +78,7 @@ async def update_status(
         updated = service.reject_application(registration_id, current_user.id)
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
-    rsvp_link = (
-        f"https://utesca.ca/rsvp/{updated.rsvp_token}" if updated.status == "accepted" else None
-    )
+    rsvp_link = f"{settings.BASE_URL}/rsvp/{updated.id}" if updated.status == "accepted" else None
     return {"success": True, "registration": updated, "rsvp_link": rsvp_link}
 
 
@@ -118,7 +118,7 @@ async def export_registrations(
                 "Confirmed At": reg.confirmed_at,
                 "Checked In": reg.checked_in,
                 "Checked In At": reg.checked_in_at,
-                "Full Name": fd.get("full_name"),
+                "Full Name": fd.get("fullName") or fd.get("full_name"),
                 "Email": fd.get("email"),
             }
         )
@@ -138,4 +138,3 @@ async def export_registrations(
             "Content-Type": "text/csv",
         },
     )
-

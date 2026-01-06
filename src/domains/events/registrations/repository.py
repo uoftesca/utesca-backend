@@ -23,13 +23,11 @@ class RegistrationsRepository:
         event_id: UUID,
         form_data: dict,
         status: RegistrationStatus,
-        rsvp_token: Optional[str] = None,
     ) -> RegistrationResponse:
         insert_data = {
             "event_id": str(event_id),
             "form_data": form_data,
             "status": status,
-            "rsvp_token": rsvp_token,
         }
 
         result = (
@@ -50,18 +48,6 @@ class RegistrationsRepository:
             .table("event_registrations")
             .select("*")
             .eq("id", str(registration_id))
-            .execute()
-        )
-        if not result.data:
-            return None
-        return RegistrationResponse.model_validate(result.data[0])
-
-    def get_registration_by_rsvp_token(self, token: str) -> Optional[RegistrationResponse]:
-        result = (
-            self.client.schema(self.schema)
-            .table("event_registrations")
-            .select("*")
-            .eq("rsvp_token", token)
             .execute()
         )
         if not result.data:
@@ -89,9 +75,7 @@ class RegistrationsRepository:
 
         if search:
             term = f"%{search}%"
-            query = query.or_(
-                f"form_data->>full_name.ilike.{term},form_data->>email.ilike.{term}"
-            )
+            query = query.or_(f"form_data->>full_name.ilike.{term},form_data->>email.ilike.{term}")
 
         # Supabase pagination uses inclusive range
         query = query.order("submitted_at", desc=True).range(offset, offset + limit - 1)
@@ -120,15 +104,12 @@ class RegistrationsRepository:
         status: RegistrationStatus,
         reviewer_id: UUID,
         reviewed_at: datetime,
-        rsvp_token: Optional[str] = None,
     ) -> Optional[RegistrationResponse]:
         update_data = {
             "status": status,
             "reviewed_by": str(reviewer_id),
             "reviewed_at": reviewed_at.isoformat(),
         }
-        if rsvp_token:
-            update_data["rsvp_token"] = rsvp_token
 
         result = (
             self.client.schema(self.schema)
@@ -142,7 +123,28 @@ class RegistrationsRepository:
             return None
         return RegistrationResponse.model_validate(result.data[0])
 
-    def set_confirmed(self, token: str, confirmed_at: datetime) -> Optional[RegistrationResponse]:
+    def get_registration_public(self, registration_id: UUID) -> Optional[RegistrationResponse]:
+        """
+        Get registration for public RSVP access.
+        Only returns registrations with status in ['accepted', 'confirmed', 'not_attending'].
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("*")
+            .eq("id", str(registration_id))
+            .in_("status", ["accepted", "confirmed", "not_attending"])
+            .execute()
+        )
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])
+
+    def confirm_registration(self, registration_id: UUID, confirmed_at: datetime) -> Optional[RegistrationResponse]:
+        """
+        Confirm registration.
+        Only updates if current status is 'accepted'.
+        """
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
@@ -153,7 +155,7 @@ class RegistrationsRepository:
                 },
                 returning="representation",
             )
-            .eq("rsvp_token", token)
+            .eq("id", str(registration_id))
             .eq("status", "accepted")
             .execute()
         )
@@ -161,4 +163,26 @@ class RegistrationsRepository:
             return None
         return RegistrationResponse.model_validate(result.data[0])
 
-
+    def set_not_attending(self, registration_id: UUID, declined_at: datetime) -> Optional[RegistrationResponse]:
+        """
+        Mark registration as not_attending (final decision).
+        Can transition from 'accepted' or 'confirmed' to 'not_attending'.
+        This is a terminal status - cannot be changed after.
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .update(
+                {
+                    "status": "not_attending",
+                    "confirmed_at": declined_at.isoformat(),  # Track when they declined
+                },
+                returning="representation",
+            )
+            .eq("id", str(registration_id))
+            .in_("status", ["accepted", "confirmed"])
+            .execute()
+        )
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])

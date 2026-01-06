@@ -6,6 +6,7 @@ This module handles all database operations related to users.
 
 from typing import List, Optional, Tuple
 from uuid import UUID
+
 from supabase import Client
 
 from domains.auth.models import UserResponse
@@ -116,18 +117,39 @@ class UserRepository:
         Returns:
             UserResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("users")
-            .select("*")
-            .eq("id", str(user_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("users").select("*").eq("id", str(user_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
 
         return UserResponse(**result.data[0])
+
+    def get_users_with_notification_enabled(self, notification_type: str) -> List[UserResponse]:
+        """
+        Fetch all users who have a specific notification type enabled.
+
+        Uses PostgreSQL JSONB querying to filter by notification_preferences.
+
+        Args:
+            notification_type: Key in notification_preferences JSONB
+                              (e.g., 'rsvp_changes', 'new_application_submitted')
+
+        Returns:
+            List of users with notification enabled for the specified type
+        """
+        # PostgreSQL JSONB query: notification_preferences->>'rsvp_changes' = 'true'
+        result = (
+            self.client.schema(self.schema)
+            .table("users")
+            .select("*")
+            .eq(f"notification_preferences->>{notification_type}", "true")
+            .execute()
+        )
+
+        if not result.data:
+            return []
+
+        return [UserResponse(**user) for user in result.data]
 
     def update(self, user_id: UUID, update_data: dict) -> Optional[UserResponse]:
         """
@@ -140,13 +162,7 @@ class UserRepository:
         Returns:
             Updated UserResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("users")
-            .update(update_data)
-            .eq("id", str(user_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("users").update(update_data).eq("id", str(user_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
@@ -166,12 +182,6 @@ class UserRepository:
         Returns:
             True if user was deleted, False if not found
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("users")
-            .delete()
-            .eq("id", str(user_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("users").delete().eq("id", str(user_id)).execute()
 
         return len(result.data) > 0 if result.data else False

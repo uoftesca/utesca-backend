@@ -1,7 +1,12 @@
-import pytest
-
-from domains.events.registrations.service import RegistrationService
 from domains.events.registrations.models import FileMeta
+from domains.events.registrations.service import RegistrationService
+
+# RUN TESTS:
+# export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+# pytest --cov=src tests/test_registration_validation.py
+# pytest --cov=src --cov-report=term-missing tests/test_registration_validation.py
+# pytest --cov=src --cov-report=html tests/test_registration_validation.py
+# Open htmlcov/index.html to see the results
 
 
 class ValidationOnlyService(RegistrationService):
@@ -53,9 +58,7 @@ def test_choice_validation():
             }
         ]
     }
-    errors = service.validate_form_data(
-        form_data={"size": "XL"}, form_schema=form_schema, files_by_field={}
-    )
+    errors = service.validate_form_data(form_data={"size": "XL"}, form_schema=form_schema, files_by_field={})
     assert errors and "allowed options" in errors[0]["message"]
 
 
@@ -74,17 +77,13 @@ def test_file_validation_size_and_type():
     files_by_field = {
         "resume": [make_file("resume", size=2_000_000, mime="application/pdf")],
     }
-    errors = service.validate_form_data(
-        form_data={}, form_schema=form_schema, files_by_field=files_by_field
-    )
+    errors = service.validate_form_data(form_data={}, form_schema=form_schema, files_by_field=files_by_field)
     assert errors and "must be <=" in errors[0]["message"]
 
     files_by_field = {
         "resume": [make_file("resume", size=500_000, mime="application/msword")],
     }
-    errors = service.validate_form_data(
-        form_data={}, form_schema=form_schema, files_by_field=files_by_field
-    )
+    errors = service.validate_form_data(form_data={}, form_schema=form_schema, files_by_field=files_by_field)
     assert errors and "must be one of" in errors[0]["message"]
 
 
@@ -109,3 +108,49 @@ def test_passes_valid_payload():
     )
     assert errors == []
 
+
+def test_required_text_field_camelcase():
+    """Test camelCase field name validation."""
+    service = ValidationOnlyService()
+    form_schema = {"fields": [{"id": "fullName", "type": "text", "required": True}]}
+    errors = service.validate_form_data(form_data={}, form_schema=form_schema, files_by_field={})
+    assert errors and errors[0]["field"] == "fullName"
+
+
+def test_extract_name_camelcase():
+    """Test name extraction with camelCase fields."""
+    service = ValidationOnlyService()
+
+    # Test fullName
+    form_data = {"fullName": "Jane Doe"}
+    assert service._extract_name(form_data) == "Jane Doe"
+
+    # Test firstName + lastName
+    form_data = {"firstName": "Jane", "lastName": "Doe"}
+    assert service._extract_name(form_data) == "Jane Doe"
+
+
+def test_extract_name_legacy_snake_case():
+    """Test name extraction with legacy snake_case fields still works."""
+    service = ValidationOnlyService()
+
+    # Test full_name
+    form_data = {"full_name": "Jane Doe"}
+    assert service._extract_name(form_data) == "Jane Doe"
+
+    # Test first_name + last_name
+    form_data = {"first_name": "Jane", "last_name": "Doe"}
+    assert service._extract_name(form_data) == "Jane Doe"
+
+
+def test_extract_name_priority():
+    """Test that camelCase takes priority over snake_case."""
+    service = ValidationOnlyService()
+
+    # When both exist, camelCase should win
+    form_data = {"fullName": "Camel Case", "full_name": "Snake Case"}
+    assert service._extract_name(form_data) == "Camel Case"
+
+    # When both exist for first/last name, camelCase should win
+    form_data = {"firstName": "Camel", "lastName": "Case", "first_name": "Snake", "last_name": "Case"}
+    assert service._extract_name(form_data) == "Camel Case"

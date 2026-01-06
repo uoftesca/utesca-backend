@@ -7,9 +7,14 @@ Environment variables are loaded from .env file in development and from system
 environment in production (e.g., Vercel).
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -31,6 +36,10 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     PROJECT_NAME: str = "UTESCA Portal"
 
+    # Server configuration
+    SERVER_HOST: str = "127.0.0.1"  # Use 127.0.0.1 for local dev, 0.0.0.0 for Docker/production
+    SERVER_PORT: int = 8000
+
     # Supabase credentials (single database with test and prod schemas)
     SUPABASE_URL: str
     SUPABASE_KEY: str
@@ -39,16 +48,19 @@ class Settings(BaseSettings):
     # Base URL for email redirects
     BASE_URL: str
 
+    # Email configuration (Resend)
+    RESEND_API_KEY: str
+
     # CORS settings (for Next.js frontend)
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",  # Local Next.js dev
-        "https://utesca.ca",       # Production frontend
+        "https://utesca.ca",  # Production frontend
         "https://www.utesca.ca",
         "http://127.0.0.1:3000",
     ]
 
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        env_file=os.path.join(BASE_DIR, ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",  # Ignore extra fields in .env
@@ -90,7 +102,7 @@ def get_settings() -> Settings:
         settings = get_settings()
         print(settings.db_schema)  # 'test' or 'prod' based on ENVIRONMENT
     """
-    return Settings()
+    return Settings()  # type: ignore[call-arg]  # BaseSettings loads from env vars
 
 
 # Convenience export

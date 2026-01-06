@@ -97,4 +97,3 @@ class AttendanceRepository:
             "confirmed": confirmed,
             "checked_in": checked_in,
         }
-
