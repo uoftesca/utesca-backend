@@ -3,9 +3,11 @@ Repository for registration file metadata.
 """
 
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, cast
 from uuid import UUID
 
+from postgrest import ReturnMethod
+from postgrest.types import JSON
 from supabase import Client
 
 from .models import FileMeta
@@ -40,7 +42,7 @@ class RegistrationFilesRepository:
         result = (
             self.client.schema(self.schema)
             .table("registration_files")
-            .insert(data, returning="representation")
+            .insert(cast(JSON, data), returning=ReturnMethod.representation)
             .execute()
         )
         if not result.data:
@@ -103,7 +105,7 @@ class RegistrationFilesRepository:
         result = (
             self.client.schema(self.schema)
             .table("registration_files")
-            .update(update_data, returning="representation")
+            .update(update_data, returning=ReturnMethod.representation)
             .eq("upload_session_id", upload_session_id)
             .execute()
         )

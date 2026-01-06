@@ -3,9 +3,11 @@ Repository for event registrations data access.
 """
 
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 from uuid import UUID
 
+from postgrest import CountMethod, ReturnMethod
+from postgrest.types import JSON
 from supabase import Client
 
 from .models import RegistrationResponse, RegistrationStatus
@@ -33,7 +35,7 @@ class RegistrationsRepository:
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .insert(insert_data, returning="representation")
+            .insert(cast(JSON, insert_data), returning=ReturnMethod.representation)
             .execute()
         )
 
@@ -66,7 +68,7 @@ class RegistrationsRepository:
         query = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .select("*", count="exact")
+            .select("*", count=CountMethod.exact)
             .eq("event_id", str(event_id))
         )
 
@@ -92,7 +94,7 @@ class RegistrationsRepository:
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .select("id", count="exact")
+            .select("id", count=CountMethod.exact)
             .eq("event_id", str(event_id))
             .execute()
         )
@@ -114,7 +116,7 @@ class RegistrationsRepository:
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .update(update_data, returning="representation")
+            .update(update_data, returning=ReturnMethod.representation)
             .eq("id", str(registration_id))
             .execute()
         )
@@ -153,7 +155,7 @@ class RegistrationsRepository:
                     "status": "confirmed",
                     "confirmed_at": confirmed_at.isoformat(),
                 },
-                returning="representation",
+                returning=ReturnMethod.representation,
             )
             .eq("id", str(registration_id))
             .eq("status", "accepted")
@@ -177,7 +179,7 @@ class RegistrationsRepository:
                     "status": "not_attending",
                     "confirmed_at": declined_at.isoformat(),  # Track when they declined
                 },
-                returning="representation",
+                returning=ReturnMethod.representation,
             )
             .eq("id", str(registration_id))
             .in_("status", ["accepted", "confirmed"])

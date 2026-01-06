@@ -4,9 +4,10 @@ Data access layer for user management.
 This module handles all database operations related to users.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 from uuid import UUID
 
+from postgrest import CountMethod
 from supabase import Client
 
 from domains.auth.models import UserResponse
@@ -50,7 +51,7 @@ class UserRepository:
             Tuple of (list of users, total count)
         """
         # Build query
-        query = self.client.schema(self.schema).table("users").select("*", count="exact")
+        query = self.client.schema(self.schema).table("users").select("*", count=CountMethod.exact)
 
         # Apply filters
         if department_id is not None:
@@ -88,7 +89,7 @@ class UserRepository:
         if not result.data:
             return [], 0
 
-        users = [UserResponse(**user) for user in result.data]
+        users = [UserResponse(**cast(dict, user)) for user in result.data]
 
         # Client-side search filter if search query provided
         if search:
@@ -122,7 +123,7 @@ class UserRepository:
         if not result.data or len(result.data) == 0:
             return None
 
-        return UserResponse(**result.data[0])
+        return UserResponse(**cast(dict, result.data[0]))
 
     def get_users_with_notification_enabled(self, notification_type: str) -> List[UserResponse]:
         """
@@ -149,7 +150,7 @@ class UserRepository:
         if not result.data:
             return []
 
-        return [UserResponse(**user) for user in result.data]
+        return [UserResponse(**cast(dict, user)) for user in result.data]
 
     def update(self, user_id: UUID, update_data: dict) -> Optional[UserResponse]:
         """
@@ -167,7 +168,7 @@ class UserRepository:
         if not result.data or len(result.data) == 0:
             return None
 
-        return UserResponse(**result.data[0])
+        return UserResponse(**cast(dict, result.data[0]))
 
     def delete(self, user_id: UUID) -> bool:
         """

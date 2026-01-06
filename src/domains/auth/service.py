@@ -291,10 +291,7 @@ class AuthService:
             logger.info("Creating user record for user %s", auth_user_id)
 
             # Use admin client to bypass RLS policies
-            result = cast(
-                APIResponse,
-                admin_client.schema(self.schema).table("users").insert(user_data).execute(),
-            )
+            result = admin_client.schema(self.schema).table("users").insert(user_data).execute()
 
             if not result.data or len(result.data) == 0:
                 raise HTTPException(

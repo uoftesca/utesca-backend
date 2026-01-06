@@ -3,7 +3,7 @@ Repository for attendance-related operations on event_registrations.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 from uuid import UUID
 
 from supabase import Client
@@ -34,7 +34,7 @@ class AttendanceRepository:
             .eq("id", str(registration_id))
             .in_("status", ["accepted", "confirmed"])
             .eq("checked_in", False)
-            .select("*")
+            .select("*")  # type: ignore[attr-defined]
             .execute()
         )
         if not result.data:
@@ -60,7 +60,7 @@ class AttendanceRepository:
             .in_("id", [str(rid) for rid in registration_ids])
             .in_("status", ["accepted", "confirmed"])
             .eq("checked_in", False)
-            .select("*")
+            .select("*")  # type: ignore[attr-defined]
             .execute()
         )
 
@@ -77,7 +77,8 @@ class AttendanceRepository:
         )
         submitted = accepted = rejected = confirmed = checked_in = 0
         for row in result.data or []:
-            status = row.get("status")
+            row_dict = cast(dict[str, Any], row)
+            status = row_dict.get("status")
             if status == "submitted":
                 submitted += 1
             elif status == "accepted":
@@ -86,7 +87,7 @@ class AttendanceRepository:
                 rejected += 1
             elif status == "confirmed":
                 confirmed += 1
-            if row.get("checked_in"):
+            if row_dict.get("checked_in"):
                 checked_in += 1
         total = submitted + accepted + rejected + confirmed
         return {

@@ -4,9 +4,10 @@ Data access layer for event management.
 This module handles all database operations related to events.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 from uuid import UUID
 
+from postgrest import CountMethod
 from supabase import Client
 
 from .models import (
@@ -50,7 +51,7 @@ class EventRepository:
             Tuple of (list of events, total count)
         """
         # Build query
-        query = self.client.schema(self.schema).table("events").select("*", count="exact")
+        query = self.client.schema(self.schema).table("events").select("*", count=CountMethod.exact)
 
         # Apply filters
         if status is not None:
@@ -73,7 +74,7 @@ class EventRepository:
         if not result.data:
             return [], 0
 
-        events = [EventResponse(**event) for event in result.data]
+        events = [EventResponse(**cast(dict, event)) for event in result.data]
 
         return events, total_count
 
@@ -92,7 +93,7 @@ class EventRepository:
         if not result.data or len(result.data) == 0:
             return None
 
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     def get_by_slug(self, slug: str) -> Optional[EventResponse]:
         """
@@ -109,7 +110,7 @@ class EventRepository:
         if not result.data:
             return None
 
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     # Convenience aliases matching requested naming
     def get_event_by_id(self, event_id: UUID) -> Optional[EventResponse]:
@@ -140,7 +141,7 @@ class EventRepository:
         if not result.data or len(result.data) == 0:
             raise ValueError("Failed to create event")
 
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     def update(self, event_id: UUID, event_data: EventUpdate) -> Optional[EventResponse]:
         """
@@ -166,7 +167,7 @@ class EventRepository:
         if not result.data or len(result.data) == 0:
             return None
 
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     def update_form_schema(self, event_id: UUID, schema: RegistrationFormSchema) -> Optional[EventResponse]:
         """
@@ -183,7 +184,7 @@ class EventRepository:
         result = self.client.schema(self.schema).table("events").update(update_data).eq("id", str(event_id)).execute()
         if not result.data:
             return None
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     def delete(self, event_id: UUID) -> bool:
         """
