@@ -5,7 +5,7 @@ This module handles all database operations related to users,
 separating data access from business logic and authentication concerns.
 """
 
-from typing import Optional
+from typing import Optional, cast
 from uuid import UUID
 
 from supabase import Client
@@ -42,7 +42,7 @@ class UserRepository:
         if not result.data or len(result.data) == 0:
             return None
 
-        return UserResponse(**result.data[0])
+        return UserResponse(**cast(dict, result.data[0]))
 
     def get_by_id(self, user_id: UUID) -> Optional[UserResponse]:
         """
@@ -59,7 +59,7 @@ class UserRepository:
         if not result.data or len(result.data) == 0:
             return None
 
-        return UserResponse(**result.data[0])
+        return UserResponse(**cast(dict, result.data[0]))
 
     def get_by_email(self, email: str) -> Optional[UserResponse]:
         """
@@ -76,4 +76,4 @@ class UserRepository:
         if not result.data or len(result.data) == 0:
             return None
 
-        return UserResponse(**result.data[0])
+        return UserResponse(**cast(dict, result.data[0]))

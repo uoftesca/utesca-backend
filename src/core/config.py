@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str
 
     # Base URL for email redirects
-    BASE_URL: str
+    BASE_URL: str = "https://example.com"
 
     # Email configuration (Resend)
     RESEND_API_KEY: str

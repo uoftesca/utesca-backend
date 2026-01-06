@@ -5,7 +5,7 @@ This module handles all database operations related to departments,
 separating data access from business logic.
 """
 
-from typing import List, Optional
+from typing import List, Optional, cast
 from uuid import UUID
 
 from supabase import Client
@@ -48,7 +48,7 @@ class DepartmentRepository:
         if not result.data:
             return []
 
-        return [DepartmentResponse(**dept) for dept in result.data]
+        return [DepartmentResponse(**cast(dict, dept)) for dept in result.data]
 
     def get_by_id(self, department_id: UUID) -> Optional[DepartmentResponse]:
         """
@@ -65,7 +65,7 @@ class DepartmentRepository:
         if not result.data or len(result.data) == 0:
             return None
 
-        return DepartmentResponse(**result.data[0])
+        return DepartmentResponse(**cast(dict, result.data[0]))
 
     def get_available_years(self) -> List[int]:
         """
@@ -80,7 +80,7 @@ class DepartmentRepository:
             return []
 
         # Extract unique years and sort descending
-        years = list({dept["year"] for dept in result.data})
+        years: list[int] = list({cast(dict, dept)["year"] for dept in result.data})
         years.sort(reverse=True)
 
         return years
