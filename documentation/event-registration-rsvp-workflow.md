@@ -126,7 +126,8 @@ This document describes the complete event registration lifecycle in the UTESCA 
   "canConfirm": true,
   "canDecline": true,
   "isFinal": false,
-  "eventHasPassed": false
+  "eventHasPassed": false,
+  "withinRsvpCutoff": false
 }
 ```
 
@@ -148,7 +149,8 @@ This document describes the complete event registration lifecycle in the UTESCA 
 1. Registration must exist and be publicly accessible
 2. Current status must be `accepted`
 3. Event date must not have passed
-4. Status cannot be terminal (`not_attending` or `rejected`)
+4. Must not be within 24 hour cutoff
+5. Status cannot be terminal (`not_attending` or `rejected`)
 
 **Process**:
 
@@ -184,7 +186,8 @@ This document describes the complete event registration lifecycle in the UTESCA 
 1. Registration must exist and be publicly accessible
 2. Current status must be `accepted` or `confirmed`
 3. Event date must not have passed
-4. Status cannot already be terminal
+4. Must not be within 24 hour cutoff
+5. Status cannot already be terminal
 
 **Process**:
 
