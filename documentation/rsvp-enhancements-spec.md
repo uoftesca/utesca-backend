@@ -201,7 +201,7 @@ def _is_within_rsvp_cutoff(self, event_date: datetime) -> bool:
 ### Edge Cases
 
 | Scenario | Behavior |
-|----------|----------|
+| ---------- | ---------- |
 | Event datetime exactly 24 hours away | Cutoff applies (>= comparison) |
 | Event datetime timezone-naive | Converted to UTC before comparison |
 | Multiple rapid confirm/decline attempts | First request processed, subsequent return appropriate error |
@@ -352,7 +352,7 @@ Required information:
 
 #### Subject Line
 
-```
+```text
 RSVP Decline: {event_title}
 ```
 
