@@ -419,3 +419,89 @@ University of Toronto Engineering Students Consulting Association
 """
 
     return (html_body, text_body)
+
+
+def build_rsvp_decline_notification(
+    attendee_name: Optional[str],
+    attendee_email: str,
+    event_title: str,
+    event_datetime: str,
+    event_location: str,
+    previous_status: str,
+) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for RSVP decline notification.
+
+    Sent to subscribed users when an attendee declines confirmed attendance.
+    This is an internal notification for event organizers and interested team members.
+
+    Args:
+        attendee_name: Attendee's name (None if not available)
+        attendee_email: Attendee's email address
+        event_title: Title of the event
+        event_datetime: Formatted datetime string (Toronto time)
+        event_location: Event location
+        previous_status: Status before decline (should be "confirmed")
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    # Use name if available, otherwise use email
+    attendee_display = attendee_name if attendee_name else attendee_email
+
+    # HTML version
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                An attendee has declined their confirmed attendance for <strong>{event_title}</strong>.
+                            </p>
+
+                            <!-- Attendee Information Box (Warning Style) -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #856404; margin: 20px 0;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 10px 0; font-size: 14px; color: #856404;">
+                                            <strong>Attendee:</strong> {attendee_display}
+                                        </p>
+                                        <p style="margin: 0 0 10px 0; font-size: 14px; color: #856404;">
+                                            <strong>Email:</strong> {attendee_email}
+                                        </p>
+                                        <p style="margin: 0; font-size: 14px; color: #856404;">
+                                            <strong>Previous Status:</strong> {previous_status}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            {_build_event_details_box(event_title, event_datetime, event_location)}
+
+                            <p style="font-size: 14px; color: #666666; margin: 20px 0;">
+                                You received this notification because you have RSVP change notifications enabled in your preferences.
+                            </p>
+"""
+
+    html_body = _build_email_html("RSVP Decline Notification", body_content)
+
+    # Plain text version
+    text_body = f"""An attendee has declined their confirmed attendance for {event_title}.
+
+ATTENDEE INFORMATION
+--------------------
+Attendee: {attendee_display}
+Email: {attendee_email}
+Previous Status: {previous_status}
+
+EVENT DETAILS
+-------------
+Event: {event_title}
+Date & Time: {event_datetime}
+Location: {event_location}
+
+You received this notification because you have RSVP change notifications enabled in your preferences.
+
+---
+Questions? Reply to this email.
+
+University of Toronto Engineering Students Consulting Association
+"""
+
+    return (html_body, text_body)

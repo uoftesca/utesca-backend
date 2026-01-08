@@ -5,7 +5,7 @@ Business logic for event registrations.
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -14,7 +14,7 @@ from supabase import Client, create_client
 from core.config import get_settings
 from core.database import get_schema
 
-from ..models import RegistrationFormSchema
+from ..models import EventResponse, RegistrationFormSchema
 from ..repository import EventRepository
 from .files_repository import RegistrationFilesRepository
 from .models import (
@@ -49,6 +49,10 @@ class RegistrationService:
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.reg_repo = RegistrationsRepository(self.supabase, self.schema)
         self.files_repo = RegistrationFilesRepository(self.supabase, self.schema)
+        # User repository for querying notification preferences
+        from domains.users.repository import UserRepository
+
+        self.user_repo = UserRepository(self.supabase, self.schema)
 
     # -------------------------------------------------------------------------
     # Validation helpers
@@ -489,6 +493,145 @@ class RegistrationService:
                 exc_info=True,
             )
 
+    def send_decline_notification_to_subscribed_users(
+        self,
+        registration: RegistrationResponse,
+        event,
+        previous_status: str,
+    ) -> None:
+        """
+        Send notification emails to subscribed users when attendee declines confirmed attendance.
+
+        Only sends if previous_status was "confirmed" (not "accepted").
+        Queries users with notification_preferences.rsvp_changes = true.
+
+        Email sending failures are logged but do not block the decline action.
+        This method is called as a background task.
+
+        Args:
+            registration: The registration record (after status update)
+            event: The event object
+            previous_status: Status before decline ("confirmed" or "accepted")
+        """
+        import logging
+
+        from core.email import EmailService
+        from utils.timezone import format_datetime_toronto
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Only send notifications if declined from confirmed status
+            if previous_status != "confirmed":
+                logger.info(
+                    f"Skipping decline notification for registration {registration.id} - "
+                    f"previous status was '{previous_status}', not 'confirmed'"
+                )
+                return
+
+            # Query users with rsvp_changes notification enabled
+            subscribed_users = self.user_repo.get_users_with_notification_enabled("rsvp_changes")
+
+            if not subscribed_users:
+                logger.info("No users subscribed to RSVP change notifications")
+                return
+
+            # Extract attendee information
+            attendee_email = registration.form_data.get("email")
+            if not attendee_email:
+                logger.warning(
+                    f"No email found in form_data for registration {registration.id}. "
+                    "Skipping decline notification to subscribed users."
+                )
+                return
+
+            attendee_name = self._extract_name(registration.form_data)
+
+            # Build recipient list
+            recipient_emails = [user.email for user in subscribed_users]
+
+            # Format event datetime
+            event_datetime_str = format_datetime_toronto(event.date_time)
+
+            # Initialize email service
+            email_service = EmailService()
+
+            # Send notification to all subscribed users
+            success = email_service.send_rsvp_decline_notification(
+                to_emails=recipient_emails,
+                attendee_name=attendee_name,
+                attendee_email=attendee_email,
+                event_title=event.title,
+                event_datetime=event_datetime_str,
+                event_location=event.location or "TBA",
+                previous_status=previous_status,
+            )
+
+            if success:
+                logger.info(
+                    f"RSVP decline notification sent successfully for registration {registration.id} "
+                    f"to {len(recipient_emails)} subscribed user(s)"
+                )
+            else:
+                logger.warning(f"Failed to send RSVP decline notification for registration {registration.id}")
+
+        except Exception as e:
+            # Log but don't raise - email failures should not block decline action
+            logger.error(
+                f"Error sending decline notification to subscribed users for registration {registration.id}: {str(e)}",
+                exc_info=True,
+            )
+
+    def handle_decline_notifications(
+        self,
+        registration_id: UUID,
+        previous_status: str,
+    ) -> None:
+        """
+        Handle all email notifications for RSVP decline.
+
+        Sends:
+        - Confirmation email to decliner
+        - Notification to subscribed users (if declined from confirmed status)
+
+        This method encapsulates all notification business logic.
+        Called as background task from API layer.
+
+        Args:
+            registration_id: ID of the declined registration
+            previous_status: Status before decline (for determining notifications)
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Fetch registration and event
+            registration = self.reg_repo.get_registration_public(registration_id)
+            if not registration:
+                logger.warning(f"Registration {registration_id} not found for notification")
+                return
+
+            event = self.events_repo.get_by_id(registration.event_id)
+            if not event:
+                logger.warning(f"Event not found for registration {registration_id}")
+                return
+
+            # Send decliner confirmation email
+            if registration.form_data.get("email"):
+                self.send_attendance_declined_email(registration, event)
+
+            # Send subscriber notifications if declined from confirmed status
+            if previous_status == "confirmed":
+                self.send_decline_notification_to_subscribed_users(registration, event, previous_status)
+
+        except Exception as e:
+            # Log but don't raise - email failures should not block decline action
+            logger.error(
+                f"Failed to send decline notifications for registration {registration_id}: {e}",
+                exc_info=True,
+            )
+
     def upload_file(self, event_slug: str, payload: FileUploadRequest) -> FileMeta:
         event = self._get_event_or_404(event_slug)
 
@@ -729,7 +872,7 @@ class RegistrationService:
 
         return updated
 
-    def rsvp_decline(self, registration_id: UUID) -> RegistrationResponse:
+    def rsvp_decline(self, registration_id: UUID) -> Tuple[RegistrationResponse, str, EventResponse]:
         """
         Decline attendance (set status to not_attending).
 
@@ -744,7 +887,7 @@ class RegistrationService:
             registration_id: The registration ID
 
         Returns:
-            Updated registration
+            Tuple of (updated_registration, previous_status, event)
 
         Raises:
             HTTPException: If validation fails
@@ -755,6 +898,9 @@ class RegistrationService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=REGISTRATION_NOT_ACCESSIBLE,
             )
+
+        # Capture previous status before any changes
+        previous_status = registration.status
 
         # Get event to check if it has passed
         event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
@@ -780,7 +926,7 @@ class RegistrationService:
 
         # Allow idempotent decline
         if registration.status == "not_attending":
-            return registration
+            return registration, previous_status, event
 
         # Only allow decline from 'accepted' or 'confirmed'
         if registration.status not in ("accepted", "confirmed"):
@@ -796,7 +942,7 @@ class RegistrationService:
                 detail="Failed to decline attendance",
             )
 
-        return updated
+        return updated, previous_status, event
 
     def list_registrations(
         self,

@@ -3,7 +3,9 @@ Email service for sending transactional emails via Resend.
 """
 
 import logging
-from typing import Optional
+import threading
+import time
+from typing import List, Optional
 
 import resend
 
@@ -14,9 +16,15 @@ from .templates import (
     build_attendance_confirmed_email,
     build_attendance_declined_email,
     build_confirmation_email,
+    build_rsvp_decline_notification,
 )
 
 logger = logging.getLogger(__name__)
+
+# Global rate limiting state (module-level, shared across all EmailService instances)
+# Protects against exceeding Resend's 2 requests/second limit across concurrent operations
+_email_rate_limiter_lock = threading.Lock()
+_last_email_send_time: float = 0.0
 
 
 class EmailService:
@@ -38,7 +46,11 @@ class EmailService:
         text_body: Optional[str] = None,
     ) -> bool:
         """
-        Send an email using Resend.
+        Send an email using Resend with global rate limiting.
+
+        Rate limiting ensures we don't exceed Resend's 2 requests/second limit
+        across all concurrent email operations system-wide. Uses thread-safe
+        global state to enforce minimum interval between sends.
 
         Args:
             to: Recipient email address
@@ -49,6 +61,25 @@ class EmailService:
         Returns:
             True if sent successfully, False otherwise
         """
+        global _last_email_send_time
+
+        settings = get_settings()
+        min_interval = 1.0 / settings.EMAIL_RATE_LIMIT_RPS  # ~0.556 seconds for 1.8 RPS
+
+        # Thread-safe rate limiting: enforce minimum interval between sends
+        with _email_rate_limiter_lock:
+            now = time.time()
+            time_since_last = now - _last_email_send_time
+
+            if time_since_last < min_interval:
+                sleep_time = min_interval - time_since_last
+                logger.debug(f"Rate limiting: sleeping {sleep_time:.3f}s before sending email to {to}")
+                time.sleep(sleep_time)
+
+            # Update timestamp while still holding lock to maintain strict ordering
+            _last_email_send_time = time.time()
+
+        # Send email via Resend (rate limiting complete, lock released)
         try:
             params: resend.Emails.SendParams = {
                 "from": self.from_email,
@@ -204,3 +235,65 @@ class EmailService:
         )
 
         return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)
+
+    def send_rsvp_decline_notification(
+        self,
+        to_emails: List[str],
+        attendee_name: Optional[str],
+        attendee_email: str,
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+        previous_status: str,
+    ) -> bool:
+        """
+        Send RSVP decline notification to subscribed users.
+
+        Sends individual emails to each recipient (Resend best practice).
+        This is an internal notification for event organizers and team members.
+
+        Args:
+            to_emails: List of recipient email addresses
+            attendee_name: Declining attendee's name (None if not available)
+            attendee_email: Declining attendee's email address
+            event_title: Event title
+            event_datetime: Formatted datetime string (Toronto time)
+            event_location: Event location
+            previous_status: Status before decline (typically "confirmed")
+
+        Returns:
+            True if at least one email sent successfully, False otherwise
+        """
+        if not to_emails:
+            logger.info("No recipients for RSVP decline notification")
+            return False
+
+        try:
+            # Build email template
+            subject = f"RSVP Declined: {attendee_name} @ {event_title}"
+            html_body, text_body = build_rsvp_decline_notification(
+                attendee_name=attendee_name,
+                attendee_email=attendee_email,
+                event_title=event_title,
+                event_datetime=event_datetime,
+                event_location=event_location,
+                previous_status=previous_status,
+            )
+        except Exception as e:
+            logger.error(f"Failed to build RSVP decline notification template: {e}", exc_info=True)
+            return False
+
+        # Send individual emails to each recipient (not BCC)
+        success_count = 0
+        for recipient in to_emails:
+            success = self.send_email(
+                to=recipient,
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
+            )
+            if success:
+                success_count += 1
+
+        logger.info(f"RSVP decline notification sent to {success_count}/{len(to_emails)} recipients")
+        return success_count > 0
