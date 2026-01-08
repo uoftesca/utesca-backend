@@ -41,6 +41,21 @@ async def lifespan(app: FastAPI):
     print(f"Database Schema: {get_schema()}")
     print("=" * 60)
 
+    # Print all configuration in test environment for debugging
+    if settings.is_test:
+        print("\n[TEST ENVIRONMENT] Configuration:")
+        print("-" * 60)
+        for field_name in settings.__class__.model_fields.keys():
+            value = getattr(settings, field_name)
+            # Mask sensitive values
+            if any(sensitive in field_name.upper() for sensitive in ["KEY", "SECRET", "PASSWORD", "TOKEN"]):
+                masked_value = f"{str(value)[:8]}..." if value else "None"
+                print(f"  {field_name}: {masked_value}")
+            else:
+                print(f"  {field_name}: {value}")
+        print("-" * 60)
+        print()
+
     # Initialize Supabase client (cached)
     try:
         _ = get_supabase_client()
