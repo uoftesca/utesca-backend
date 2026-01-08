@@ -25,8 +25,8 @@ class EmailService:
     def __init__(self):
         settings = get_settings()
         self.api_key = settings.RESEND_API_KEY
-        self.from_email = "UofT Engineering Students Consulting Association <noreply@updates.utesca.ca>"
-        self.reply_to = "uoft.esca@gmail.com"
+        self.from_email = f"{settings.EMAIL_FROM_NAME} <{settings.EMAIL_FROM_ADDRESS}>"
+        self.reply_to = settings.EMAIL_REPLY_TO
 
         resend.api_key = self.api_key
 

@@ -5,8 +5,12 @@ Returns both HTML and plain text versions for better email client compatibility.
 
 from typing import Optional, Tuple
 
-# UTESCA logo URL
-LOGO_URL = "https://raw.githubusercontent.com/uoftesca/utesca-frontend/main/public/UTESCA-red-black.png?raw=true"
+from core.config import get_settings
+
+# Load configuration
+_settings = get_settings()
+LOGO_URL = _settings.EMAIL_LOGO_URL
+EMAIL_CONTACT = _settings.EMAIL_CONTACT
 
 # Brand colors
 UTESCA_BLUE = "#121921"
@@ -114,7 +118,7 @@ def build_confirmation_email(
                     <tr>
                         <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
                             <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">
-                                Questions? Contact us at <a href="mailto:uoft.esca@gmail.com" style="color: {UTESCA_BLUE};">uoft.esca@gmail.com</a>
+                                Questions? Contact us at <a href="mailto:{EMAIL_CONTACT}" style="color: {UTESCA_BLUE};">{EMAIL_CONTACT}</a>
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #999;">
                                 University of Toronto Engineering Students Consulting Association
@@ -145,7 +149,7 @@ Please confirm your attendance by visiting this link:
 {rsvp_link}
 
 ---
-Questions? Contact us at uoft.esca@gmail.com
+Questions? Contact us at {EMAIL_CONTACT}
 
 University of Toronto Engineering Students Consulting Association
 """
@@ -237,7 +241,7 @@ def build_application_received_email(
                     <tr>
                         <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
                             <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">
-                                Questions? Contact us at <a href="mailto:uoft.esca@gmail.com" style="color: {UTESCA_BLUE};">uoft.esca@gmail.com</a>
+                                Questions? Contact us at <a href="mailto:{EMAIL_CONTACT}" style="color: {UTESCA_BLUE};">{EMAIL_CONTACT}</a>
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #999;">
                                 University of Toronto Engineering Students Consulting Association
@@ -269,7 +273,7 @@ We'll notify you via email once your application has been reviewed. If accepted,
 Thank you for your interest in UTESCA!
 
 ---
-Questions? Contact us at uoft.esca@gmail.com
+Questions? Contact us at {EMAIL_CONTACT}
 
 University of Toronto Engineering Students Consulting Association
 """
@@ -381,7 +385,7 @@ def build_attendance_confirmed_email(
                     <tr>
                         <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
                             <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">
-                                Questions? Contact us at <a href="mailto:uoft.esca@gmail.com" style="color: {UTESCA_BLUE};">uoft.esca@gmail.com</a>
+                                Questions? Contact us at <a href="mailto:{EMAIL_CONTACT}" style="color: {UTESCA_BLUE};">{EMAIL_CONTACT}</a>
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #999;">
                                 University of Toronto Engineering Students Consulting Association
@@ -412,7 +416,7 @@ You can change your RSVP response using this link: {rsvp_link}
 Please note that declining is final.
 
 ---
-Questions? Contact us at uoft.esca@gmail.com
+Questions? Contact us at {EMAIL_CONTACT}
 
 University of Toronto Engineering Students Consulting Association
 """
@@ -498,7 +502,7 @@ def build_attendance_declined_email(
                                 <tr>
                                     <td style="padding: 20px;">
                                         <p style="margin: 0; font-size: 14px; color: #856404;">
-                                            <strong>Please note:</strong> This change is final and cannot be reversed. If you change your mind, please contact us directly at uoft.esca@gmail.com.
+                                            <strong>Please note:</strong> This change is final and cannot be reversed. If you change your mind, please contact us directly at {EMAIL_CONTACT}.
                                         </p>
                                     </td>
                                 </tr>
@@ -514,7 +518,7 @@ def build_attendance_declined_email(
                     <tr>
                         <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
                             <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">
-                                Questions? Contact us at <a href="mailto:uoft.esca@gmail.com" style="color: {UTESCA_BLUE};">uoft.esca@gmail.com</a>
+                                Questions? Contact us at <a href="mailto:{EMAIL_CONTACT}" style="color: {UTESCA_BLUE};">{EMAIL_CONTACT}</a>
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #999;">
                                 University of Toronto Engineering Students Consulting Association
@@ -541,12 +545,12 @@ Date & Time: {event_datetime}
 Location: {event_location}
 
 IMPORTANT
-This change is final and cannot be reversed. If you change your mind, please contact us directly at uoft.esca@gmail.com.
+This change is final and cannot be reversed. If you change your mind, please contact us directly at {EMAIL_CONTACT}.
 
 We hope to see you at future UTESCA events!
 
 ---
-Questions? Contact us at uoft.esca@gmail.com
+Questions? Contact us at {EMAIL_CONTACT}
 
 University of Toronto Engineering Students Consulting Association
 """
