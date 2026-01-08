@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     EMAIL_REPLY_TO: str = "uoft.esca@gmail.com"  # Where replies are sent
     EMAIL_LOGO_URL: str = "https://utesca.ca/utesca-logo.png"
 
+    # Email rate limiting (Resend limit: 2 requests/second)
+    # Set to 1.8 RPS for safety margin to account for timing precision
+    EMAIL_RATE_LIMIT_RPS: float = 1.8
+
     # CORS settings (for Next.js frontend)
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",  # Local Next.js dev

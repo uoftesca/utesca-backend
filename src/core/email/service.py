@@ -3,6 +3,8 @@ Email service for sending transactional emails via Resend.
 """
 
 import logging
+import threading
+import time
 from typing import List, Optional
 
 import resend
@@ -18,6 +20,11 @@ from .templates import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Global rate limiting state (module-level, shared across all EmailService instances)
+# Protects against exceeding Resend's 2 requests/second limit across concurrent operations
+_email_rate_limiter_lock = threading.Lock()
+_last_email_send_time: float = 0.0
 
 
 class EmailService:
