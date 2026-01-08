@@ -50,6 +50,10 @@ class Settings(BaseSettings):
 
     # Email configuration (Resend)
     RESEND_API_KEY: str
+    EMAIL_FROM_ADDRESS: str = "team@updates.utesca.ca"
+    EMAIL_FROM_NAME: str = "UofT Engineering Students Consulting Association"
+    EMAIL_REPLY_TO: str = "uoft.esca@gmail.com"  # Where replies are sent
+    EMAIL_LOGO_URL: str = "https://utesca.ca/utesca-logo.png"
 
     # CORS settings (for Next.js frontend)
     ALLOWED_ORIGINS: list[str] = [
