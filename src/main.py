@@ -20,11 +20,25 @@ from api.v1.router import api_router
 from core.config import get_settings
 from core.database import get_schema, get_supabase_client
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
 # Get settings instance
 settings = get_settings()
+
+# Configure logging with level from settings
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL.upper()),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+# Quiet noisy third-party loggers when in DEBUG mode
+# These libraries log excessively at DEBUG level
+if settings.LOG_LEVEL.upper() == "DEBUG":
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("hpack").setLevel(logging.WARNING)
+    logging.getLogger("h11").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -181,5 +195,5 @@ if __name__ == "__main__":
         host=settings.SERVER_HOST,
         port=settings.SERVER_PORT,
         reload=True,  # Auto-reload on code changes (development only)
-        log_level="info",
+        log_level=settings.LOG_LEVEL.lower(),
     )

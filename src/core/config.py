@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # Server configuration
     SERVER_HOST: str = "127.0.0.1"  # Use 127.0.0.1 for local dev, 0.0.0.0 for Docker/production
     SERVER_PORT: int = 8000
+    LOG_LEVEL: str = "INFO"  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
     # Supabase credentials (single database with test and prod schemas)
     SUPABASE_URL: str
