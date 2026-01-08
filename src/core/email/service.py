@@ -73,9 +73,7 @@ class EmailService:
 
             if time_since_last < min_interval:
                 sleep_time = min_interval - time_since_last
-                logger.debug(
-                    f"Rate limiting: sleeping {sleep_time:.3f}s before sending email to {to}"
-                )
+                logger.debug(f"Rate limiting: sleeping {sleep_time:.3f}s before sending email to {to}")
                 time.sleep(sleep_time)
 
             # Update timestamp while still holding lock to maintain strict ordering
