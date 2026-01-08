@@ -3,7 +3,7 @@ Email service for sending transactional emails via Resend.
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import resend
 
@@ -14,6 +14,7 @@ from .templates import (
     build_attendance_confirmed_email,
     build_attendance_declined_email,
     build_confirmation_email,
+    build_rsvp_decline_notification,
 )
 
 logger = logging.getLogger(__name__)
@@ -204,3 +205,65 @@ class EmailService:
         )
 
         return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)
+
+    def send_rsvp_decline_notification(
+        self,
+        to_emails: List[str],
+        attendee_name: Optional[str],
+        attendee_email: str,
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+        previous_status: str,
+    ) -> bool:
+        """
+        Send RSVP decline notification to subscribed users.
+
+        Sends individual emails to each recipient (Resend best practice).
+        This is an internal notification for event organizers and team members.
+
+        Args:
+            to_emails: List of recipient email addresses
+            attendee_name: Declining attendee's name (None if not available)
+            attendee_email: Declining attendee's email address
+            event_title: Event title
+            event_datetime: Formatted datetime string (Toronto time)
+            event_location: Event location
+            previous_status: Status before decline (typically "confirmed")
+
+        Returns:
+            True if at least one email sent successfully, False otherwise
+        """
+        if not to_emails:
+            logger.info("No recipients for RSVP decline notification")
+            return False
+
+        try:
+            # Build email template
+            subject = f"RSVP Declined: {attendee_name} @ {event_title}"
+            html_body, text_body = build_rsvp_decline_notification(
+                attendee_name=attendee_name,
+                attendee_email=attendee_email,
+                event_title=event_title,
+                event_datetime=event_datetime,
+                event_location=event_location,
+                previous_status=previous_status,
+            )
+        except Exception as e:
+            logger.error(f"Failed to build RSVP decline notification template: {e}", exc_info=True)
+            return False
+
+        # Send individual emails to each recipient (not BCC)
+        success_count = 0
+        for recipient in to_emails:
+            success = self.send_email(
+                to=recipient,
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
+            )
+            if success:
+                success_count += 1
+
+        logger.info(f"RSVP decline notification sent to {success_count}/{len(to_emails)} recipients")
+        return success_count > 0
