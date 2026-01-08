@@ -211,10 +211,10 @@ async def decline_rsvp(
 
     This is a TERMINAL operation - cannot be reversed.
     Validates that registration is in 'accepted' or 'confirmed' status and event hasn't passed.
-    Sends decline confirmation email and email notifications to subscribed users as background task.
+    Sends decline confirmation email and notifications to subscribed users as background task.
     """
-    # Service returns registration AND previous_status
-    registration, previous_status = service.rsvp_decline(registration_id)
+    # Service returns registration, previous_status, and event
+    registration, previous_status, event = service.rsvp_decline(registration_id)
 
     # Queue unified notification handler (handles all email logic)
     background_tasks.add_task(
@@ -222,9 +222,6 @@ async def decline_rsvp(
         registration_id=registration.id,
         previous_status=previous_status,
     )
-
-    # Get event for response message
-    event = service.events_repo.get_by_id(UUID(str(registration.event_id)))
 
     return RsvpDeclineResponse(
         success=True,

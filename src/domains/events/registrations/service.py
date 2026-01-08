@@ -14,7 +14,7 @@ from supabase import Client, create_client
 from core.config import get_settings
 from core.database import get_schema
 
-from ..models import RegistrationFormSchema
+from ..models import EventResponse, RegistrationFormSchema
 from ..repository import EventRepository
 from .files_repository import RegistrationFilesRepository
 from .models import (
@@ -872,7 +872,7 @@ class RegistrationService:
 
         return updated
 
-    def rsvp_decline(self, registration_id: UUID) -> Tuple[RegistrationResponse, str]:
+    def rsvp_decline(self, registration_id: UUID) -> Tuple[RegistrationResponse, str, EventResponse]:
         """
         Decline attendance (set status to not_attending).
 
@@ -887,7 +887,7 @@ class RegistrationService:
             registration_id: The registration ID
 
         Returns:
-            Tuple of (updated_registration, previous_status)
+            Tuple of (updated_registration, previous_status, event)
 
         Raises:
             HTTPException: If validation fails
@@ -926,7 +926,7 @@ class RegistrationService:
 
         # Allow idempotent decline
         if registration.status == "not_attending":
-            return registration, previous_status
+            return registration, previous_status, event
 
         # Only allow decline from 'accepted' or 'confirmed'
         if registration.status not in ("accepted", "confirmed"):
@@ -942,7 +942,7 @@ class RegistrationService:
                 detail="Failed to decline attendance",
             )
 
-        return updated, previous_status
+        return updated, previous_status, event
 
     def list_registrations(
         self,
