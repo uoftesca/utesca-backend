@@ -46,7 +46,11 @@ class EmailService:
         text_body: Optional[str] = None,
     ) -> bool:
         """
-        Send an email using Resend.
+        Send an email using Resend with global rate limiting.
+
+        Rate limiting ensures we don't exceed Resend's 2 requests/second limit
+        across all concurrent email operations system-wide. Uses thread-safe
+        global state to enforce minimum interval between sends.
 
         Args:
             to: Recipient email address
@@ -57,6 +61,27 @@ class EmailService:
         Returns:
             True if sent successfully, False otherwise
         """
+        global _last_email_send_time
+
+        settings = get_settings()
+        min_interval = 1.0 / settings.EMAIL_RATE_LIMIT_RPS  # ~0.556 seconds for 1.8 RPS
+
+        # Thread-safe rate limiting: enforce minimum interval between sends
+        with _email_rate_limiter_lock:
+            now = time.time()
+            time_since_last = now - _last_email_send_time
+
+            if time_since_last < min_interval:
+                sleep_time = min_interval - time_since_last
+                logger.debug(
+                    f"Rate limiting: sleeping {sleep_time:.3f}s before sending email to {to}"
+                )
+                time.sleep(sleep_time)
+
+            # Update timestamp while still holding lock to maintain strict ordering
+            _last_email_send_time = time.time()
+
+        # Send email via Resend (rate limiting complete, lock released)
         try:
             params: resend.Emails.SendParams = {
                 "from": self.from_email,
