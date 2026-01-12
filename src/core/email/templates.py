@@ -684,7 +684,7 @@ def build_custom_email_from_template(
     registration_id: str,
     base_url: str,
     email_type: Literal["acceptance", "rejection"],
-) -> Tuple[str, str]:
+) -> Tuple[str, str, str]:
     """
     Build email from custom template with variable replacement.
 
@@ -707,7 +707,7 @@ def build_custom_email_from_template(
         email_type: "acceptance" or "rejection" (determines if RSVP link included)
 
     Returns:
-        Tuple of (html_body, text_body)
+        Tuple of (html_body, text_body, subject)
     """
     rsvp_link = f"{base_url}/rsvp/{registration_id}"
 
@@ -747,4 +747,4 @@ def build_custom_email_from_template(
 
     html_body = _build_email_html(subject, body_content)
 
-    return (html_body, body_text)
+    return (html_body, body_text, subject)

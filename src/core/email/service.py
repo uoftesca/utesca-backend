@@ -334,8 +334,7 @@ class EmailService:
         try:
             if custom_template:
                 # Use custom template
-                subject = custom_template.subject
-                html_body, text_body = build_custom_email_from_template(
+                html_body, text_body, subject = build_custom_email_from_template(
                     template_subject=custom_template.subject,
                     template_body=custom_template.body,
                     full_name=full_name,
@@ -396,8 +395,7 @@ class EmailService:
         try:
             if custom_template:
                 # Use custom template
-                subject = custom_template.subject
-                html_body, text_body = build_custom_email_from_template(
+                html_body, text_body, subject = build_custom_email_from_template(
                     template_subject=custom_template.subject,
                     template_body=custom_template.body,
                     full_name=full_name,
