@@ -41,6 +41,12 @@ async def list_registrations(
     current_user: UserResponse = Depends(get_current_user),
     service: RegistrationService = Depends(get_registration_service),
 ):
+    """
+    List all registrations for a specific event with pagination and filtering.
+
+    Supports filtering by status and searching by attendee name/email.
+    Returns paginated results with metadata.
+    """
     return service.list_registrations(
         event_id=event_id,
         status=status,
@@ -59,6 +65,15 @@ async def get_registration(
     current_user: UserResponse = Depends(get_current_user),
     service: RegistrationService = Depends(get_registration_service),
 ):
+    """
+    Get detailed information about a specific registration.
+
+    Returns full registration details including form data, timestamps,
+    review information, and check-in status.
+
+    Raises:
+        HTTPException: 404 if registration not found
+    """
     return {"registration": service.get_registration_detail(registration_id)}
 
 
@@ -73,6 +88,22 @@ async def update_status(
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: RegistrationService = Depends(get_registration_service),
 ):
+    """
+    Update registration status (accept or reject application).
+
+    VPs and Co-Presidents can accept or reject pending applications.
+    Sends automated emails to applicants as background tasks:
+    - Acceptance email with RSVP link
+    - Rejection email with polite notification
+
+    Returns:
+        Success response with updated registration and optional RSVP link
+
+    Raises:
+        HTTPException: 400 if invalid status provided
+        HTTPException: 403 if user lacks VP/admin permissions
+        HTTPException: 404 if registration not found
+    """
     if payload.status == "accepted":
         updated = service.accept_application(registration_id, current_user.id)
 
@@ -113,6 +144,21 @@ async def analytics(
     current_user: UserResponse = Depends(get_current_user),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ):
+    """
+    Get comprehensive analytics for an event.
+
+    Returns aggregated statistics including:
+    - Registration counts by status
+    - Confirmation and attendance rates
+    - Timeline of registration activity
+    - Check-in statistics
+
+    Returns:
+        EventAnalyticsResponse with all analytics data
+
+    Raises:
+        HTTPException: 404 if event not found
+    """
     return analytics_service.get_event_analytics(event_id)
 
 
@@ -126,6 +172,22 @@ async def export_registrations(
     current_user: UserResponse = Depends(get_current_user),
     service: RegistrationService = Depends(get_registration_service),
 ):
+    """
+    Export event registrations as CSV file.
+
+    Generates a downloadable CSV file containing all registration data
+    for the specified event. Can be filtered by status. Includes:
+    - Registration ID and status
+    - Submission and review timestamps
+    - Confirmation and check-in information
+    - Attendee name and email
+
+    Returns:
+        CSV file as downloadable attachment
+
+    Raises:
+        HTTPException: 404 if event not found
+    """
     data = service.list_registrations(event_id, status, page=1, limit=10_000, search=None)
     rows = []
     for reg in data.registrations:
