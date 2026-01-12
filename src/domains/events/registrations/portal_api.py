@@ -92,9 +92,16 @@ async def update_status(
     Update registration status (accept or reject application).
 
     VPs and Co-Presidents can accept or reject pending applications.
-    Sends automated emails to applicants as background tasks:
-    - Acceptance email with RSVP link
-    - Rejection email with polite notification
+    Automatically sends customizable email notifications to applicants as background tasks:
+    - Acceptance email: includes RSVP link for attendance confirmation
+    - Rejection email: polite notification with encouragement for future events
+
+    Email templates can be customized per event using acceptance_email_template
+    and rejection_email_template fields. If no custom template is provided,
+    system defaults are used. Templates support variables: {{full_name}},
+    {{event_title}}, {{event_datetime}}, {{event_location}}, {{rsvp_link}}.
+
+    Email sending happens asynchronously and failures do not block the status update.
 
     Returns:
         Success response with updated registration and optional RSVP link
