@@ -3,7 +3,7 @@ Email template builders for various email types.
 Returns both HTML and plain text versions for better email client compatibility.
 """
 
-from typing import Optional, Tuple
+from typing import Dict, Literal, Optional, Tuple
 
 from core.config import get_settings
 
@@ -505,3 +505,246 @@ University of Toronto Engineering Students Consulting Association
 """
 
     return (html_body, text_body)
+
+
+def _replace_template_variables(template: str, variables: Dict[str, str]) -> str:
+    """
+    Replace template variables in format {{variable_name}} with actual values.
+
+    Args:
+        template: Template string with {{variable}} placeholders
+        variables: Dictionary of variable names to replacement values
+
+    Returns:
+        String with variables replaced
+
+    Example:
+        >>> _replace_template_variables(
+        ...     "Hi {{full_name}}, welcome to {{event_title}}!",
+        ...     {"full_name": "John Doe", "event_title": "Tech Talk"}
+        ... )
+        'Hi John Doe, welcome to Tech Talk!'
+    """
+    result = template
+    for key, value in variables.items():
+        placeholder = f"{{{{{key}}}}}"  # Creates {{key}}
+        result = result.replace(placeholder, str(value))
+    return result
+
+
+def build_application_accepted_email(
+    full_name: Optional[str],
+    event_title: str,
+    event_datetime: str,
+    event_location: str,
+    registration_id: str,
+    base_url: str,
+) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for application acceptance.
+
+    Sent when VP/Admin accepts a submitted application via portal.
+    Includes RSVP link for attendee to confirm attendance.
+
+    Args:
+        full_name: Applicant's name (None if not available)
+        event_title: Title of the event
+        event_datetime: Formatted datetime string (Toronto time)
+        event_location: Event location
+        registration_id: Registration ID for RSVP link
+        base_url: Base URL for RSVP link
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    rsvp_link = f"{base_url}/rsvp/{registration_id}"
+    greeting = f"Hi {full_name}," if full_name else "Hello!"
+
+    # HTML version
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                Great news! Your application for <strong>{event_title}</strong> has been accepted. We're excited to have you join us!
+                            </p>
+
+                            {_build_event_details_box(event_title, event_datetime, event_location)}
+
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0;">
+                                Please confirm your attendance by clicking the button below:
+                            </p>
+
+                            {_build_cta_button(rsvp_link, "Confirm Attendance")}
+"""
+
+    html_body = _build_email_html("Application Accepted!", body_content)
+
+    # Plain text version
+    text_body = f"""{greeting}
+
+Great news! Your application for {event_title} has been accepted. We're excited to have you join us!
+
+EVENT DETAILS
+-------------
+Event: {event_title}
+Date & Time: {event_datetime}
+Location: {event_location}
+
+CONFIRM YOUR ATTENDANCE
+Please confirm your attendance by visiting this link:
+{rsvp_link}
+
+---
+Questions? Reply to this email.
+
+University of Toronto Engineering Students Consulting Association
+"""
+
+    return (html_body, text_body)
+
+
+def build_application_rejected_email(
+    full_name: Optional[str],
+    event_title: str,
+    event_datetime: str,
+    event_location: str,
+) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for application rejection.
+
+    Sent when VP/Admin rejects a submitted application via portal.
+
+    Args:
+        full_name: Applicant's name (None if not available)
+        event_title: Title of the event
+        event_datetime: Formatted datetime string (Toronto time)
+        event_location: Event location
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    greeting = f"Hi {full_name}," if full_name else "Hello,"
+
+    # HTML version
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                Thank you for your interest in <strong>{event_title}</strong>. Unfortunately, we are unable to accept your application at this time due to capacity constraints.
+                            </p>
+
+                            {_build_event_details_box(event_title, event_datetime, event_location)}
+
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0;">
+                                We encourage you to apply for future UTESCA events and appreciate your continued interest in our community.
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0;">
+                                Thank you for your time.
+                            </p>
+"""
+
+    html_body = _build_email_html("Application Status Update", body_content)
+
+    # Plain text version
+    text_body = f"""{greeting}
+
+Thank you for your interest in {event_title}. Unfortunately, we are unable to accept your application at this time due to capacity constraints.
+
+EVENT DETAILS
+-------------
+Event: {event_title}
+Date & Time: {event_datetime}
+Location: {event_location}
+
+We encourage you to apply for future UTESCA events and appreciate your continued interest in our community.
+
+Thank you for understanding.
+
+---
+Questions? Reply to this email.
+
+University of Toronto Engineering Students Consulting Association
+"""
+
+    return (html_body, text_body)
+
+
+def build_custom_email_from_template(
+    template_subject: str,
+    template_body: str,
+    full_name: Optional[str],
+    event_title: str,
+    event_datetime: str,
+    event_location: str,
+    registration_id: str,
+    base_url: str,
+    email_type: Literal["acceptance", "rejection"],
+) -> Tuple[str, str]:
+    """
+    Build email from custom template with variable replacement.
+
+    Supports template variables:
+    - {{full_name}}: Recipient's name
+    - {{event_title}}: Event title
+    - {{event_datetime}}: Formatted event date/time
+    - {{event_location}}: Event location
+    - {{rsvp_link}}: RSVP confirmation link (acceptance emails only)
+
+    Args:
+        template_subject: Custom email subject with variables
+        template_body: Custom email body with variables
+        full_name: Recipient's name (None if not available)
+        event_title: Event title
+        event_datetime: Formatted datetime string (Toronto time)
+        event_location: Event location
+        registration_id: Registration ID for RSVP link
+        base_url: Base URL for RSVP link
+        email_type: "acceptance" or "rejection" (determines if RSVP link included)
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    rsvp_link = f"{base_url}/rsvp/{registration_id}"
+
+    # Build variable replacement dictionary
+    variables = {
+        "full_name": full_name or "there",
+        "event_title": event_title,
+        "event_datetime": event_datetime,
+        "event_location": event_location,
+    }
+
+    # Add RSVP link only for acceptance emails
+    if email_type == "acceptance":
+        variables["rsvp_link"] = rsvp_link
+
+    # Replace variables in subject and body
+    subject = _replace_template_variables(template_subject, variables)
+    body_text = _replace_template_variables(template_body, variables)
+
+    # Convert plain text body to HTML (preserve line breaks)
+    # Use simple paragraph wrapping
+    body_html_paragraphs = []
+    for paragraph in body_text.split("\n\n"):
+        paragraph = paragraph.strip()
+        if paragraph:
+            # Convert single newlines to <br>, wrap in <p>
+            paragraph_html = paragraph.replace("\n", "<br>")
+            body_html_paragraphs.append(
+                f'<p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">{paragraph_html}</p>'
+            )
+
+    body_content = "\n\n".join(body_html_paragraphs)
+
+    # Add RSVP button for acceptance emails
+    if email_type == "acceptance":
+        body_content += f"\n\n{_build_cta_button(rsvp_link, 'Confirm Attendance')}"
+
+    html_body = _build_email_html(subject, body_content)
+
+    return (html_body, body_text)

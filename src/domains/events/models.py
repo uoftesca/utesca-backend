@@ -18,6 +18,18 @@ from pydantic.alias_generators import to_camel
 EventStatus = Literal["draft", "pending_approval", "sent_back", "published"]
 
 
+class EmailTemplate(BaseModel):
+    """Email template for acceptance/rejection notifications."""
+
+    subject: str = Field(..., min_length=1, max_length=500)
+    body: str = Field(..., min_length=1, max_length=5000)
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
 class RegistrationFormSchema(BaseModel):
     """Schema definition for dynamic registration form."""
 
@@ -52,6 +64,8 @@ class EventCreate(BaseModel):
     image_position: Optional[str] = None
     album_link: Optional[str] = None
     registration_link: Optional[str] = None
+    acceptance_email_template: Optional[EmailTemplate] = None
+    rejection_email_template: Optional[EmailTemplate] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -73,6 +87,8 @@ class EventUpdate(BaseModel):
     image_position: Optional[str] = None
     album_link: Optional[str] = None
     registration_link: Optional[str] = None
+    acceptance_email_template: Optional[EmailTemplate] = None
+    rejection_email_template: Optional[EmailTemplate] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -105,6 +121,8 @@ class EventResponse(BaseModel):
     image_position: Optional[str] = None
     album_link: Optional[str] = None
     registration_link: Optional[str] = None
+    acceptance_email_template: Optional[EmailTemplate] = None
+    rejection_email_template: Optional[EmailTemplate] = None
 
     model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 

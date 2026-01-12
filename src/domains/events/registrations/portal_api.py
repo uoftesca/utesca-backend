@@ -7,7 +7,7 @@ import io
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 
 from core.config import settings
 from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
@@ -69,15 +69,37 @@ async def get_registration(
 async def update_status(
     registration_id: UUID,
     payload: RegistrationStatusUpdate,
+    background_tasks: BackgroundTasks,
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: RegistrationService = Depends(get_registration_service),
 ):
     if payload.status == "accepted":
         updated = service.accept_application(registration_id, current_user.id)
+
+        # Queue acceptance email
+        event = service.events_repo.get_by_id(updated.event_id)
+        if event:
+            background_tasks.add_task(
+                service.send_acceptance_email,
+                registration=updated,
+                event=event,
+            )
+
     elif payload.status == "rejected":
         updated = service.reject_application(registration_id, current_user.id)
+
+        # Queue rejection email
+        event = service.events_repo.get_by_id(updated.event_id)
+        if event:
+            background_tasks.add_task(
+                service.send_rejection_email,
+                registration=updated,
+                event=event,
+            )
+
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
+
     rsvp_link = f"{settings.BASE_URL}/rsvp/{updated.id}" if updated.status == "accepted" else None
     return {"success": True, "registration": updated, "rsvp_link": rsvp_link}
 

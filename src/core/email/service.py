@@ -10,12 +10,16 @@ from typing import List, Optional
 import resend
 
 from core.config import get_settings
+from domains.events.models import EmailTemplate
 
 from .templates import (
+    build_application_accepted_email,
     build_application_received_email,
+    build_application_rejected_email,
     build_attendance_confirmed_email,
     build_attendance_declined_email,
     build_confirmation_email,
+    build_custom_email_from_template,
     build_rsvp_decline_notification,
 )
 
@@ -297,3 +301,129 @@ class EmailService:
 
         logger.info(f"RSVP decline notification sent to {success_count}/{len(to_emails)} recipients")
         return success_count > 0
+
+    def send_application_acceptance(
+        self,
+        to: str,
+        full_name: Optional[str],
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+        registration_id: str,
+        base_url: str,
+        custom_template: Optional[EmailTemplate] = None,
+    ) -> bool:
+        """
+        Send application acceptance email (manual review).
+
+        Uses custom template if provided, otherwise uses system default.
+
+        Args:
+            to: Recipient email
+            full_name: Applicant's name (None if not available)
+            event_title: Event title
+            event_datetime: Formatted datetime string (Toronto time)
+            event_location: Event location
+            registration_id: Registration ID for RSVP link
+            base_url: Base URL for RSVP link
+            custom_template: Optional custom email template
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        try:
+            if custom_template:
+                # Use custom template
+                subject = custom_template.subject
+                html_body, text_body = build_custom_email_from_template(
+                    template_subject=custom_template.subject,
+                    template_body=custom_template.body,
+                    full_name=full_name,
+                    event_title=event_title,
+                    event_datetime=event_datetime,
+                    event_location=event_location,
+                    registration_id=registration_id,
+                    base_url=base_url,
+                    email_type="acceptance",
+                )
+            else:
+                # Use system default
+                subject = f"Application Accepted: {event_title}"
+                html_body, text_body = build_application_accepted_email(
+                    full_name=full_name,
+                    event_title=event_title,
+                    event_datetime=event_datetime,
+                    event_location=event_location,
+                    registration_id=registration_id,
+                    base_url=base_url,
+                )
+        except Exception as e:
+            logger.error(f"Failed to build acceptance email template: {e}", exc_info=True)
+            return False
+
+        return self.send_email(
+            to=to,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+        )
+
+    def send_application_rejection(
+        self,
+        to: str,
+        full_name: Optional[str],
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+        custom_template: Optional[EmailTemplate] = None,
+    ) -> bool:
+        """
+        Send application rejection email (manual review).
+
+        Uses custom template if provided, otherwise uses system default.
+
+        Args:
+            to: Recipient email
+            full_name: Applicant's name (None if not available)
+            event_title: Event title
+            event_datetime: Formatted datetime string (Toronto time)
+            event_location: Event location
+            custom_template: Optional custom email template
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        try:
+            if custom_template:
+                # Use custom template
+                subject = custom_template.subject
+                html_body, text_body = build_custom_email_from_template(
+                    template_subject=custom_template.subject,
+                    template_body=custom_template.body,
+                    full_name=full_name,
+                    event_title=event_title,
+                    event_datetime=event_datetime,
+                    event_location=event_location,
+                    registration_id="",  # Not used for rejections
+                    base_url="",  # Not used for rejections
+                    email_type="rejection",
+                )
+            else:
+                # Use system default
+                subject = f"Application Status Update: {event_title}"
+                html_body, text_body = build_application_rejected_email(
+                    full_name=full_name,
+                    event_title=event_title,
+                    event_datetime=event_datetime,
+                    event_location=event_location,
+                )
+        except Exception as e:
+            logger.error(f"Failed to build rejection email template: {e}", exc_info=True)
+            return False
+
+        return self.send_email(
+            to=to,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+        )
