@@ -347,7 +347,7 @@ class EmailService:
                 )
             else:
                 # Use system default
-                subject = f"Application Accepted: {event_title}"
+                subject = f"[ACTION REQUIRED] Application Accepted: {event_title}"
                 html_body, text_body = build_application_accepted_email(
                     full_name=full_name,
                     event_title=event_title,
