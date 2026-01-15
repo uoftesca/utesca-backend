@@ -39,6 +39,13 @@ class ChangePasswordRequest(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+class ChangePasswordResetRequest(BaseModel):
+    """Request to reset user password"""
+
+    user_id: UUID
+    new_password: str = Field(..., min_length=8, description="New password (minimum 8 characters)")
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 # ============================================================================
 # Response Models

@@ -419,3 +419,81 @@ University of Toronto Engineering Students Consulting Association
 """
 
     return (html_body, text_body)
+
+def build_password_reset_email(
+    token: str,
+    base_url: str,
+    full_name: Optional[str] = None,
+) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for password reset request.
+
+    Args:
+        token: The unique UUID reset token
+        base_url: The base portal URL (e.g., portal.utesca.ca)
+        full_name: User's name (None if not available)
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    reset_link = f"{base_url}/reset-password?token={token}"
+    greeting = f"Hi {full_name}," if full_name else "Hello,"
+
+    # Build HTML body content
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                We received a request to reset your password for your UTESCA account. Click the button below to choose a new password:
+                            </p>
+
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{reset_link}" style="background-color: #007bff; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                                            Reset Password
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-left: 4px solid #6c757d; margin: 20px 0;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0; font-size: 14px; color: #495057;">
+                                            <strong>Safety first:</strong> This link will expire in <strong>1 hour</strong>. If you did not request this change, you can safely ignore this email.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="font-size: 14px; color: #777777; margin: 20px 0;">
+                                If the button above doesn't work, copy and paste this URL into your browser:<br>
+                                <a href="{reset_link}" style="color: #007bff;">{reset_link}</a>
+                            </p>
+                    """
+
+    html_body = _build_email_html("Password Reset Request", body_content)
+
+    # Plain text version
+    text_body = f"""{greeting}
+
+    We received a request to reset your password for your UTESCA account.
+
+    Click the link below to choose a new password. This link will expire in 1 hour.
+
+    {reset_link}
+
+    If you did not request this change, you can safely ignore this email.
+
+    ---
+    Questions? Reply to this email.
+
+    University of Toronto Engineering Students Consulting Association
+    """
+
+    return (html_body, text_body)
+
+

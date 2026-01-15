@@ -22,6 +22,8 @@ from .models import (
     DeleteUserResponse,
     UpdateUserRequest,
     UserListResponse,
+    ChangePasswordResetRequest,
+
 )
 from .repository import UserRepository
 
@@ -543,3 +545,33 @@ class UserService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to change password: {str(e)}",
             ) from e
+    
+    def change_password_reset(self, request: ChangePasswordResetRequest) -> ChangePasswordResponse:
+        """
+        Reset user password.
+
+        Args:
+            request: Password change request, containing user id and the new password
+
+        Returns:
+            ChangePasswordResponse: Success message
+
+        Raises:
+            HTTPException: If validation fails or update fails
+        """
+        try:
+            # Update in database
+            self._update_password_in_supabase(request.user_id, request.new_password)
+            return ChangePasswordResponse(message="Password updated successfully")
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error changing password: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to change password: {str(e)}",
+            ) from e
+
+    
+        

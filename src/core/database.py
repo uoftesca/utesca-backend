@@ -11,25 +11,16 @@ from supabase import Client, create_client
 
 from .config import get_settings
 
-
 @lru_cache
 def get_supabase_client() -> Client:
-    """
-    Get a cached Supabase client instance.
-
-    Usage:
-        from core.database import get_supabase_client
-
-        supabase = get_supabase_client()
-        result = supabase.table("users").select("*").execute()
-
-    Note: Schema selection (test/prod) should be handled at the database level
-    through RLS policies or by prefixing table names with the schema.
-    """
     settings = get_settings()
-    client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+    # Ensure this is using the SERVICE_ROLE_KEY, not the ANON_KEY
+    # If your config.py uses 'supabase_service_role_key', use that here.
+    client = create_client(
+        settings.SUPABASE_URL, 
+        settings.SUPABASE_SERVICE_ROLE_KEY 
+    )
     return client
-
 
 def get_schema() -> str:
     """

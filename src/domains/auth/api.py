@@ -17,6 +17,8 @@ from .models import (
     SignInResponse,
     UpdateProfileRequest,
     UserResponse,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
 from .service import AuthService
 
@@ -162,6 +164,27 @@ async def update_profile(
     service = AuthService()
     return service.update_profile(current_user.id, request)
 
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_200_OK,
+    summary="Request Password Reset",
+    description="Send a password reset email if the account exists.",
+)
+async def forgot_password(request: ForgotPasswordRequest):
+    service = AuthService()
+    return service.forgot_password(request)
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_200_OK,
+    summary="Resetting a Password",
+    description="Resetting a password with proper token",
+)
+async def forgot_password(request: ResetPasswordRequest):
+    service = AuthService()
+    return service.reset_password(request)
+
 
 # ============================================================================
 # Health Check / Test Endpoint
@@ -198,3 +221,5 @@ async def auth_status():
             "update_profile": "PUT /auth/profile",
         },
     }
+
+

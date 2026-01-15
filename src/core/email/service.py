@@ -14,6 +14,7 @@ from .templates import (
     build_attendance_confirmed_email,
     build_attendance_declined_email,
     build_confirmation_email,
+    build_password_reset_email
 )
 
 logger = logging.getLogger(__name__)
@@ -204,3 +205,21 @@ class EmailService:
         )
 
         return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)
+    
+    def send_password_reset(self, to: str, token: str, base_url: str) -> bool:
+        """
+        Send a password reset email with a unique token.
+        """
+        subject = "Reset Your Password - Utesca"
+        # We call the template we just made
+        html_body, text_body = build_password_reset_email(
+            token=token,
+            base_url=base_url
+        )
+
+        return self.send_email(
+            to=to, 
+            subject=subject, 
+            html_body=html_body, 
+            text_body=text_body
+        )

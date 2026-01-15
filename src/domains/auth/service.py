@@ -12,6 +12,10 @@ from fastapi import HTTPException, status
 from postgrest import APIResponse
 from supabase import Client, create_client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
+from core.email.service import EmailService
+from core.config import get_settings
+
+from datetime import datetime, timedelta # requred to check for time between password checks
 
 from core.config import get_settings
 from core.database import get_schema, get_supabase_client
@@ -24,11 +28,17 @@ from .models import (
     SignInResponse,
     UpdateProfileRequest,
     UserResponse,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
+
 from .repository import UserRepository
 
 logger = logging.getLogger(__name__)
+# Initialize settings
 
+from ..users.service import UserService
+from ..users.models import ChangePasswordResetRequest # to provide the proper interface
 
 class AuthService:
     """Service class for authentication operations."""
@@ -381,3 +391,75 @@ class AuthService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred during sign in. Please try again.",
             ) from e
+        
+    def forgot_password(self, request: ForgotPasswordRequest):
+        
+        # 1. Use the Admin API to find the user
+        all_users = self.supabase.auth.admin.list_users()
+        
+        user = next(
+            (u for u in all_users if u.email.lower() == request.email.lower()), 
+            None
+        )
+
+        if not user:
+            return {"message": "If an account exists, a reset link has been sent."}
+
+        user_uuid = user.id
+
+        # 2. Store the token in the tokens table
+        try:
+            token_response = self.supabase.schema("public").table("password_reset_tokens") \
+                .insert({
+                    "email": request.email,
+                    "id": user_uuid 
+                }) \
+                .execute()
+            
+            token = token_response.data[0]['token']
+        except Exception as e:
+            print(f"ERROR inserting token: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error generating token")
+
+        # 3. Trigger Email
+        email_service = EmailService()
+        email_service.send_password_reset(
+            to=request.email, 
+            token=token, 
+            base_url=get_settings().BASE_URL 
+        )
+
+        return {"message": "If an account exists, a reset link has been sent."}
+
+    def reset_password(self, request: ResetPasswordRequest):
+
+    # 1. Validate Token
+        result = self.supabase.table("password_reset_tokens") \
+        .select("*") \
+        .eq("token", request.reset_token) \
+        .single() \
+        .execute()
+
+        if not result.data:
+            raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+        token_data = result.data
+        expires_at = datetime.fromisoformat(token_data['expires_at'].replace('Z', '+00:00'))
+        
+        # if expires_at < datetime.now(timezone.utc):
+        #     raise HTTPException(status_code=400, detail="Token has expired")
+
+        # 2. Update Password in Supabase Auth
+        user_service = UserService()
+        data = ChangePasswordResetRequest(
+            user_id=token_data['id'], 
+            new_password=request.password
+        )
+
+        # Call the service
+        response = user_service.change_password_reset(data)
+
+        # 3. Clean up: Delete the token
+        self.supabase.table("password_reset_tokens").delete().eq("token", request.reset_token).execute()
+
+        return {"message": response.message}

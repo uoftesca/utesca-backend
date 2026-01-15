@@ -77,6 +77,17 @@ class SignInRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, description="User's password")
 
+class ForgotPasswordRequest(BaseModel):
+    """Request for resetting password"""
+    
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    """Request for resetting password"""
+    
+    reset_token: UUID
+    password: str = Field(..., min_length=8, description="User's password")
+
 
 # ============================================================================
 # Response Models
