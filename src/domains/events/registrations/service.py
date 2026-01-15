@@ -65,9 +65,7 @@ class RegistrationService:
         """
         settings = get_settings()
         registration.rsvp_link = (
-            f"{settings.BASE_URL_PUBLIC}/rsvp/{registration.id}"
-            if registration.status == "accepted"
-            else None
+            f"{settings.BASE_URL_PUBLIC}/rsvp/{registration.id}" if registration.status == "accepted" else None
         )
 
     def _add_rsvp_links(self, registrations: List[RegistrationResponse]) -> None:
