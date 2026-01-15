@@ -75,10 +75,10 @@ class RegistrationCreateRequest(BaseModel):
 class RegistrationResponse(RegistrationBase):
     """Registration response without file details."""
 
-    pass
+    rsvp_link: Optional[str] = None
 
 
-class RegistrationWithFilesResponse(RegistrationBase):
+class RegistrationWithFilesResponse(RegistrationResponse):
     """Registration response including uploaded files."""
 
     files: List[FileMeta] = Field(default_factory=list)

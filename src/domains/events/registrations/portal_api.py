@@ -9,7 +9,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 
-from core.config import settings
 from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
 from domains.auth.models import UserResponse
 from domains.events.analytics.service import AnalyticsService
@@ -69,12 +68,13 @@ async def get_registration(
     Get detailed information about a specific registration.
 
     Returns full registration details including form data, timestamps,
-    review information, and check-in status.
+    review information, check-in status, and RSVP link (if accepted).
 
     Raises:
         HTTPException: 404 if registration not found
     """
-    return {"registration": service.get_registration_detail(registration_id)}
+    registration = service.get_registration_detail(registration_id)
+    return {"registration": registration}
 
 
 @router.patch(
@@ -137,8 +137,8 @@ async def update_status(
 
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
-    rsvp_link = f"{settings.BASE_URL_PUBLIC}/rsvp/{updated.id}" if updated.status == "accepted" else None
-    return {"success": True, "registration": updated, "rsvp_link": rsvp_link}
+
+    return {"success": True, "registration": updated}
 
 
 @router.get(

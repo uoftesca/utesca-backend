@@ -55,6 +55,25 @@ class RegistrationService:
         self.user_repo = UserRepository(self.supabase, self.schema)
 
     # -------------------------------------------------------------------------
+    # RSVP link helpers
+    # -------------------------------------------------------------------------
+    def _add_rsvp_link(self, registration: RegistrationResponse) -> None:
+        """
+        Add RSVP link to registration if status is accepted.
+
+        Business rule: Only accepted registrations have RSVP links.
+        """
+        settings = get_settings()
+        registration.rsvp_link = (
+            f"{settings.BASE_URL_PUBLIC}/rsvp/{registration.id}" if registration.status == "accepted" else None
+        )
+
+    def _add_rsvp_links(self, registrations: List[RegistrationResponse]) -> None:
+        """Add RSVP links to a list of registrations."""
+        for reg in registrations:
+            self._add_rsvp_link(reg)
+
+    # -------------------------------------------------------------------------
     # Validation helpers
     # -------------------------------------------------------------------------
     def _validate_text(self, field: dict, value: Any, errors: List[dict]):
@@ -821,6 +840,10 @@ class RegistrationService:
         )
         if not updated:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
+
+        # Add RSVP link to accepted registration
+        self._add_rsvp_link(updated)
+
         return updated
 
     def reject_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
@@ -840,6 +863,10 @@ class RegistrationService:
         )
         if not updated:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
+
+        # Add RSVP link (will be null for rejected status)
+        self._add_rsvp_link(updated)
+
         return updated
 
     def _has_event_passed(self, event_date: datetime) -> bool:
@@ -1086,6 +1113,10 @@ class RegistrationService:
         registrations, total = self.reg_repo.list_registrations(
             event_id=event_id, status=status, page=page, limit=limit, search=search
         )
+
+        # Add RSVP links to all registrations
+        self._add_rsvp_links(registrations)
+
         total_pages = (total + limit - 1) // limit if limit else 1
         pagination = RegistrationListPagination(total=total, page=page, limit=limit, total_pages=total_pages)
         return RegistrationListResponse(registrations=registrations, pagination=pagination)
@@ -1094,6 +1125,10 @@ class RegistrationService:
         registration = self.reg_repo.get_registration_by_id(registration_id)
         if not registration:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REGISTRATION_NOT_FOUND)
+
+        # Add RSVP link to registration
+        self._add_rsvp_link(registration)
+
         files = self.files_repo.get_files_by_registration(registration_id)
         return RegistrationWithFilesResponse(**registration.model_dump(), files=files)
 
