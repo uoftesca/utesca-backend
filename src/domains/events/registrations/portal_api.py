@@ -69,12 +69,13 @@ async def get_registration(
     Get detailed information about a specific registration.
 
     Returns full registration details including form data, timestamps,
-    review information, and check-in status.
+    review information, check-in status, and RSVP link (if accepted).
 
     Raises:
         HTTPException: 404 if registration not found
     """
-    return {"registration": service.get_registration_detail(registration_id)}
+    registration = service.get_registration_detail(registration_id)
+    return {"registration": registration}
 
 
 @router.patch(
