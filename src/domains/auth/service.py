@@ -65,8 +65,8 @@ class AuthService:
         try:
             admin_client = self._get_admin_client()
 
-            # Use BASE_URL from environment configuration
-            redirect_to = f"{self.settings.BASE_URL}"
+            # Use BASE_URL_PORTAL from environment configuration for team member auth redirects
+            redirect_to = f"{self.settings.BASE_URL_PORTAL}"
 
             # Prepare user metadata to be stored in auth.users
             user_metadata = {

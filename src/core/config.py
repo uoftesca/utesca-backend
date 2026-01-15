@@ -12,6 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -27,6 +28,8 @@ class Settings(BaseSettings):
     - SUPABASE_KEY: Database anon/service key
     - API_V1_PREFIX: API version prefix (default: '/api/v1')
     - PROJECT_NAME: Project name (default: 'UTESCA Portal')
+    - BASE_URL_PUBLIC: Public site base URL (required, no default)
+    - BASE_URL_PORTAL: Portal base URL (required, no default)
     """
 
     # Environment configuration
@@ -46,8 +49,9 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str
 
-    # Base URL for email redirects
-    BASE_URL: str = "https://example.com"
+    # Base URLs for different application contexts (required)
+    BASE_URL_PUBLIC: str  # Public site for RSVP links in emails
+    BASE_URL_PORTAL: str  # Portal for team member auth redirects
 
     # Email configuration (Resend)
     RESEND_API_KEY: str
@@ -67,6 +71,26 @@ class Settings(BaseSettings):
         "https://www.utesca.ca",
         "http://127.0.0.1:3000",
     ]
+
+    @field_validator("BASE_URL_PUBLIC", "BASE_URL_PORTAL")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        """
+        Validate that base URLs are properly formatted.
+
+        Args:
+            v: URL value to validate
+
+        Returns:
+            Validated URL with trailing slash removed
+
+        Raises:
+            ValueError: If URL doesn't start with http:// or https://
+        """
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("Base URL must start with http:// or https://")
+        # Remove trailing slash for consistency
+        return v.rstrip("/")
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(BASE_DIR, ".env"),
