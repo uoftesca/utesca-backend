@@ -90,6 +90,8 @@ jobs:
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      BASE_URL_PUBLIC: http://localhost:3000
+      BASE_URL_PORTAL: http://localhost:3001
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
