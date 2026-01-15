@@ -840,6 +840,10 @@ class RegistrationService:
         )
         if not updated:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
+
+        # Add RSVP link to accepted registration
+        self._add_rsvp_link(updated)
+
         return updated
 
     def reject_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
@@ -859,6 +863,10 @@ class RegistrationService:
         )
         if not updated:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
+
+        # Add RSVP link (will be null for rejected status)
+        self._add_rsvp_link(updated)
+
         return updated
 
     def _has_event_passed(self, event_date: datetime) -> bool:

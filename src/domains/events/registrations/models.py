@@ -78,7 +78,7 @@ class RegistrationResponse(RegistrationBase):
     rsvp_link: Optional[str] = None
 
 
-class RegistrationWithFilesResponse(RegistrationBase):
+class RegistrationWithFilesResponse(RegistrationResponse):
     """Registration response including uploaded files."""
 
     files: List[FileMeta] = Field(default_factory=list)
