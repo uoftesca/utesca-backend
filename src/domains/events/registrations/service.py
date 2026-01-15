@@ -710,9 +710,9 @@ class RegistrationService:
             # Format event datetime to Toronto timezone
             event_datetime_str = format_datetime_toronto(event.date_time)
 
-            # Get base URL from settings
+            # Get public site base URL from settings
             settings = get_settings()
-            base_url = settings.BASE_URL
+            base_url = settings.BASE_URL_PUBLIC
 
             # Initialize email service
             email_service = EmailService()
