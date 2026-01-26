@@ -368,6 +368,9 @@ class AuthService:
                 detail=e.message if hasattr(e, 'message') else str(e),
             )
         except Exception as e:
+            print(f"Unexpected error signing in: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred during sign in. Please try again.",

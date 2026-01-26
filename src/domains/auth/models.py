@@ -89,7 +89,7 @@ class UserResponse(BaseModel):
     preferred_name: Optional[str] = None
     photo_url: Optional[str] = None
     invited_by: Optional[UUID] = None
-    announcement_email_preference: EmailNotificationPreference
+    announcement_email_preference: EmailNotificationPreference = "all"
     created_at: datetime
     updated_at: datetime
 

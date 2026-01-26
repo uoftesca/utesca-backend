@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Base URL for email redirects
     BASE_URL: str
 
+    # Email configuration (Resend API)
+    RESEND_API_KEY: str = ""
+    FROM_EMAIL: str = "noreply@utesca.ca"
+    EMAIL_LOGO_URL: str = "https://utesca.ca/logo.png"
+
     # CORS settings (for Next.js frontend)
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",  # Local Next.js dev
