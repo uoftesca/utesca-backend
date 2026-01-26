@@ -4,25 +4,29 @@ Announcement service - Business logic for announcement operations.
 This module handles creating announcements and sending announcement emails to all users.
 """
 
-from fastapi import HTTPException, status
+import logging
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from supabase import create_client, Client
-from datetime import datetime
 
-from core.database import get_supabase_client, get_schema
+from fastapi import HTTPException, status
+from supabase import Client, create_client
+
 from core.config import get_settings
+from core.database import get_schema, get_supabase_client
 from domains.auth.models import UserResponse
 from .models import (
+    AnnouncementEmailStats,
+    AnnouncementListResponse,
+    AnnouncementReadResponse,
     CreateAnnouncementRequest,
     CreateAnnouncementResponse,
     SendAnnouncementEmailRequest,
     SendAnnouncementResponse,
-    AnnouncementEmailStats,
-    AnnouncementListResponse,
-    AnnouncementReadResponse,
 )
 from .repository import AnnouncementRepository
+
+logger = logging.getLogger(__name__)
 
 
 class AnnouncementService:
@@ -73,7 +77,7 @@ class AnnouncementService:
                 detail="Failed to fetch users",
             )
 
-    def _send_emails_via_supabase(
+    def _send_emails_via_resend(
         self,
         users: list[dict],
         title: str,
@@ -82,18 +86,31 @@ class AnnouncementService:
         send_to_all: bool,
     ) -> AnnouncementEmailStats:
         """
-        Send announcement emails to users using Supabase Auth API.
+        Send announcement emails to users using Resend email service.
 
         Args:
-            users: List of user records
-            title: Email subject
-            content: Email message
-            priority: Announcement priority
+            users: List of user records with 'id', 'email', and optional 'full_name'
+            title: Announcement title
+            content: Announcement content/message
+            priority: Announcement priority ('normal' or 'urgent')
             send_to_all: If True, sends to all users. If False, respects preferences.
 
         Returns:
             AnnouncementEmailStats with delivery information
         """
+        from core.email import EmailService
+
+        try:
+            email_service = EmailService()
+        except Exception as e:
+            logger.error(f"Failed to initialize EmailService: {e}")
+            return AnnouncementEmailStats(
+                total_recipients=len(users),
+                emails_sent=0,
+                emails_skipped=0,
+                failed_emails=len(users),
+            )
+
         total_recipients = len(users)
         emails_sent = 0
         emails_skipped = 0
@@ -102,36 +119,51 @@ class AnnouncementService:
         for user in users:
             try:
                 email = user.get("email")
-                preference = user.get("announcement_email_preference", "all")
-
-                # Check if user should receive this email
-                should_send = send_to_all or self._should_send_to_user(preference, priority)
-
-                if not should_send or not email:
+                if not email:
                     emails_skipped += 1
                     continue
 
-                # Format email subject with priority indicator if urgent
-                email_subject = title if priority != "urgent" else f"[URGENT] {title}"
+                # Check user preferences
+                preference = user.get("announcement_email_preference", "all")
+                should_send = send_to_all or self._should_send_to_user(preference, priority)
 
-                try:
-                    # Note: Supabase doesn't support generic email sending via admin API
-                    # It only sends auth-related emails (invites, password resets)
-                    # For production, integrate an email service like SendGrid, AWS SES, or SMTP
-                    
-                    # TODO: Implement email sending via external service
-                    # For now, just log that email would be sent
-                    print(f"Would send email to {email}: {email_subject}")
-                    
-                    # Mark as skipped since we can't actually send
+                if not should_send:
                     emails_skipped += 1
-                except Exception as e:
-                    print(f"Failed to send email to {email}: {e}")
+                    continue
+
+                # Extract user's full name if available
+                full_name = user.get("full_name")
+                if not full_name:
+                    # Try to build name from first/last name fields
+                    first_name = user.get("first_name", "").strip()
+                    last_name = user.get("last_name", "").strip()
+                    if first_name or last_name:
+                        full_name = f"{first_name} {last_name}".strip()
+
+                # Send email via Resend
+                success = email_service.send_announcement(
+                    to=email,
+                    full_name=full_name,
+                    announcement_title=title,
+                    announcement_content=content,
+                    priority=priority,
+                )
+
+                if success:
+                    emails_sent += 1
+                    logger.info(f"Announcement email sent to {email}")
+                else:
                     failed_emails += 1
+                    logger.warning(f"Failed to send announcement email to {email}")
 
             except Exception as e:
-                print(f"Error processing user for email: {e}")
+                logger.error(f"Error sending announcement email to user: {e}", exc_info=True)
                 failed_emails += 1
+
+        logger.info(
+            f"Announcement email delivery: {emails_sent} sent, "
+            f"{emails_skipped} skipped, {failed_emails} failed out of {total_recipients} recipients"
+        )
 
         return AnnouncementEmailStats(
             total_recipients=total_recipients,
@@ -191,7 +223,7 @@ class AnnouncementService:
             if request.content:
                 try:
                     users = self._get_all_users()
-                    self._send_emails_via_supabase(
+                    self._send_emails_via_resend(
                         users=users,
                         title=request.title,
                         content=request.content,
@@ -247,7 +279,7 @@ class AnnouncementService:
                 )
 
             # Send emails
-            stats = self._send_emails_via_supabase(
+            stats = self._send_emails_via_resend(
                 users=users,
                 title=request.title,
                 content=request.content,

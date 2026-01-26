@@ -748,3 +748,75 @@ def build_custom_email_from_template(
     html_body = _build_email_html(subject, body_content)
 
     return (html_body, body_text, subject)
+
+
+def build_announcement_email(
+    full_name: Optional[str],
+    announcement_title: str,
+    announcement_content: str,
+    priority: str,
+) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for announcements.
+
+    Args:
+        full_name: Recipient's name (None if not available)
+        announcement_title: Announcement title
+        announcement_content: Announcement content/message
+        priority: Announcement priority ('normal' or 'urgent')
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    greeting = f"Hi {full_name}," if full_name else "Hello,"
+    priority_badge = "[URGENT] " if priority == "urgent" else ""
+
+    # HTML version
+    if priority == "urgent":
+        # Urgent announcements get a warning box
+        body_content = f"""
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #856404; margin: 20px 0;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 10px 0; font-size: 14px; font-weight: bold; color: #856404;">
+                                            ⚠️ URGENT ANNOUNCEMENT
+                                        </p>
+                                        <p style="margin: 0; font-size: 14px; color: #856404;">
+                                            This is an urgent announcement. Please read carefully.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
+                                {announcement_content}
+                            </p>
+        """
+    else:
+        # Normal announcements
+        body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
+                                {announcement_content}
+                            </p>
+        """
+
+    html_body = _build_email_html(priority_badge + announcement_title, body_content)
+
+    # Plain text version
+    text_body = f"""{greeting}
+
+{announcement_content}
+
+---
+University of Toronto Engineering Students Consulting Association
+"""
+
+    return (html_body, text_body)

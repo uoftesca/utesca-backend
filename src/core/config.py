@@ -64,11 +64,6 @@ class Settings(BaseSettings):
     # Set to 1.8 RPS for safety margin to account for timing precision
     EMAIL_RATE_LIMIT_RPS: float = 1.8
 
-    # Email configuration (Resend API)
-    RESEND_API_KEY: str = ""
-    FROM_EMAIL: str = "noreply@utesca.ca"
-    EMAIL_LOGO_URL: str = "https://utesca.ca/logo.png"
-
     # CORS settings (for Next.js frontend)
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",  # Local Next.js dev

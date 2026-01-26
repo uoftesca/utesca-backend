@@ -13,6 +13,7 @@ from core.config import get_settings
 from domains.events.models import EmailTemplate
 
 from .templates import (
+    build_announcement_email,
     build_application_accepted_email,
     build_application_received_email,
     build_application_rejected_email,
@@ -417,6 +418,46 @@ class EmailService:
                 )
         except Exception as e:
             logger.error(f"Failed to build rejection email template: {e}", exc_info=True)
+            return False
+
+        return self.send_email(
+            to=to,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+        )
+
+    def send_announcement(
+        self,
+        to: str,
+        full_name: Optional[str],
+        announcement_title: str,
+        announcement_content: str,
+        priority: str,
+    ) -> bool:
+        """
+        Send announcement email to a user.
+
+        Args:
+            to: Recipient email
+            full_name: Recipient's name (None if not available)
+            announcement_title: Announcement title
+            announcement_content: Announcement content/message
+            priority: Announcement priority ('normal' or 'urgent')
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        try:
+            subject = f"{announcement_title}" if priority != "urgent" else f"[URGENT] {announcement_title}"
+            html_body, text_body = build_announcement_email(
+                full_name=full_name,
+                announcement_title=announcement_title,
+                announcement_content=announcement_content,
+                priority=priority,
+            )
+        except Exception as e:
+            logger.error(f"Failed to build announcement email template: {e}", exc_info=True)
             return False
 
         return self.send_email(
