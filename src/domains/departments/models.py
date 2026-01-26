@@ -4,16 +4,17 @@ Pydantic models for departments domain.
 These models define the request/response schemas for department endpoints.
 """
 
-from pydantic import BaseModel, ConfigDict
-from pydantic.alias_generators import to_camel
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
 # ============================================================================
 # Response Models
 # ============================================================================
+
 
 class DepartmentResponse(BaseModel):
     """Single department response."""
@@ -23,11 +24,7 @@ class DepartmentResponse(BaseModel):
     year: int
     created_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
 class DepartmentListResponse(BaseModel):
@@ -43,7 +40,4 @@ class YearsResponse(BaseModel):
     years: List[int]
     current_year: int
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

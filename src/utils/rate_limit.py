@@ -12,7 +12,6 @@ from typing import Deque, Dict, Tuple
 from fastapi import HTTPException, status
 from starlette.requests import Request
 
-
 # key: (ip, bucket) -> deque[timestamps]
 _requests: Dict[Tuple[str, str], Deque[float]] = {}
 
@@ -61,4 +60,3 @@ def rate_limit(bucket: str, limit: int, window_seconds: int = 60):
         q.append(now)
 
     return _enforce
-

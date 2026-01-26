@@ -3,9 +3,11 @@ Repository for event registrations data access.
 """
 
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 from uuid import UUID
 
+from postgrest import CountMethod, ReturnMethod
+from postgrest.types import JSON
 from supabase import Client
 
 from .models import RegistrationResponse, RegistrationStatus
@@ -23,19 +25,17 @@ class RegistrationsRepository:
         event_id: UUID,
         form_data: dict,
         status: RegistrationStatus,
-        rsvp_token: Optional[str] = None,
     ) -> RegistrationResponse:
         insert_data = {
             "event_id": str(event_id),
             "form_data": form_data,
             "status": status,
-            "rsvp_token": rsvp_token,
         }
 
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .insert(insert_data, returning="representation")
+            .insert(cast(JSON, insert_data), returning=ReturnMethod.representation)
             .execute()
         )
 
@@ -56,18 +56,6 @@ class RegistrationsRepository:
             return None
         return RegistrationResponse.model_validate(result.data[0])
 
-    def get_registration_by_rsvp_token(self, token: str) -> Optional[RegistrationResponse]:
-        result = (
-            self.client.schema(self.schema)
-            .table("event_registrations")
-            .select("*")
-            .eq("rsvp_token", token)
-            .execute()
-        )
-        if not result.data:
-            return None
-        return RegistrationResponse.model_validate(result.data[0])
-
     def list_registrations(
         self,
         event_id: UUID,
@@ -80,7 +68,7 @@ class RegistrationsRepository:
         query = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .select("*", count="exact")
+            .select("*", count=CountMethod.exact)
             .eq("event_id", str(event_id))
         )
 
@@ -89,9 +77,7 @@ class RegistrationsRepository:
 
         if search:
             term = f"%{search}%"
-            query = query.or_(
-                f"form_data->>full_name.ilike.{term},form_data->>email.ilike.{term}"
-            )
+            query = query.or_(f"form_data->>full_name.ilike.{term},form_data->>email.ilike.{term}")
 
         # Supabase pagination uses inclusive range
         query = query.order("submitted_at", desc=True).range(offset, offset + limit - 1)
@@ -108,7 +94,7 @@ class RegistrationsRepository:
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .select("id", count="exact")
+            .select("id", count=CountMethod.exact)
             .eq("event_id", str(event_id))
             .execute()
         )
@@ -120,20 +106,17 @@ class RegistrationsRepository:
         status: RegistrationStatus,
         reviewer_id: UUID,
         reviewed_at: datetime,
-        rsvp_token: Optional[str] = None,
     ) -> Optional[RegistrationResponse]:
         update_data = {
             "status": status,
             "reviewed_by": str(reviewer_id),
             "reviewed_at": reviewed_at.isoformat(),
         }
-        if rsvp_token:
-            update_data["rsvp_token"] = rsvp_token
 
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
-            .update(update_data, returning="representation")
+            .update(update_data, returning=ReturnMethod.representation)
             .eq("id", str(registration_id))
             .execute()
         )
@@ -142,7 +125,28 @@ class RegistrationsRepository:
             return None
         return RegistrationResponse.model_validate(result.data[0])
 
-    def set_confirmed(self, token: str, confirmed_at: datetime) -> Optional[RegistrationResponse]:
+    def get_registration_public(self, registration_id: UUID) -> Optional[RegistrationResponse]:
+        """
+        Get registration for public RSVP access.
+        Only returns registrations with status in ['accepted', 'confirmed', 'not_attending'].
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("*")
+            .eq("id", str(registration_id))
+            .in_("status", ["accepted", "confirmed", "not_attending"])
+            .execute()
+        )
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])
+
+    def confirm_registration(self, registration_id: UUID, confirmed_at: datetime) -> Optional[RegistrationResponse]:
+        """
+        Confirm registration.
+        Only updates if current status is 'accepted'.
+        """
         result = (
             self.client.schema(self.schema)
             .table("event_registrations")
@@ -151,9 +155,9 @@ class RegistrationsRepository:
                     "status": "confirmed",
                     "confirmed_at": confirmed_at.isoformat(),
                 },
-                returning="representation",
+                returning=ReturnMethod.representation,
             )
-            .eq("rsvp_token", token)
+            .eq("id", str(registration_id))
             .eq("status", "accepted")
             .execute()
         )
@@ -161,4 +165,26 @@ class RegistrationsRepository:
             return None
         return RegistrationResponse.model_validate(result.data[0])
 
-
+    def set_not_attending(self, registration_id: UUID, declined_at: datetime) -> Optional[RegistrationResponse]:
+        """
+        Mark registration as not_attending (final decision).
+        Can transition from 'accepted' or 'confirmed' to 'not_attending'.
+        This is a terminal status - cannot be changed after.
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .update(
+                {
+                    "status": "not_attending",
+                    "confirmed_at": declined_at.isoformat(),  # Track when they declined
+                },
+                returning=ReturnMethod.representation,
+            )
+            .eq("id", str(registration_id))
+            .in_("status", ["accepted", "confirmed"])
+            .execute()
+        )
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])

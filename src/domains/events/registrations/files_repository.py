@@ -3,9 +3,11 @@ Repository for registration file metadata.
 """
 
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, cast
 from uuid import UUID
 
+from postgrest import ReturnMethod
+from postgrest.types import JSON
 from supabase import Client
 
 from .models import FileMeta
@@ -40,7 +42,7 @@ class RegistrationFilesRepository:
         result = (
             self.client.schema(self.schema)
             .table("registration_files")
-            .insert(data, returning="representation")
+            .insert(cast(JSON, data), returning=ReturnMethod.representation)
             .execute()
         )
         if not result.data:
@@ -69,29 +71,17 @@ class RegistrationFilesRepository:
 
     def get_file_by_id(self, file_id: UUID) -> Optional[FileMeta]:
         result = (
-            self.client.schema(self.schema)
-            .table("registration_files")
-            .select("*")
-            .eq("id", str(file_id))
-            .execute()
+            self.client.schema(self.schema).table("registration_files").select("*").eq("id", str(file_id)).execute()
         )
         if not result.data:
             return None
         return FileMeta.model_validate(result.data[0])
 
     def delete_file_by_id(self, file_id: UUID) -> bool:
-        result = (
-            self.client.schema(self.schema)
-            .table("registration_files")
-            .delete()
-            .eq("id", str(file_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("registration_files").delete().eq("id", str(file_id)).execute()
         return bool(result.data)
 
-    def get_file_for_field(
-        self, upload_session_id: str, field_name: str, event_id: UUID
-    ) -> List[FileMeta]:
+    def get_file_for_field(self, upload_session_id: str, field_name: str, event_id: UUID) -> List[FileMeta]:
         result = (
             self.client.schema(self.schema)
             .table("registration_files")
@@ -103,9 +93,7 @@ class RegistrationFilesRepository:
         )
         return [FileMeta.model_validate(item) for item in result.data or []]
 
-    def link_files_to_registration(
-        self, upload_session_id: str, registration_id: UUID, event_date: datetime
-    ) -> int:
+    def link_files_to_registration(self, upload_session_id: str, registration_id: UUID, event_date: datetime) -> int:
         deletion_date: Optional[date] = None
         if event_date:
             deletion_date = event_date.date() + timedelta(days=30)
@@ -117,9 +105,8 @@ class RegistrationFilesRepository:
         result = (
             self.client.schema(self.schema)
             .table("registration_files")
-            .update(update_data, returning="representation")
+            .update(update_data, returning=ReturnMethod.representation)
             .eq("upload_session_id", upload_session_id)
             .execute()
         )
         return len(result.data or [])
-

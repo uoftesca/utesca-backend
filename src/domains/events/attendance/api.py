@@ -2,13 +2,13 @@
 Attendance API endpoints.
 """
 
-from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
+
 from .models import BulkCheckInRequest, BulkCheckInResponse, CheckInResponse
 from .service import AttendanceService
 
@@ -55,4 +55,3 @@ async def get_check_in_stats(
     service: AttendanceService = Depends(get_attendance_service),
 ):
     return service.get_check_in_stats(event_id)
-

@@ -4,8 +4,10 @@ Data access layer for user management.
 This module handles all database operations related to users.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 from uuid import UUID
+
+from postgrest import CountMethod
 from supabase import Client
 
 from domains.auth.models import UserResponse
@@ -49,7 +51,7 @@ class UserRepository:
             Tuple of (list of users, total count)
         """
         # Build query
-        query = self.client.schema(self.schema).table("users").select("*", count="exact")
+        query = self.client.schema(self.schema).table("users").select("*", count=CountMethod.exact)
 
         # Apply filters
         if department_id is not None:
@@ -87,7 +89,7 @@ class UserRepository:
         if not result.data:
             return [], 0
 
-        users = [UserResponse(**user) for user in result.data]
+        users = [UserResponse(**cast(dict, user)) for user in result.data]
 
         # Client-side search filter if search query provided
         if search:
@@ -116,15 +118,71 @@ class UserRepository:
         Returns:
             UserResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("users")
-            .select("*")
-            .eq("id", str(user_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("users").select("*").eq("id", str(user_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
 
-        return UserResponse(**result.data[0])
+        return UserResponse(**cast(dict, result.data[0]))
+
+    def get_users_with_notification_enabled(self, notification_type: str) -> List[UserResponse]:
+        """
+        Fetch all users who have a specific notification type enabled.
+
+        Uses PostgreSQL JSONB querying to filter by notification_preferences.
+
+        Args:
+            notification_type: Key in notification_preferences JSONB
+                              (e.g., 'rsvp_changes', 'new_application_submitted')
+
+        Returns:
+            List of users with notification enabled for the specified type
+        """
+        # PostgreSQL JSONB query: notification_preferences->>'rsvp_changes' = 'true'
+        result = (
+            self.client.schema(self.schema)
+            .table("users")
+            .select("*")
+            .eq(f"notification_preferences->>{notification_type}", "true")
+            .execute()
+        )
+
+        if not result.data:
+            return []
+
+        return [UserResponse(**cast(dict, user)) for user in result.data]
+
+    def update(self, user_id: UUID, update_data: dict) -> Optional[UserResponse]:
+        """
+        Update user by ID.
+
+        Args:
+            user_id: User UUID
+            update_data: Dictionary of fields to update
+
+        Returns:
+            Updated UserResponse if found, None otherwise
+        """
+        result = self.client.schema(self.schema).table("users").update(update_data).eq("id", str(user_id)).execute()
+
+        if not result.data or len(result.data) == 0:
+            return None
+
+        return UserResponse(**cast(dict, result.data[0]))
+
+    def delete(self, user_id: UUID) -> bool:
+        """
+        Delete user by ID.
+
+        Note: This only deletes from the users table. For full deletion
+        including auth.users, use the Supabase admin API.
+
+        Args:
+            user_id: User UUID
+
+        Returns:
+            True if user was deleted, False if not found
+        """
+        result = self.client.schema(self.schema).table("users").delete().eq("id", str(user_id)).execute()
+
+        return len(result.data) > 0 if result.data else False

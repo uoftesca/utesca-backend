@@ -4,22 +4,23 @@ Event API endpoints.
 Provides REST API endpoints for event management.
 """
 
-from fastapi import APIRouter, Depends, Query, status, HTTPException
-from fastapi.responses import JSONResponse
 from typing import Optional
 from uuid import UUID
 
-from domains.auth.dependencies import get_current_user, get_current_vp_or_admin, get_optional_user
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import JSONResponse
+
+from domains.auth.dependencies import get_current_vp_or_admin, get_optional_user
 from domains.auth.models import UserResponse
+
 from .models import (
     EventCreate,
-    EventUpdate,
-    EventResponse,
     EventListResponse,
+    EventResponse,
     EventStatus,
+    EventUpdate,
 )
 from .service import EventService
-
 
 # Create router for events domain
 router = APIRouter()
@@ -53,7 +54,7 @@ async def get_events(
     # If no user is authenticated, only return published events
     # For authenticated users, use the status filter if provided, otherwise return all
     if current_user is None:
-        status_filter = "published"
+        status_filter: Optional[EventStatus] = "published"
     else:
         # Authenticated users can see all events (use status filter if provided)
         status_filter = status

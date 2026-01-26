@@ -4,6 +4,7 @@ Repository for event analytics queries.
 
 from collections import defaultdict
 from datetime import date
+from typing import Any, cast
 from uuid import UUID
 
 from supabase import Client
@@ -20,16 +21,16 @@ class AnalyticsRepository:
 
     def get_status_counts(self, event_id: UUID) -> StatusBreakdown:
         result = (
-            self.client.schema(self.schema)
-            .rpc("get_event_registration_stats", {"p_event_id": str(event_id)})
-            .execute()
+            self.client.schema(self.schema).rpc("get_event_registration_stats", {"p_event_id": str(event_id)}).execute()
         )
-        data = (result.data or [{}])[0]
+        raw_data = result.data or [{}]
+        data = cast(dict[str, Any], raw_data[0] if isinstance(raw_data, list) else raw_data)
         return StatusBreakdown(
             submitted=int(data.get("submitted_count", 0) or 0),
             accepted=int(data.get("accepted_count", 0) or 0),
             rejected=int(data.get("rejected_count", 0) or 0),
             confirmed=int(data.get("confirmed_count", 0) or 0),
+            not_attending=int(data.get("not_attending_count", 0) or 0),
             checked_in=int(data.get("checked_in_count", 0) or 0),
         )
 
@@ -43,10 +44,11 @@ class AnalyticsRepository:
         )
         counts: dict[str, int] = defaultdict(int)
         for row in result.data or []:
-            submitted_at = row.get("submitted_at")
+            row_dict = cast(dict[str, Any], row)
+            submitted_at = row_dict.get("submitted_at")
             if not submitted_at:
                 continue
-            day = submitted_at[:10] if isinstance(submitted_at, str) else submitted_at.date().isoformat()
+            day = submitted_at[:10] if isinstance(submitted_at, str) else str(submitted_at)[:10]
             counts[day] += 1
         return [TimelinePoint(date=date.fromisoformat(day), count=count) for day, count in sorted(counts.items())]
 
@@ -57,13 +59,14 @@ class AnalyticsRepository:
             + breakdown.accepted
             + breakdown.rejected
             + breakdown.confirmed
+            + breakdown.not_attending
         )
+        # Approval rate = (accepted + confirmed + not_attending) / total * 100
         approval_rate = (
-            ((breakdown.accepted + breakdown.rejected) / total) * 100 if total else 0
+            ((breakdown.accepted + breakdown.confirmed + breakdown.not_attending) / total) * 100 if total else 0
         )
-        attendance_rate = (
-            (breakdown.checked_in / breakdown.confirmed) * 100 if breakdown.confirmed else 0
-        )
+        # Attendance rate = checked_in / confirmed * 100 (only confirmed attendees)
+        attendance_rate = (breakdown.checked_in / breakdown.confirmed) * 100 if breakdown.confirmed else 0
         timeline = self.get_timeline(event_id)
         return AnalyticsResponse(
             total_registrations=total,
@@ -72,4 +75,3 @@ class AnalyticsRepository:
             attendance_rate=round(attendance_rate, 2),
             registration_timeline=timeline,
         )
-

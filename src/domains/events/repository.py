@@ -4,16 +4,17 @@ Data access layer for event management.
 This module handles all database operations related to events.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 from uuid import UUID
-from datetime import datetime
+
+from postgrest import CountMethod
 from supabase import Client
 
 from .models import (
-    EventResponse,
     EventCreate,
-    EventUpdate,
+    EventResponse,
     EventStatus,
+    EventUpdate,
     RegistrationFormSchema,
 )
 
@@ -50,7 +51,7 @@ class EventRepository:
             Tuple of (list of events, total count)
         """
         # Build query
-        query = self.client.schema(self.schema).table("events").select("*", count="exact")
+        query = self.client.schema(self.schema).table("events").select("*", count=CountMethod.exact)
 
         # Apply filters
         if status is not None:
@@ -73,7 +74,7 @@ class EventRepository:
         if not result.data:
             return [], 0
 
-        events = [EventResponse(**event) for event in result.data]
+        events = [EventResponse(**cast(dict, event)) for event in result.data]
 
         return events, total_count
 
@@ -87,18 +88,12 @@ class EventRepository:
         Returns:
             EventResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .select("*")
-            .eq("id", str(event_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").select("*").eq("id", str(event_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
 
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     def get_by_slug(self, slug: str) -> Optional[EventResponse]:
         """
@@ -110,18 +105,12 @@ class EventRepository:
         Returns:
             EventResponse if found, None otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .select("*")
-            .eq("slug", slug)
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").select("*").eq("slug", slug).execute()
 
         if not result.data:
             return None
 
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     # Convenience aliases matching requested naming
     def get_event_by_id(self, event_id: UUID) -> Optional[EventResponse]:
@@ -143,21 +132,16 @@ class EventRepository:
         """
         # Prepare data for insertion (use by_alias=False to get snake_case for database)
         # Use mode='json' to serialize datetime objects to ISO strings
-        insert_data = event_data.model_dump(mode='json', exclude_none=True, by_alias=False)
+        insert_data = event_data.model_dump(mode="json", exclude_none=True, by_alias=False)
         if created_by is not None:
             insert_data["created_by"] = str(created_by)
 
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .insert(insert_data)
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").insert(insert_data).execute()
 
         if not result.data or len(result.data) == 0:
             raise ValueError("Failed to create event")
 
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     def update(self, event_id: UUID, event_data: EventUpdate) -> Optional[EventResponse]:
         """
@@ -172,24 +156,18 @@ class EventRepository:
         """
         # Prepare data for update (exclude None values, use by_alias=False to get snake_case for database)
         # Use mode='json' to serialize datetime objects to ISO strings
-        update_data = event_data.model_dump(mode='json', exclude_none=True, by_alias=False)
+        update_data = event_data.model_dump(mode="json", exclude_none=True, by_alias=False)
 
         if not update_data:
             # No fields to update
             return self.get_by_id(event_id)
 
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .update(update_data)
-            .eq("id", str(event_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").update(update_data).eq("id", str(event_id)).execute()
 
         if not result.data or len(result.data) == 0:
             return None
 
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     def update_form_schema(self, event_id: UUID, schema: RegistrationFormSchema) -> Optional[EventResponse]:
         """
@@ -203,16 +181,10 @@ class EventRepository:
             EventResponse if updated, None otherwise
         """
         update_data = {"registration_form_schema": schema.model_dump(mode="json")}
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .update(update_data)
-            .eq("id", str(event_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").update(update_data).eq("id", str(event_id)).execute()
         if not result.data:
             return None
-        return EventResponse(**result.data[0])
+        return EventResponse(**cast(dict, result.data[0]))
 
     def delete(self, event_id: UUID) -> bool:
         """
@@ -224,13 +196,7 @@ class EventRepository:
         Returns:
             True if deleted, False otherwise
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("events")
-            .delete()
-            .eq("id", str(event_id))
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("events").delete().eq("id", str(event_id)).execute()
 
         # Supabase delete returns empty data array on success
         # Check if any rows were affected by checking the result

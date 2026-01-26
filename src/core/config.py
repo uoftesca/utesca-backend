@@ -7,9 +7,15 @@ Environment variables are loaded from .env file in development and from system
 environment in production (e.g., Vercel).
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -22,6 +28,8 @@ class Settings(BaseSettings):
     - SUPABASE_KEY: Database anon/service key
     - API_V1_PREFIX: API version prefix (default: '/api/v1')
     - PROJECT_NAME: Project name (default: 'UTESCA Portal')
+    - BASE_URL_PUBLIC: Public site base URL (required, no default)
+    - BASE_URL_PORTAL: Portal base URL (required, no default)
     """
 
     # Environment configuration
@@ -31,13 +39,30 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     PROJECT_NAME: str = "UTESCA Portal"
 
+    # Server configuration
+    SERVER_HOST: str = "127.0.0.1"  # Use 127.0.0.1 for local dev, 0.0.0.0 for Docker/production
+    SERVER_PORT: int = 8000
+    LOG_LEVEL: str = "INFO"  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
     # Supabase credentials (single database with test and prod schemas)
     SUPABASE_URL: str
     SUPABASE_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str
 
-    # Base URL for email redirects
-    BASE_URL: str
+    # Base URLs for different application contexts (required)
+    BASE_URL_PUBLIC: str  # Public site for RSVP links in emails
+    BASE_URL_PORTAL: str  # Portal for team member auth redirects
+
+    # Email configuration (Resend)
+    RESEND_API_KEY: str
+    EMAIL_FROM_ADDRESS: str = "team@updates.utesca.ca"
+    EMAIL_FROM_NAME: str = "UofT Engineering Students Consulting Association"
+    EMAIL_REPLY_TO: str = "uoft.esca@gmail.com"  # Where replies are sent
+    EMAIL_LOGO_URL: str = "https://utesca.ca/utesca-logo.png"
+
+    # Email rate limiting (Resend limit: 2 requests/second)
+    # Set to 1.8 RPS for safety margin to account for timing precision
+    EMAIL_RATE_LIMIT_RPS: float = 1.8
 
     # Email configuration (Resend API)
     RESEND_API_KEY: str = ""
@@ -47,13 +72,33 @@ class Settings(BaseSettings):
     # CORS settings (for Next.js frontend)
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",  # Local Next.js dev
-        "https://utesca.ca",       # Production frontend
+        "https://utesca.ca",  # Production frontend
         "https://www.utesca.ca",
         "http://127.0.0.1:3000",
     ]
 
+    @field_validator("BASE_URL_PUBLIC", "BASE_URL_PORTAL")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        """
+        Validate that base URLs are properly formatted.
+
+        Args:
+            v: URL value to validate
+
+        Returns:
+            Validated URL with trailing slash removed
+
+        Raises:
+            ValueError: If URL doesn't start with http:// or https://
+        """
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("Base URL must start with http:// or https://")
+        # Remove trailing slash for consistency
+        return v.rstrip("/")
+
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        env_file=os.path.join(BASE_DIR, ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",  # Ignore extra fields in .env
@@ -95,7 +140,7 @@ def get_settings() -> Settings:
         settings = get_settings()
         print(settings.db_schema)  # 'test' or 'prod' based on ENVIRONMENT
     """
-    return Settings()
+    return Settings()  # type: ignore[call-arg]  # BaseSettings loads from env vars
 
 
 # Convenience export

@@ -8,9 +8,10 @@ from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
+
+from ..repository import EventRepository
 from .models import AnalyticsResponse
 from .repository import AnalyticsRepository
-from ..repository import EventRepository
 
 
 class AnalyticsService:
@@ -19,9 +20,7 @@ class AnalyticsService:
     def __init__(self):
         settings = get_settings()
         self.schema = get_schema()
-        self.supabase: Client = create_client(
-            settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.repo = AnalyticsRepository(self.supabase, self.schema)
 
@@ -30,4 +29,3 @@ class AnalyticsService:
         if not event:
             raise ValueError("Event not found")
         return self.repo.get_analytics(event_id)
-

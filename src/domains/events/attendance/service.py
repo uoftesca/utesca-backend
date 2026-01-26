@@ -13,9 +13,10 @@ from core.config import get_settings
 from core.database import get_schema
 from domains.events.registrations.models import RegistrationResponse
 from domains.events.registrations.repository import RegistrationsRepository
+
+from ..repository import EventRepository
 from .models import BulkCheckInResponse, BulkCheckInResult, CheckInResponse
 from .repository import AttendanceRepository
-from ..repository import EventRepository
 
 
 class AttendanceService:
@@ -24,9 +25,7 @@ class AttendanceService:
     def __init__(self):
         settings = get_settings()
         self.schema = get_schema()
-        self.supabase: Client = create_client(
-            settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.reg_repo = RegistrationsRepository(self.supabase, self.schema)
         self.att_repo = AttendanceRepository(self.supabase, self.schema)
@@ -43,9 +42,15 @@ class AttendanceService:
     def check_in_attendee(self, registration_id: UUID, checked_in_by: UUID) -> CheckInResponse:
         registration = self._get_registration_or_404(registration_id)
         if registration.status not in ("accepted", "confirmed"):
+            # Explicitly prevent check-in for not_attending, rejected, and submitted statuses
+            if registration.status == "not_attending":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot check in a registration marked as not attending",
+                )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only accepted or confirmed registrations can be checked in",
+                detail="Only accepted registrations can be checked in",
             )
 
         updated = self.att_repo.check_in(
@@ -75,6 +80,12 @@ class AttendanceService:
                     detail=f"Registration {rid} not found",
                 )
             if reg.status not in ("accepted", "confirmed"):
+                # Explicitly prevent check-in for not_attending, rejected, and submitted statuses
+                if reg.status == "not_attending":
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Registration {rid} is marked as not attending and cannot be checked in",
+                    )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Registration {rid} not eligible for check-in",
@@ -85,9 +96,7 @@ class AttendanceService:
             checked_in_by=checked_in_by,
             checked_in_at=datetime.now(timezone.utc),
         )
-        results = [
-            BulkCheckInResult(id=item.id, checked_in=item.checked_in) for item in updated
-        ]
+        results = [BulkCheckInResult(id=item.id, checked_in=item.checked_in) for item in updated]
         return BulkCheckInResponse(
             checked_in_count=len(updated),
             results=results,
@@ -102,4 +111,3 @@ class AttendanceService:
                 detail="Event not found",
             )
         return self.att_repo.get_check_in_stats(event_id)
-

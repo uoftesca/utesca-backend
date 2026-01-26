@@ -51,4 +51,3 @@ async def test_rate_limit_resets_after_window(monkeypatch):
     assert client.get("/short").status_code == 200
     await asyncio.sleep(0.05)
     assert client.get("/short").status_code == 200
-
