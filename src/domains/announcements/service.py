@@ -5,6 +5,7 @@ This module handles creating announcements and sending announcement emails to al
 """
 
 import logging
+import time
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
@@ -88,8 +89,11 @@ class AnnouncementService:
         """
         Send announcement emails to users using Resend email service.
 
+        Follows the same pattern as registration email sending for consistency.
+        Rate-limited to 2 emails per second to respect Resend API limits.
+
         Args:
-            users: List of user records with 'id', 'email', and optional 'full_name'
+            users: List of user records with 'id', 'email'
             title: Announcement title
             content: Announcement content/message
             priority: Announcement priority ('normal' or 'urgent')
@@ -115,6 +119,10 @@ class AnnouncementService:
         emails_sent = 0
         emails_skipped = 0
         failed_emails = 0
+        
+        # Rate limiting: Resend allows 2 requests/second, so 500ms between emails
+        MIN_DELAY_SECONDS = 0.5
+        last_send_time = 0
 
         for user in users:
             try:
@@ -130,6 +138,13 @@ class AnnouncementService:
                 if not should_send:
                     emails_skipped += 1
                     continue
+
+                # Rate limiting: ensure minimum delay between requests
+                elapsed = time.time() - last_send_time
+                if elapsed < MIN_DELAY_SECONDS:
+                    time.sleep(MIN_DELAY_SECONDS - elapsed)
+                
+                last_send_time = time.time()
 
                 # Extract user's full name if available
                 full_name = user.get("full_name")

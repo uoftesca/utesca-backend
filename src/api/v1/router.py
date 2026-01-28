@@ -25,6 +25,7 @@ from domains.events.attendance.api import router as attendance_router
 from domains.events.registrations.portal_api import router as registrations_portal_router
 from domains.events.registrations.public_api import router as registrations_public_router
 from domains.users.api import router as users_router
+from domains.announcements.api import router as announcements_router
 
 # Create main API router
 api_router = APIRouter()
