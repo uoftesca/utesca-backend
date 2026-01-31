@@ -499,7 +499,7 @@ class EmailService:
         try:
             priority_upper = priority.upper()
             subject = f"[UTESCA] {priority_upper}: {announcement_title}"
-            
+
             html_body, text_body = build_announcement_notification_email(
                 full_name=full_name,
                 announcement_title=announcement_title,

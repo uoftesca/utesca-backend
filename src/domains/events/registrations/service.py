@@ -532,7 +532,7 @@ class RegistrationService:
             registration: The registration record (after status update)
             event: The event object
             previous_status: Status before decline ("confirmed" or "accepted")
-            notification_types: List of notification preference types to check 
+            notification_types: List of notification preference types to check
                               (e.g., ["rsvp_changes", "announcements"]. Defaults to ["rsvp_changes"]
         """
         import logging
@@ -558,13 +558,13 @@ class RegistrationService:
             # Query users with any of the specified notification types enabled
             subscribed_users_by_type = {}
             all_subscribed_users = {}
-            
+
             for notification_type in notification_types:
                 users = self.user_repo.get_users_with_notification_enabled(notification_type)
                 subscribed_users_by_type[notification_type] = users
                 for user in users:
                     all_subscribed_users[user.id] = user
-            
+
             subscribed_users = list(all_subscribed_users.values())
 
             if not subscribed_users:
@@ -659,7 +659,7 @@ class RegistrationService:
             # Send subscriber notifications if declined from confirmed status
             if previous_status == "confirmed":
                 self.send_decline_notification_to_subscribed_users(
-                    registration, event, previous_status, 
+                    registration, event, previous_status,
                     notification_types=["rsvp_changes", "announcements"]
                 )
 

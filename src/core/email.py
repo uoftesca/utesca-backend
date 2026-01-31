@@ -20,7 +20,7 @@ class EmailService:
         """Initialize email service with Resend API key."""
         self.settings = get_settings()
         self.api_key = self.settings.RESEND_API_KEY
-        
+
         # Initialize Resend client if API key exists
         if self.api_key:
             try:
@@ -358,7 +358,8 @@ UTESCA Team
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
     <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2>{greeting}</h2>
-        <div style="background-color: {'#ffe6e6' if priority == 'urgent' else '#f9f9f9'}; padding: 15px; border-radius: 5px;">
+        <div style="background-color: {'#ffe6e6' if priority == 'urgent' else '#f9f9f9'}; padding:
+             15px; border-radius: 5px;">
             {content}
         </div>
         <p style="margin-top: 20px; font-size: 12px; color: #666;">

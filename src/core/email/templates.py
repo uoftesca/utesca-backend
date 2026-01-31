@@ -850,7 +850,7 @@ def build_announcement_notification_email(
     greeting = f"Hi {full_name}," if full_name else "Hello,"
     view_link = f"{base_url}/announcements/{announcement_id}"
     priority_upper = priority.upper()
-    
+
     # Priority badge styling
     if priority == "urgent":
         priority_badge = '<span style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; margin-right: 8px;">URGENT</span>'
