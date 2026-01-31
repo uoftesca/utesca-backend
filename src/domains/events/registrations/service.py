@@ -517,7 +517,7 @@ class RegistrationService:
         registration: RegistrationResponse,
         event,
         previous_status: str,
-        notification_types: list = None,
+        notification_types: list[str] | None = None,
     ) -> None:
         """
         Send notification emails to subscribed users when attendee declines confirmed attendance.
