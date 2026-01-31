@@ -14,6 +14,7 @@ from domains.events.models import EmailTemplate
 
 from .templates import (
     build_announcement_email,
+    build_announcement_notification_email,
     build_application_accepted_email,
     build_application_received_email,
     build_application_rejected_email,
@@ -466,3 +467,55 @@ class EmailService:
             html_body=html_body,
             text_body=text_body,
         )
+
+    def send_announcement_notification(
+        self,
+        to: str,
+        full_name: Optional[str],
+        announcement_title: str,
+        announcement_content: str,
+        priority: str,
+        announcement_id: str,
+        base_url: str,
+    ) -> bool:
+        """
+        Send announcement notification email.
+
+        Subject: [UTESCA] {priority}: {title}
+        Includes announcement content, view link, and unsubscribe instructions.
+
+        Args:
+            to: Recipient email
+            full_name: User's name (None if not available)
+            announcement_title: Announcement title
+            announcement_content: HTML announcement content
+            priority: "urgent" or "normal"
+            announcement_id: Announcement ID for view link
+            base_url: Base URL for view link
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        try:
+            priority_upper = priority.upper()
+            subject = f"[UTESCA] {priority_upper}: {announcement_title}"
+            
+            html_body, text_body = build_announcement_notification_email(
+                full_name=full_name,
+                announcement_title=announcement_title,
+                announcement_content=announcement_content,
+                priority=priority,
+                announcement_id=str(announcement_id),
+                base_url=base_url,
+            )
+
+            return self.send_email(
+                to=to,
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send announcement notification to {to}: {str(e)}", exc_info=True)
+            return False

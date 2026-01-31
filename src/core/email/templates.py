@@ -820,3 +820,92 @@ University of Toronto Engineering Students Consulting Association
 """
 
     return (html_body, text_body)
+
+
+def build_announcement_notification_email(
+    full_name: Optional[str],
+    announcement_title: str,
+    announcement_content: str,
+    priority: str,
+    announcement_id: str,
+    base_url: str,
+) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for announcement notification.
+
+    Subject: [UTESCA] {priority}: {title}
+    Includes announcement content, view link, and unsubscribe instructions.
+
+    Args:
+        full_name: User's name (None if not available)
+        announcement_title: Title of the announcement
+        announcement_content: HTML content of the announcement
+        priority: "urgent" or "normal"
+        announcement_id: ID of the announcement for view link
+        base_url: Base URL for view link
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    greeting = f"Hi {full_name}," if full_name else "Hello,"
+    view_link = f"{base_url}/announcements/{announcement_id}"
+    priority_upper = priority.upper()
+    
+    # Priority badge styling
+    if priority == "urgent":
+        priority_badge = '<span style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; margin-right: 8px;">URGENT</span>'
+        priority_color = "#dc3545"
+    else:
+        priority_badge = '<span style="background-color: #0c63e4; color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; margin-right: 8px;">ANNOUNCEMENT</span>'
+        priority_color = "#0c63e4"
+
+    # Build HTML body content
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <div style="background-color: #f8f9fa; border-left: 4px solid {priority_color}; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                                <p style="margin: 0 0 15px 0; font-size: 14px; color: #666;">
+                                    {priority_badge}
+                                </p>
+                                <h2 style="margin: 0 0 15px 0; font-size: 20px; color: #333; line-height: 1.4;">
+                                    {announcement_title}
+                                </h2>
+                                <div style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0;">
+                                    {announcement_content}
+                                </div>
+                            </div>
+
+                            {_build_cta_button(view_link, "View in Portal")}
+
+                            <hr style="border: none; border-top: 1px solid #e9ecef; margin: 30px 0;">
+
+                            <p style="font-size: 13px; color: #999; margin: 0;">
+                                <strong>Manage your preferences:</strong><br>
+                                You received this email because you're subscribed to UTESCA announcements.
+                                To unsubscribe or adjust your notification preferences, visit your account settings in the portal.
+                            </p>
+"""
+
+    html_body = _build_email_html("[UTESCA] " + priority_upper + ": " + announcement_title, body_content)
+
+    # Plain text version
+    text_body = f"""{greeting}
+
+{priority_upper}: {announcement_title}
+
+{announcement_content}
+
+VIEW IN PORTAL
+{view_link}
+
+---
+MANAGE YOUR PREFERENCES
+You received this email because you're subscribed to UTESCA announcements.
+To unsubscribe or adjust your notification preferences, visit your account settings in the portal.
+
+University of Toronto Engineering Students Consulting Association
+"""
+
+    return (html_body, text_body)

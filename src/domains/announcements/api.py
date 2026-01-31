@@ -4,21 +4,24 @@ Announcements API endpoints.
 This module defines the FastAPI router for announcement-related endpoints.
 """
 
-from fastapi import APIRouter, Depends, status
 from uuid import UUID
 
-from .models import (
-    CreateAnnouncementRequest,
-    CreateAnnouncementResponse,
-    SendAnnouncementEmailRequest,
-    SendAnnouncementResponse,
-    AnnouncementListResponse,
-    AnnouncementReadResponse,
-)
-from .service import AnnouncementService
+from fastapi import APIRouter, Depends, status
+
 from domains.auth.dependencies import get_current_admin, get_current_user
 from domains.auth.models import UserResponse
 
+from .models import (
+    AnnouncementCreate,
+    AnnouncementListResponse,
+    AnnouncementReadResponse,
+    AnnouncementResponse,
+    AnnouncementUpdate,
+    CreateAnnouncementResponse,
+    SendAnnouncementEmailRequest,
+    SendAnnouncementResponse,
+)
+from .service import AnnouncementService
 
 # Create router
 router = APIRouter()
@@ -33,31 +36,39 @@ router = APIRouter()
     response_model=CreateAnnouncementResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Announcement",
-    description="Create a new announcement (admin only)",
+    description="Create a new announcement (authenticated users)",
 )
 async def create_announcement(
-    request: CreateAnnouncementRequest,
-    current_user: UserResponse = Depends(get_current_admin),
+    request: AnnouncementCreate,
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """
     Create a new announcement in the system.
 
     **Requirements:**
-    - Caller must be a co-president (admin)
+    - Caller must be authenticated (RLS enforces co-president permission)
 
     **Request Body:**
     - title: Announcement title (required)
-    - content: Announcement content/message (optional)
+    - content: Announcement content/message (required)
     - priority: "normal" or "urgent" (optional, defaults to "normal")
     - send_email: If true, sends email notification (optional, defaults to false)
-    - expires_at: When the announcement expires (optional)
 
     **Returns:**
     - Announcement ID and creation status
     """
     service = AnnouncementService()
     # Use internal users.id for created_by FK
-    return service.create_announcement(request, current_user.id)
+    # Convert to legacy format for service
+    from .models import CreateAnnouncementRequest
+    legacy_request = CreateAnnouncementRequest(
+        title=request.title,
+        content=request.content,
+        priority=request.priority,
+        send_email=request.send_email,
+        expires_at=None,
+    )
+    return service.create_announcement(legacy_request, current_user.id)
 
 
 @router.post(
@@ -103,19 +114,19 @@ async def send_announcement_email(
 @router.get(
     "/",
     response_model=AnnouncementListResponse,
-    summary="Get Announcements",
-    description="Get list of announcements",
+    summary="List Announcements",
+    description="Get list of announcements (all authenticated users)",
 )
 async def get_announcements(
     page: int = 1,
     page_size: int = 50,
-    current_user: UserResponse = Depends(get_current_admin),
+    current_user: UserResponse = Depends(get_current_user),
 ):
     """
     Get list of announcements with pagination.
 
     **Requirements:**
-    - Caller must be a co-president (admin)
+    - Caller must be authenticated
 
     **Query Parameters:**
     - page: Page number (1-indexed, default: 1)
@@ -133,7 +144,7 @@ async def get_announcements(
     response_model=AnnouncementReadResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Mark Announcement as Read",
-    description="Mark an announcement as read by the current user",
+    description="Mark an announcement as read by the current user (idempotent)",
 )
 async def mark_announcement_as_read(
     announcement_id: UUID,
@@ -145,9 +156,93 @@ async def mark_announcement_as_read(
     **Requirements:**
     - User must be authenticated
 
+    **Behavior:**
+    - Idempotent: If already read, returns existing read record (no error)
+
     **Returns:**
     - Read record with timestamp
     """
     service = AnnouncementService()
     # Use internal users.id for read tracking
     return service.mark_as_read(announcement_id, current_user.id)
+
+
+@router.get(
+    "/{announcement_id}",
+    response_model=AnnouncementResponse,
+    summary="Get Single Announcement",
+    description="Get a single announcement with read status",
+)
+async def get_announcement(
+    announcement_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Get a single announcement by ID.
+
+    **Requirements:**
+    - User must be authenticated
+
+    **Returns:**
+    - Announcement with is_read field indicating if current user has read it
+    """
+    service = AnnouncementService()
+    return service.get_announcement(announcement_id, current_user.id)
+
+
+@router.put(
+    "/{announcement_id}",
+    response_model=AnnouncementResponse,
+    summary="Update Announcement",
+    description="Update an announcement (co-president or creator only)",
+)
+async def update_announcement(
+    announcement_id: UUID,
+    request: AnnouncementUpdate,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Update an announcement.
+
+    **Requirements:**
+    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+
+    **Request Body:**
+    - title: New title (optional)
+    - content: New content (optional)
+    - priority: New priority (optional)
+
+    **Returns:**
+    - Updated announcement
+    """
+    service = AnnouncementService()
+    return service.update_announcement(
+        announcement_id=announcement_id,
+        title=request.title,
+        content=request.content,
+        priority=request.priority,
+        current_user_id=current_user.id,
+    )
+
+
+@router.delete(
+    "/{announcement_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete Announcement",
+    description="Delete an announcement (co-president or creator only)",
+)
+async def delete_announcement(
+    announcement_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Delete an announcement.
+
+    **Requirements:**
+    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+
+    **Returns:**
+    - Success message
+    """
+    service = AnnouncementService()
+    return service.delete_announcement(announcement_id, current_user.id)

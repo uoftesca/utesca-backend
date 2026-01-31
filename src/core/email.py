@@ -353,7 +353,6 @@ UTESCA Team
         priority: str = "normal",
     ) -> str:
         """Format email content as HTML."""
-        priority_class = "urgent" if priority == "urgent" else "normal"
         return f"""
 <html>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">

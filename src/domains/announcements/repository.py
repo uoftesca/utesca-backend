@@ -4,12 +4,13 @@ Data access layer for announcements.
 This module handles all database operations related to announcements.
 """
 
+from datetime import datetime
 from typing import List, Optional, Tuple
 from uuid import UUID
-from supabase import Client
-from datetime import datetime
 
-from .models import AnnouncementResponse, AnnouncementReadResponse
+from supabase import Client
+
+from .models import AnnouncementReadResponse, AnnouncementResponse
 
 
 class AnnouncementRepository:
@@ -52,13 +53,13 @@ class AnnouncementRepository:
         Raises:
             Exception: If creation fails
         """
-        data = {
+        data: dict = {
             "title": title,
             "content": content,
             "priority": priority,
             "created_by": str(created_by),
         }
-        
+
         if expires_at:
             data["expires_at"] = expires_at.isoformat()
 
@@ -100,7 +101,7 @@ class AnnouncementRepository:
         if not result.data or len(result.data) == 0:
             raise Exception("Failed to create announcement record")
 
-        return AnnouncementResponse(**result.data[0])
+        return AnnouncementResponse(**result.data[0])  # type: ignore[arg-type]
 
     def get_announcement(self, announcement_id: UUID) -> Optional[AnnouncementResponse]:
         """
@@ -120,7 +121,7 @@ class AnnouncementRepository:
         if not result.data or len(result.data) == 0:
             return None
 
-        return AnnouncementResponse(**result.data[0])
+        return AnnouncementResponse(**result.data[0])  # type: ignore[arg-type]
 
     def get_all(
         self,
@@ -139,7 +140,7 @@ class AnnouncementRepository:
         """
         # Build query
         query = self.client.schema(self.schema).table("announcements") \
-            .select("*", count="exact")
+            .select("*", count="exact")  # type: ignore[arg-type]
 
         # Order by created_at descending (newest first)
         query = query.order("created_at", desc=True)
@@ -158,7 +159,7 @@ class AnnouncementRepository:
         if not result.data:
             return [], 0
 
-        announcements = [AnnouncementResponse(**announcement) for announcement in result.data]
+        announcements = [AnnouncementResponse(**announcement) for announcement in result.data]  # type: ignore[arg-type]
 
         return announcements, total_count
 
@@ -184,13 +185,12 @@ class AnnouncementRepository:
             "announcement_id": str(announcement_id),
             "user_id": str(user_id),
         }
-
         result = self.client.schema(self.schema).table("announcement_reads").insert(data).execute()
 
         if not result.data or len(result.data) == 0:
             raise Exception("Failed to mark announcement as read")
 
-        return AnnouncementReadResponse(**result.data[0])
+        return AnnouncementReadResponse(**result.data[0])  # type: ignore[arg-type]
 
     def get_user_reads(
         self,
@@ -213,7 +213,7 @@ class AnnouncementRepository:
         if not result.data:
             return []
 
-        return [AnnouncementReadResponse(**read) for read in result.data]
+        return [AnnouncementReadResponse(**read) for read in result.data]  # type: ignore[arg-type]
 
     def has_user_read(
         self,
@@ -237,3 +237,99 @@ class AnnouncementRepository:
             .execute()
 
         return result.data is not None and len(result.data) > 0
+
+    def update_announcement(
+        self,
+        announcement_id: UUID,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        priority: Optional[str] = None,
+    ) -> Optional[AnnouncementResponse]:
+        """
+        Update an announcement.
+
+        Args:
+            announcement_id: ID of the announcement to update
+            title: New title (optional)
+            content: New content (optional)
+            priority: New priority (optional)
+
+        Returns:
+            Updated AnnouncementResponse or None if not found
+        """
+        data = {}
+        if title is not None:
+            data["title"] = title
+        if content is not None:
+            data["content"] = content
+        if priority is not None:
+            data["priority"] = priority
+
+        if not data:
+            # No updates to make, just fetch and return
+            return self.get_announcement(announcement_id)
+
+        data["updated_at"] = datetime.utcnow().isoformat()
+
+        result = self.client.schema(self.schema).table("announcements") \
+            .update(data) \
+            .eq("id", str(announcement_id)) \
+            .execute()
+
+        if not result.data or len(result.data) == 0:
+            return None
+
+        return AnnouncementResponse(**result.data[0])  # type: ignore[arg-type]
+
+    def delete_announcement(self, announcement_id: UUID) -> bool:
+        """
+        Delete an announcement.
+
+        Args:
+            announcement_id: ID of the announcement to delete
+
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        result = self.client.schema(self.schema).table("announcements") \
+            .delete() \
+            .eq("id", str(announcement_id)) \
+            .execute()
+
+        return result.data is not None and len(result.data) > 0
+
+    def get_read_count(self, announcement_id: UUID) -> int:
+        """
+        Get the number of users who have read an announcement.
+
+        Args:
+            announcement_id: ID of the announcement
+
+        Returns:
+            Number of reads
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("announcement_reads")
+            .select("id", count="exact")  # type: ignore[arg-type]
+            .eq("announcement_id", str(announcement_id))
+            .execute()
+        )
+
+        return result.count if result.count is not None else 0
+
+    def get_total_users_count(self) -> int:
+        """
+        Get the total number of users in the system.
+
+        Returns:
+            Total number of users
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("users")
+            .select("id", count="exact")  # type: ignore[arg-type]
+            .execute()
+        )
+
+        return result.count if result.count is not None else 0
