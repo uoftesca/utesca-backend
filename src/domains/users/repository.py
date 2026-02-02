@@ -125,27 +125,40 @@ class UserRepository:
 
         return UserResponse(**cast(dict, result.data[0]))
 
-    def get_users_with_notification_enabled(self, notification_type: str) -> List[UserResponse]:
+    def get_users_with_notification_enabled(
+        self,
+        notification_type: str,
+        filter_value: Optional[str] = None,
+    ) -> List[UserResponse]:
         """
-        Fetch all users who have a specific notification type enabled.
+        Fetch users with specific notification preferences enabled.
 
         Uses PostgreSQL JSONB querying to filter by notification_preferences.
 
         Args:
             notification_type: Key in notification_preferences JSONB
-                              (e.g., 'rsvp_changes', 'new_application_submitted')
+                              (e.g., 'rsvp_changes', 'announcements')
+            filter_value: Value to match in JSONB
+                         - For boolean types: defaults to "true" if None
+                         - For string types: "all", "urgent_only", "none" (for announcements)
+                         - If None and notification_type is 'announcements', queries all users
 
         Returns:
-            List of users with notification enabled for the specified type
+            List of users matching the notification criteria
         """
-        # PostgreSQL JSONB query: notification_preferences->>'rsvp_changes' = 'true'
-        result = (
-            self.client.schema(self.schema)
-            .table("users")
-            .select("*")
-            .eq(f"notification_preferences->>{notification_type}", "true")
-            .execute()
-        )
+        query = self.client.schema(self.schema).table("users").select("*")
+
+        # Handle default filter_value based on notification_type
+        if filter_value is None:
+            if notification_type == "announcements":
+                # For announcements with no filter, return all users
+                result = query.execute()
+            else:
+                # For other types (rsvp_changes, etc), default to "true"
+                result = query.eq(f"notification_preferences->>{notification_type}", "true").execute()
+        else:
+            # Explicit filter_value provided
+            result = query.eq(f"notification_preferences->>{notification_type}", filter_value).execute()
 
         if not result.data:
             return []
