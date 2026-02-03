@@ -59,6 +59,16 @@ class RegistrationFilesRepository:
         )
         return [FileMeta.model_validate(item) for item in result.data or []]
 
+    def get_files_by_registration_ids(self, registration_ids: List[UUID]) -> List[FileMeta]:
+        result = (
+            self.client.schema(self.schema)
+            .table("registration_files")
+            .select("*")
+            .in_("registration_id", [str(rid) for rid in registration_ids])
+            .execute()
+        )
+        return [FileMeta.model_validate(item) for item in result.data or []]
+
     def get_files_by_upload_session(self, upload_session_id: str) -> List[FileMeta]:
         result = (
             self.client.schema(self.schema)
