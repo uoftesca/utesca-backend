@@ -130,7 +130,7 @@ def test_generate_zip_filename_normal():
         original_filename="my_resume.pdf",
         registration_id=FIXED_ID,
     )
-    assert result == "Doe-Jane-resume.pdf"
+    assert result == "doe-jane-resume.pdf"
 
 
 def test_generate_zip_filename_no_name_falls_back_to_id():
@@ -160,7 +160,7 @@ def test_generate_zip_filename_no_extension():
         original_filename="noext",
         registration_id=FIXED_ID,
     )
-    assert result == "Lee-Bob-data"
+    assert result == "lee-bob-data"
 
 
 def test_generate_zip_filename_dotted_original():
@@ -171,7 +171,7 @@ def test_generate_zip_filename_dotted_original():
         original_filename="my.report.file.pdf",
         registration_id=FIXED_ID,
     )
-    assert result == "Y-X-report.pdf"
+    assert result == "y-x-report.pdf"
 
 
 def test_generate_zip_filename_sanitizes_field_name():
@@ -181,7 +181,7 @@ def test_generate_zip_filename_sanitizes_field_name():
         original_filename="x.pdf",
         registration_id=FIXED_ID,
     )
-    assert result == "B-A-Cover-Letter.pdf"
+    assert result == "b-a-cover-letter.pdf"
 
 
 def test_generate_zip_filename_sanitizes_name_parts():
@@ -191,7 +191,7 @@ def test_generate_zip_filename_sanitizes_name_parts():
         original_filename="r.pdf",
         registration_id=FIXED_ID,
     )
-    assert result == "O-Brien-Francois-resume.pdf"
+    assert result == "o-brien-francois-resume.pdf"
 
 
 # ============================================================================
