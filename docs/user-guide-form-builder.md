@@ -8,7 +8,7 @@ This guide covers how to create, configure, and publish custom registration form
 
 The form builder lets you define a custom registration or application form for each event. Instead of using a single fixed form for every event, you choose which fields to include, what types of inputs to use, and what validation rules to apply. The form you configure here is what attendees see on the public site when they register.
 
-When auto-accept is off, the form acts as an application — submissions land in a review queue and you accept or reject them individually. When auto-accept is on, submitters are accepted immediately upon submission.
+When auto-accept is off, the form acts as an application — submissions land in a review queue and you accept or reject them individually. When auto-accept is on, submitters are accepted immediately upon submission (when we reach accepted capacity limits, auto-accept is automatically turned off).
 
 ---
 
