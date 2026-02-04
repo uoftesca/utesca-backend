@@ -2,6 +2,7 @@
 Business logic for event registrations.
 """
 
+import json
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -1110,8 +1111,9 @@ class RegistrationService:
         limit: int,
         search: Optional[str],
     ) -> RegistrationListResponse:
+        statuses = [status] if status else None
         registrations, total = self.reg_repo.list_registrations(
-            event_id=event_id, status=status, page=page, limit=limit, search=search
+            event_id=event_id, statuses=statuses, page=page, limit=limit, search=search
         )
 
         # Add RSVP links to all registrations
@@ -1120,6 +1122,144 @@ class RegistrationService:
         total_pages = (total + limit - 1) // limit if limit else 1
         pagination = RegistrationListPagination(total=total, page=page, limit=limit, total_pages=total_pages)
         return RegistrationListResponse(registrations=registrations, pagination=pagination)
+
+    @staticmethod
+    def _camel_to_title(name: str) -> str:
+        segments = name.split(".")
+        titled = []
+        for segment in segments:
+            spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", segment)
+            titled.append(spaced.replace("_", " ").title())
+        return ".".join(titled)
+
+    @staticmethod
+    def _flatten_form_data(form_data: Dict[str, Any], prefix: str = "") -> Dict[str, str]:
+        result: Dict[str, str] = {}
+        for key, value in form_data.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+            if value is None:
+                result[full_key] = ""
+            elif isinstance(value, dict):
+                result.update(RegistrationService._flatten_form_data(value, full_key))
+            elif isinstance(value, list):
+                if all(isinstance(item, str) for item in value):
+                    result[full_key] = ", ".join(value)
+                else:
+                    result[full_key] = json.dumps(value)
+            else:
+                result[full_key] = str(value)
+        return result
+
+    def _build_column_order(
+        self,
+        schema_fields: List[dict],
+        all_form_keys: List[str],
+        file_field_names: set,
+    ) -> List[Tuple[str, str]]:
+        """
+        Derive the ordered list of (column_header, source) pairs for the export.
+
+        Source is one of: "form:<key>", "file:<field_name>".
+        Columns follow registration_form_schema field order. File fields from the
+        schema emit their File URL column in place. Any form keys present in the
+        data but absent from the schema are appended at the end, followed by any
+        file fields not in the schema.
+        """
+        columns: List[Tuple[str, str]] = []
+        seen_form_keys: set = set()
+        seen_file_fields: set = set()
+
+        for field in schema_fields:
+            field_id = field.get("id", "")
+            field_type = field.get("type", "")
+
+            if field_type == "file":
+                if field_id in file_field_names:
+                    columns.append((f"{self._camel_to_title(field_id)} File URL", f"file:{field_id}"))
+                    seen_file_fields.add(field_id)
+            else:
+                # Emit any flattened sub-keys that start with this field_id
+                matched = [k for k in all_form_keys if k == field_id or k.startswith(f"{field_id}.")]
+                for key in matched:
+                    columns.append((self._camel_to_title(key), f"form:{key}"))
+                    seen_form_keys.add(key)
+
+        # Append form keys not covered by the schema (preserving first-seen order)
+        for key in all_form_keys:
+            if key not in seen_form_keys:
+                columns.append((self._camel_to_title(key), f"form:{key}"))
+
+        # Append file fields not covered by the schema (sorted)
+        for field_name in sorted(file_field_names):
+            if field_name not in seen_file_fields:
+                columns.append((f"{self._camel_to_title(field_name)} File URL", f"file:{field_name}"))
+
+        return columns
+
+    def export_registrations(self, event_id: UUID, statuses: Optional[List[str]]) -> Tuple[str, List[Dict[str, str]]]:
+        event = self.events_repo.get_by_id(event_id)
+        if not event:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=EVENT_NOT_FOUND)
+        slug = event.slug or str(event_id)
+
+        registrations, _ = self.reg_repo.list_registrations(
+            event_id=event_id, statuses=statuses, page=1, limit=10_000, search=None
+        )
+        if not registrations:
+            return slug, []
+
+        all_files = self.files_repo.get_files_by_registration_ids([reg.id for reg in registrations])
+
+        files_by_reg: Dict[UUID, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
+        file_field_names: set = set()
+        for f in all_files:
+            if f.registration_id is None:
+                continue
+            files_by_reg[f.registration_id][f.field_name].append(f.file_url)
+            file_field_names.add(f.field_name)
+
+        # First pass: flatten form_data and collect all keys in first-seen order
+        flattened: List[Dict[str, str]] = []
+        all_form_keys: List[str] = []
+        seen_keys: set = set()
+        for reg in registrations:
+            flat = self._flatten_form_data(reg.form_data or {})
+            flattened.append(flat)
+            for key in flat:
+                if key not in seen_keys:
+                    all_form_keys.append(key)
+                    seen_keys.add(key)
+
+        # Derive column order from the registration form schema
+        schema_fields = event.registration_form_schema.fields if event.registration_form_schema else []
+        columns = self._build_column_order(schema_fields, all_form_keys, file_field_names)
+
+        # Second pass: build rows
+        rows: List[Dict[str, str]] = []
+        for reg, flat in zip(registrations, flattened, strict=True):
+            row: Dict[str, str] = {
+                "Registration ID": str(reg.id),
+                "Status": reg.status,
+                "Submitted At": str(reg.submitted_at) if reg.submitted_at else "",
+                "Reviewed By": str(reg.reviewed_by) if reg.reviewed_by else "",
+                "Reviewed At": str(reg.reviewed_at) if reg.reviewed_at else "",
+                "Confirmed At": str(reg.confirmed_at) if reg.confirmed_at else "",
+                "Checked In": str(reg.checked_in),
+                "Checked In At": str(reg.checked_in_at) if reg.checked_in_at else "",
+            }
+
+            reg_files = files_by_reg.get(reg.id, {})
+            for header, source in columns:
+                kind, key = source.split(":", 1)
+                if kind == "form":
+                    row[header] = flat.get(key, "")
+                else:  # file
+                    urls = reg_files.get(key, [])
+                    row[header] = ", ".join(urls) if urls else ""
+
+            rows.append(row)
+
+        return slug, rows
 
     def get_registration_detail(self, registration_id: UUID) -> RegistrationWithFilesResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)

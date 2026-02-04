@@ -4,7 +4,7 @@ Portal-facing registration endpoints (authenticated).
 
 import csv
 import io
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
@@ -181,45 +181,26 @@ async def export_registrations(
     """
     Export event registrations as CSV file.
 
-    Generates a downloadable CSV file containing all registration data
-    for the specified event. Can be filtered by status. Includes:
-    - Registration ID and status
-    - Submission and review timestamps
-    - Confirmation and check-in information
-    - Attendee name and email
+    Generates a downloadable CSV containing all registration data for the
+    specified event. Supports comma-separated multi-status filtering. Includes
+    all dynamic form fields, file upload URLs, and handles nested/array values.
 
     Returns:
-        CSV file as downloadable attachment
+        CSV file as downloadable attachment with the event slug in the filename.
 
     Raises:
         HTTPException: 404 if event not found
     """
-    data = service.list_registrations(event_id, status, page=1, limit=10_000, search=None)
-    rows = []
-    for reg in data.registrations:
-        fd = reg.form_data or {}
-        rows.append(
-            {
-                "Registration ID": reg.id,
-                "Status": reg.status,
-                "Submitted At": reg.submitted_at,
-                "Reviewed By": reg.reviewed_by,
-                "Reviewed At": reg.reviewed_at,
-                "Confirmed At": reg.confirmed_at,
-                "Checked In": reg.checked_in,
-                "Checked In At": reg.checked_in_at,
-                "Full Name": fd.get("fullName") or fd.get("full_name"),
-                "Email": fd.get("email"),
-            }
-        )
+    statuses: Optional[List[str]] = [s.strip() for s in status.split(",")] if status else None
+    slug, rows = service.export_registrations(event_id, statuses)
 
-    fieldnames = rows[0].keys() if rows else ["Registration ID"]
+    fieldnames = list(rows[0].keys()) if rows else ["Registration ID"]
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=fieldnames)
     writer.writeheader()
     writer.writerows(rows)
     csv_bytes = buf.getvalue().encode("utf-8")
-    filename = f"event-registrations-{event_id}.csv"
+    filename = f"event-registrations-{slug}.csv"
     return Response(
         content=csv_bytes,
         media_type="text/csv",

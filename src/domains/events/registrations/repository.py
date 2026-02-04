@@ -59,7 +59,7 @@ class RegistrationsRepository:
     def list_registrations(
         self,
         event_id: UUID,
-        status: Optional[str],
+        statuses: Optional[List[str]],
         page: int,
         limit: int,
         search: Optional[str],
@@ -72,8 +72,8 @@ class RegistrationsRepository:
             .eq("event_id", str(event_id))
         )
 
-        if status:
-            query = query.eq("status", status)
+        if statuses:
+            query = query.in_("status", statuses)
 
         if search:
             term = f"%{search}%"
