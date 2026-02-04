@@ -2,18 +2,23 @@
 Business logic for event registrations.
 """
 
+import io
 import json
+import logging
 import re
+import zipfile
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
+import httpx
 from fastapi import HTTPException, status
 from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
+from utils.file_utils import deduplicate_filename, generate_zip_filename
 
 from ..models import EventResponse, RegistrationFormSchema
 from ..repository import EventRepository
@@ -28,6 +33,8 @@ from .models import (
     RegistrationWithFilesResponse,
 )
 from .repository import RegistrationsRepository
+
+logger = logging.getLogger(__name__)
 
 REGISTRATION_NOT_FOUND = "Registration not found"
 EVENT_NOT_FOUND = "Event not found"
@@ -1260,6 +1267,103 @@ class RegistrationService:
             rows.append(row)
 
         return slug, rows
+
+    # -------------------------------------------------------------------------
+    # ZIP bulk file download
+    # -------------------------------------------------------------------------
+    def download_files_as_zip(self, event_id: UUID) -> Tuple[str, bytes, int]:
+        """Download all files from accepted/confirmed registrations as a ZIP archive.
+
+        Returns:
+            Tuple of (event_slug, zip_bytes, error_count) where error_count is the
+            number of individual file downloads that failed.
+
+        Raises:
+            HTTPException: 404 if event not found or no files made it into the archive.
+        """
+        event = self.events_repo.get_by_id(event_id)
+        if not event:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=EVENT_NOT_FOUND)
+
+        slug = event.slug or str(event_id)
+
+        registrations, _ = self.reg_repo.list_registrations(
+            event_id=event_id, statuses=["accepted", "confirmed"], page=1, limit=10_000, search=None
+        )
+        if not registrations:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No accepted or confirmed registrations found",
+            )
+
+        all_files = self.files_repo.get_files_by_registration_ids([reg.id for reg in registrations])
+
+        # Filter out deleted files and orphans (no registration_id) in-memory
+        active_files = [f for f in all_files if not f.deleted and f.registration_id is not None]
+        if not active_files:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No downloadable files found")
+
+        # Build a map from registration_id -> form_data for filename generation
+        form_data_by_reg: Dict[UUID, Dict[str, Any]] = {reg.id: reg.form_data or {} for reg in registrations}
+
+        # Download each file sequentially, track failures
+        file_entries: List[Tuple[str, bytes]] = []
+        used_names: set = set()
+        error_count = 0
+
+        for file_meta in active_files:
+            content = self._download_file_bytes(file_meta.file_url)
+            if content is None:
+                error_count += 1
+                continue
+
+            assert file_meta.registration_id is not None  # Guaranteed by active_files filter  # nosec B101
+            form_data = form_data_by_reg.get(file_meta.registration_id, {})
+            zip_name = generate_zip_filename(
+                field_name=file_meta.field_name,
+                form_data=form_data,
+                original_filename=file_meta.file_name,
+                registration_id=file_meta.registration_id,
+            )
+            zip_name = deduplicate_filename(zip_name, used_names)
+            used_names.add(zip_name)
+            file_entries.append((zip_name, content))
+
+        if not file_entries:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="All file downloads failed")
+
+        zip_bytes = self._build_zip_archive(file_entries)
+        return slug, zip_bytes, error_count
+
+    def _download_file_bytes(self, url: str) -> Optional[bytes]:
+        """Download a single file's raw bytes via HTTP GET.
+
+        Returns None on any network or HTTP error (logged).
+        """
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(url)
+                response.raise_for_status()
+                return response.content
+        except Exception as exc:
+            logger.warning("Failed to download file from %s: %s", url, exc)
+            return None
+
+    @staticmethod
+    def _build_zip_archive(file_entries: List[Tuple[str, bytes]]) -> bytes:
+        """Write a ZIP archive in memory from pre-downloaded file entries.
+
+        Args:
+            file_entries: List of (zip_filename, content_bytes) pairs.
+
+        Returns:
+            Complete ZIP archive as bytes.
+        """
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for name, data in file_entries:
+                zf.writestr(name, data)
+        return buffer.getvalue()
 
     def get_registration_detail(self, registration_id: UUID) -> RegistrationWithFilesResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)
