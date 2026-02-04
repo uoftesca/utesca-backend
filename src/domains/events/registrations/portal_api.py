@@ -4,7 +4,8 @@ Portal-facing registration endpoints (authenticated).
 
 import csv
 import io
-from typing import List, Optional
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
@@ -209,3 +210,41 @@ async def export_registrations(
             "Content-Type": "text/csv",
         },
     )
+
+
+@router.get(
+    "/events/{event_id}/registrations/files/download",
+    status_code=status.HTTP_200_OK,
+)
+async def download_registration_files(
+    event_id: UUID,
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: RegistrationService = Depends(get_registration_service),
+):
+    """
+    Download all uploaded files from accepted/confirmed registrations as a ZIP.
+
+    Each file inside the ZIP is renamed to ``lastname-firstname-fieldname.ext``.
+    Duplicate names are automatically suffixed with -2, -3, etc. Files from
+    rejected, submitted, or deleted registrations are excluded.
+
+    Returns:
+        ZIP file as a downloadable attachment. Includes an ``X-Download-Errors``
+        header if any individual file downloads failed during archive creation.
+
+    Raises:
+        HTTPException: 404 if event not found or no files are available.
+    """
+    slug, zip_bytes, error_count = service.download_files_as_zip(event_id)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"{slug}-files-{timestamp}.zip"
+
+    headers: Dict[str, str] = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Type": "application/zip",
+    }
+    if error_count > 0:
+        headers["X-Download-Errors"] = str(error_count)
+
+    return Response(content=zip_bytes, media_type="application/zip", headers=headers)
