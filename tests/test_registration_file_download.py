@@ -155,7 +155,7 @@ class TestDownloadFilesAsZipHappyPath:
             _, zip_bytes, _ = service.download_files_as_zip(event_id)
 
         names = zipfile.ZipFile(BytesIO(zip_bytes)).namelist()
-        assert names == ["Doe-Jane-resume.pdf"]
+        assert names == ["doe-jane-resume.pdf"]
 
 
 # ============================================================================
@@ -354,7 +354,7 @@ class TestDownloadFilesAsZipDeduplicate:
             _, zip_bytes, _ = service.download_files_as_zip(event_id)
 
         names = sorted(zipfile.ZipFile(BytesIO(zip_bytes)).namelist())
-        assert names == ["Doe-Jane-resume-2.pdf", "Doe-Jane-resume.pdf"]
+        assert names == ["doe-jane-resume-2.pdf", "doe-jane-resume.pdf"]
 
 
 # ============================================================================

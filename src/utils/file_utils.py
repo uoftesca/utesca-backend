@@ -96,7 +96,8 @@ def generate_zip_filename(
     else:
         base = f"{registration_id}-{sanitized_field}"
 
-    return f"{base}.{ext}" if ext else base
+    result = f"{base}.{ext}" if ext else base
+    return result.lower()
 
 
 def deduplicate_filename(filename: str, used_names: Set[str]) -> str:
