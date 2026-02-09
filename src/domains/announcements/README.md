@@ -134,6 +134,8 @@ The announcement service uses Supabase's Admin Auth API to send emails:
 - updated_at: TIMESTAMP
 ```
 
+**Note:** Database columns use snake_case (e.g., `created_by`, `created_at`), but API responses use camelCase (e.g., `createdBy`, `createdAt`) due to the camelCase alias generator.
+
 ## Usage Example
 
 ### Send an urgent announcement:
