@@ -6,7 +6,7 @@ This module defines the FastAPI router for announcement-related endpoints.
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from domains.auth.dependencies import get_current_admin, get_current_user
 from domains.auth.models import UserResponse
@@ -40,6 +40,7 @@ router = APIRouter()
 )
 async def create_announcement(
     request: AnnouncementCreate,
+    background_tasks: BackgroundTasks,
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -68,7 +69,7 @@ async def create_announcement(
         send_email=request.send_email,
         expires_at=None,
     )
-    return service.create_announcement(legacy_request, current_user.id)
+    return service.create_announcement(legacy_request, current_user.id, background_tasks)
 
 
 @router.post(

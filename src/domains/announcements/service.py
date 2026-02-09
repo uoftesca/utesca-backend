@@ -5,12 +5,11 @@ This module handles creating announcements and sending announcement emails to al
 """
 
 import logging
-import threading
 import time
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, status
 from supabase import Client, create_client
 
 from core.config import get_settings
@@ -289,6 +288,7 @@ class AnnouncementService:
 
     def start_batch_email_send_async(
         self,
+        background_tasks: BackgroundTasks,
         announcement_id: UUID,
         title: str,
         content: str,
@@ -296,25 +296,28 @@ class AnnouncementService:
         base_url: str,
     ) -> None:
         """
-        Start batch email sending in a background thread.
+        Start batch email sending using FastAPI BackgroundTasks.
 
         Does NOT block the API request. Email sending happens asynchronously.
 
         Args:
+            background_tasks: FastAPI BackgroundTasks instance
             announcement_id: ID of the announcement
             title: Announcement title
             content: Announcement content (HTML)
             priority: "urgent" or "normal"
             base_url: Base URL for view links
         """
-        # Create and start background thread
-        thread = threading.Thread(
-            target=self._send_batch_emails_async,
-            args=(announcement_id, title, content, priority, base_url),
-            daemon=True,
+        # Add background task to FastAPI's task queue
+        background_tasks.add_task(
+            self._send_batch_emails_async,
+            announcement_id,
+            title,
+            content,
+            priority,
+            base_url,
         )
-        thread.start()
-        logger.info(f"Started background thread for batch email send of announcement {announcement_id}")
+        logger.info(f"Scheduled background task for batch email send of announcement {announcement_id}")
 
     def _send_emails_via_resend(
         self,
@@ -423,6 +426,7 @@ class AnnouncementService:
         self,
         request: CreateAnnouncementRequest,
         current_user_id: UUID,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> CreateAnnouncementResponse:
         """
         Create a new announcement.
@@ -433,6 +437,7 @@ class AnnouncementService:
         Args:
             request: Create announcement request data
             current_user_id: ID of the user creating the announcement
+            background_tasks: FastAPI BackgroundTasks instance for async email sending
 
         Returns:
             CreateAnnouncementResponse with announcement ID
@@ -452,18 +457,19 @@ class AnnouncementService:
             )
 
             # Send batch emails asynchronously when send_email is true
-            if request.send_email and request.content:
+            if request.send_email and request.content and background_tasks:
                 try:
                     self.start_batch_email_send_async(
+                        background_tasks=background_tasks,
                         announcement_id=announcement.id,
                         title=request.title,
                         content=request.content,
                         priority=request.priority,
                         base_url=self.settings.BASE_URL_PUBLIC,
                     )
-                    logger.info(f"Started background email send for announcement {announcement.id}")
+                    logger.info(f"Scheduled background email send for announcement {announcement.id}")
                 except Exception as e:
-                    logger.error(f"Error starting background email send for announcement {announcement.id}: {e}")
+                    logger.error(f"Error scheduling background email send for announcement {announcement.id}: {e}")
                     # Continue even if async task fails - announcement is still created
 
             return CreateAnnouncementResponse(
