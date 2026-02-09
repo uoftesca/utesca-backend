@@ -150,7 +150,7 @@ async def users_status():
             "get_user": "GET /users/{id}",
             "update_user": "PUT /users/{id}",
             "delete_user": "DELETE /users/{id}",
-            "change_password": "PUT /users/password",
+            "change_password": "PUT /users/password",  # nosec B105
         },
     }
 
