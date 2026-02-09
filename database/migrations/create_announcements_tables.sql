@@ -99,7 +99,7 @@ CREATE POLICY "announcements_insert_copresidents"
         EXISTS (
             SELECT 1 FROM {schema}.users
             WHERE user_id = auth.uid()
-            AND role = 'co-president'
+            AND role = 'co_president'
         )
     );
 
@@ -112,14 +112,14 @@ CREATE POLICY "announcements_update_copresidents_or_creator"
         EXISTS (
             SELECT 1 FROM {schema}.users
             WHERE user_id = auth.uid()
-            AND (users.role = 'co-president' OR {schema}.announcements.created_by = users.id)
+            AND (users.role = 'co_president' OR {schema}.announcements.created_by = users.id)
         )
     )
     WITH CHECK (
         EXISTS (
             SELECT 1 FROM {schema}.users
             WHERE user_id = auth.uid()
-            AND (users.role = 'co-president' OR {schema}.announcements.created_by = users.id)
+            AND (users.role = 'co_president' OR {schema}.announcements.created_by = users.id)
         )
     );
 
@@ -132,7 +132,7 @@ CREATE POLICY "announcements_delete_copresidents_or_creator"
         EXISTS (
             SELECT 1 FROM {schema}.users
             WHERE user_id = auth.uid()
-            AND (users.role = 'co-president' OR {schema}.announcements.created_by = users.id)
+            AND (users.role = 'co_president' OR {schema}.announcements.created_by = users.id)
         )
     );
 
