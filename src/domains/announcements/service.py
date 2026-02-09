@@ -154,9 +154,9 @@ class AnnouncementService:
         base_url: str,
     ) -> None:
         """
-        Send announcement notification emails in a background thread.
+        Send announcement notification emails in a background task.
 
-        This is a blocking operation that runs asynchronously via threading.
+        This is a blocking operation that runs asynchronously via FastAPI BackgroundTasks.
         It fetches all recipients, filters them, and sends emails with rate limiting.
 
         Args:
