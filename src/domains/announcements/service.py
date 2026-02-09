@@ -391,6 +391,7 @@ class AnnouncementService:
         last_send_time: float = 0.0
 
         for user in users:
+            email = None
             try:
                 email = user.get("email")
                 if not email:
@@ -432,7 +433,8 @@ class AnnouncementService:
                     logger.debug(f"Failed to send announcement email to {_redact_email(email)}")
 
             except Exception as e:
-                logger.error(f"Error sending announcement email to user: {e}", exc_info=True)
+                redacted_email = _redact_email(email) if email else "unknown"
+                logger.error(f"Error sending announcement email to {redacted_email}: {e}", exc_info=True)
                 failed_emails += 1
 
         logger.info(
