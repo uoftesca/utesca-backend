@@ -20,6 +20,7 @@ from .models import (
     AnnouncementEmailStats,
     AnnouncementListResponse,
     AnnouncementReadResponse,
+    AnnouncementResponse,
     CreateAnnouncementRequest,
     CreateAnnouncementResponse,
     SendAnnouncementEmailRequest,
@@ -683,7 +684,7 @@ class AnnouncementService:
 
     def _check_update_delete_permission(
         self,
-        announcement: "AnnouncementResponse",
+        announcement: AnnouncementResponse,
         current_user_id: UUID,
     ) -> None:
         """
