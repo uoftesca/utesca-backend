@@ -205,7 +205,7 @@ async def update_announcement(
     Update an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Request Body:**
     - title: New title (optional)
@@ -239,7 +239,7 @@ async def delete_announcement(
     Delete an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Returns:**
     - Success message
