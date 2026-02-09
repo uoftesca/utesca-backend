@@ -213,13 +213,13 @@ class AnnouncementService:
         """
         try:
             # Create admin client for background task (needs to fetch all users)
+            # Note: Cannot reuse self.supabase as it may be user-scoped
             admin_client = self._get_admin_client()
-            admin_supabase = admin_client
             
             # Fetch all users with their roles and preferences using admin client
             try:
                 result = (
-                    admin_supabase
+                    admin_client
                     .schema(self.schema)
                     .table("users")
                     .select("id, email, role, notification_preferences, first_name, last_name")
