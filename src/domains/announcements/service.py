@@ -201,6 +201,9 @@ class AnnouncementService:
         This is a blocking operation that runs asynchronously via threading.
         It fetches all recipients, filters them, and sends emails with rate limiting.
 
+        Note: This method uses an admin client to fetch all users, as background tasks
+        need elevated privileges.
+
         Args:
             announcement_id: ID of the announcement
             title: Announcement title
@@ -209,8 +212,23 @@ class AnnouncementService:
             base_url: Base URL for view links
         """
         try:
-            # Fetch all users with their roles and preferences
-            all_users = self._get_all_users()
+            # Create admin client for background task (needs to fetch all users)
+            admin_client = self._get_admin_client()
+            admin_supabase = admin_client
+            
+            # Fetch all users with their roles and preferences using admin client
+            try:
+                result = (
+                    admin_supabase
+                    .schema(self.schema)
+                    .table("users")
+                    .select("id, email, role, notification_preferences, first_name, last_name")
+                    .execute()
+                )
+                all_users = result.data if result.data else []
+            except Exception as e:
+                logger.error(f"Error fetching users in background task: {e}")
+                raise
 
             # Filter by priority and role
             recipients = self._filter_recipients_by_priority(all_users, priority)
