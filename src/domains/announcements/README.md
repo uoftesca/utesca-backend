@@ -25,8 +25,7 @@ Sends an announcement email to users based on their preferences.
 {
   "subject": "Important Update",
   "message": "This is the announcement message body.",
-  "priority": "normal",
-  "sendToAll": true
+  "priority": "normal"
 }
 ```
 
@@ -35,7 +34,8 @@ Sends an announcement email to users based on their preferences.
 - `message` (string, required): Email message body as plain text
 - `priority` (string, optional): "normal" or "urgent" (default: "normal")
   - When set to "urgent", "[URGENT]" is prepended to the subject
-- `sendToAll` (boolean, optional): If true, sends to all users regardless of preferences. If false, respects user's `announcement_email_preference` setting (default: true)
+- For "urgent", emails send to everyone regardless of preferences
+- For "normal", emails only send to users with `announcements` preference enabled
 
 **Response:**
 ```json
@@ -118,9 +118,7 @@ The announcement service uses Supabase's Admin Auth API to send emails:
 
 1. Admin sends announcement request with subject, message, and priority
 2. Service fetches all users from the database
-3. For each user, checks if email should be sent based on:
-   - User's `announcement_email_preference` setting
-   - Announcement priority level
+3. For each user, checks if email should be sent based on priority and preferences
 4. Sends emails via Supabase Auth's email service
 5. Records announcement in database with delivery statistics
 6. Returns summary including sent/skipped/failed counts
@@ -150,8 +148,7 @@ curl -X POST http://localhost:8000/api/v1/announcements/send \
   -d '{
     "subject": "Server Maintenance Tonight",
     "message": "The system will be under maintenance from 10 PM to 2 AM tonight. Please plan accordingly.",
-    "priority": "urgent",
-    "sendToAll": true
+    "priority": "urgent"
   }'
 ```
 
@@ -165,6 +162,7 @@ curl http://localhost:8000/api/v1/announcements/?page=1&pageSize=10 \
 
 - All announcement endpoints require admin (co-president) authentication
 - Emails are sent asynchronously via Supabase, so they may not be instantly delivered
-- The service respects user email preferences unless `sendToAll` is set to true
+- The service respects user email preferences for normal priority announcements
+- Urgent announcements bypass preferences and send to everyone
 - All announcements are logged in the database for audit purposes
 - Failed emails are tracked but don't prevent the operation from completing

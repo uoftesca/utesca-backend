@@ -96,56 +96,33 @@ class AnnouncementService:
         else:  # "all"
             return True
 
-    def _is_user_executive(self, role: Optional[str]) -> bool:
-        """
-        Check if a user is an executive (can receive announcements).
-
-        Executives are: co-president, vp, director, treasurer
-
-        Args:
-            role: User's role
-
-        Returns:
-            True if user is an executive, False otherwise
-        """
-        executive_roles = {"co-president", "vp", "director", "treasurer"}
-        return role in executive_roles if role else False
-
     def _filter_recipients_by_priority(self, users: List[dict], priority: str) -> List[dict]:
         """
-        Filter users based on role and priority level.
+        Filter users based on priority level and notification preferences.
 
         Rules:
-        - Urgent: Send to all executives
-        - Normal: Send to executives AND respect notification_preferences.announcements
+        - Urgent: Send to everyone regardless of preferences
+        - Normal: Respect notification_preferences.announcements
 
         Args:
-            users: List of users with role and notification_preferences
+            users: List of users with notification_preferences
             priority: "urgent" or "normal"
 
         Returns:
             Filtered list of users who should receive the email
         """
         filtered = []
-        skipped_non_exec = 0
         skipped_by_pref = 0
 
         logger.info(f"Filtering {len(users)} users for {priority} announcement")
 
         for user in users:
             email = user.get("email", "unknown")
-            role = user.get("role")
 
-            # Only send to executives (co-president, vp, director, treasurer)
-            if not self._is_user_executive(role):
-                skipped_non_exec += 1
-                logger.debug(f"Skipping {email} - not executive (role: {role})")
-                continue
-
-            # Urgent announcements go to all executives
+            # Urgent announcements go to everyone
             if priority == "urgent":
                 filtered.append(user)
-                logger.debug(f"Including {email} - executive receiving urgent announcement (role: {role})")
+                logger.debug(f"Including {email} - urgent announcement bypasses preferences")
                 continue
 
             # Normal announcements: check notification preferences
@@ -172,7 +149,6 @@ class AnnouncementService:
 
         logger.info(
             f"Filtering complete: {len(filtered)} recipients, "
-            f"{skipped_non_exec} non-executives skipped, "
             f"{skipped_by_pref} skipped by preferences"
         )
 
@@ -346,28 +322,25 @@ class AnnouncementService:
         title: str,
         content: str,
         priority: str,
-        send_to_all: bool,
     ) -> AnnouncementEmailStats:
         """
         Send announcement emails to users using Resend email service.
 
-        Applies role and priority-based filtering. Rate-limited to respect Resend API limits.
+        Applies priority-based filtering. Rate-limited to respect Resend API limits.
 
         Args:
-            users: List of user records with 'id', 'email', 'role', 'notification_preferences'
+            users: List of user records with 'id', 'email', 'notification_preferences'
             title: Announcement title
             content: Announcement content/message
             priority: Announcement priority ('normal' or 'urgent')
-            send_to_all: If True, sends to all executives. If False, respects preferences.
 
         Returns:
             AnnouncementEmailStats with delivery information
         """
         from core.email import EmailService
 
-        # Apply filtering unless send_to_all is explicitly true
-        if not send_to_all:
-            users = self._filter_recipients_by_priority(users, priority)
+        # Apply priority-based filtering
+        users = self._filter_recipients_by_priority(users, priority)
 
         try:
             email_service = EmailService()
@@ -543,7 +516,6 @@ class AnnouncementService:
                 title=request.title,
                 content=request.content,
                 priority=request.priority,
-                send_to_all=request.send_to_all,
             )
 
             return SendAnnouncementResponse(

@@ -111,11 +111,7 @@ class SendAnnouncementEmailRequest(BaseModel):
     content: str = Field(..., min_length=1, description="Email message body (plain text)")
     priority: AnnouncementPriority = Field(
         "normal",
-        description="Announcement priority: 'normal' or 'urgent'"
-    )
-    send_to_all: bool = Field(
-        False,
-        description="If true, sends to all executives. If false, respects notification_preferences.announcements"
+        description="Announcement priority: 'normal' respects preferences, 'urgent' sends to everyone"
     )
 
     model_config = ConfigDict(

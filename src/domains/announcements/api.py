@@ -90,10 +90,11 @@ async def send_announcement_email(
 
     **Process:**
     1. Fetches all users from the system
-    2. Filters based on announcement_email_preference if send_to_all=False:
-       - "all": receives all announcements
-       - "urgent_only": only receives urgent announcements
-       - "none": never receives announcements
+     2. Filters based on notification_preferences for normal priority:
+         - "all": receives all announcements
+         - "urgent_only": only receives urgent announcements
+         - "none": never receives announcements
+         Urgent priority bypasses preferences and sends to everyone.
     3. Sends emails via Supabase
     4. Optionally creates announcement record if send_email=true
 
@@ -101,7 +102,6 @@ async def send_announcement_email(
     - title: Email subject line (required)
     - content: Email message body as plain text (required)
     - priority: "normal" or "urgent" (optional, defaults to "normal")
-    - send_to_all: If true, sends to all users ignoring preferences (optional, defaults to true)
 
     **Returns:**
     - Delivery stats and status message
