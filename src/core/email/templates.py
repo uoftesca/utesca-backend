@@ -773,7 +773,7 @@ def build_announcement_email(
     priority_badge = "[URGENT] " if priority == "urgent" else ""
 
     # Escape HTML in announcement content to prevent XSS attacks
-    escaped_content = html.escape(announcement_content)
+    escaped_content = html.escape(announcement_content, quote=True)
 
     # HTML version
     if priority == "urgent":
@@ -856,7 +856,7 @@ def build_announcement_notification_email(
     priority_upper = priority.upper()
 
     # Escape HTML in announcement content to prevent XSS attacks
-    escaped_content = html.escape(announcement_content)
+    escaped_content = html.escape(announcement_content, quote=True)
 
     # Priority badge styling
     if priority == "urgent":
