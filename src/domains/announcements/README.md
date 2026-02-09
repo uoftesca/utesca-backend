@@ -128,12 +128,10 @@ The announcement service uses Supabase's Admin Auth API to send emails:
 **announcements table:**
 ```sql
 - id: UUID (primary key)
-- subject: VARCHAR(255)
-- message: TEXT
+- title: VARCHAR(255)
+- content: TEXT
 - priority: ENUM ('normal', 'urgent')
-- sent_by_id: UUID (foreign key to users)
-- total_recipients: INTEGER
-- emails_sent: INTEGER
+- created_by: UUID (foreign key to users)
 - created_at: TIMESTAMP
 - updated_at: TIMESTAMP
 ```
