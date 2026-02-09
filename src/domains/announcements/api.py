@@ -36,17 +36,17 @@ router = APIRouter()
     response_model=CreateAnnouncementResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Announcement",
-    description="Create a new announcement (authenticated users)",
+    description="Create a new announcement (co-president only)",
 )
 async def create_announcement(
     request: AnnouncementCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_admin),
 ):
     """
     Create a new announcement in the system.
 
     **Requirements:**
-    - Caller must be authenticated (RLS enforces co-president permission)
+    - Caller must be a co-president (admin)
 
     **Request Body:**
     - title: Announcement title (required)
