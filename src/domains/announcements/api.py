@@ -95,7 +95,7 @@ async def send_announcement_email(
          - "urgent_only": only receives urgent announcements
          - "none": never receives announcements
          Urgent priority bypasses preferences and sends to everyone.
-    3. Sends emails via Supabase
+    3. Sends emails via Resend
     4. Optionally creates announcement record if send_email=true
 
     **Request Body:**
