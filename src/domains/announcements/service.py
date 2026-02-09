@@ -416,20 +416,26 @@ class AnnouncementService:
             )
 
             # Queue batch emails asynchronously when send_email is true
-            if request.send_email and request.content and background_tasks:
-                try:
-                    background_tasks.add_task(
-                        self._send_batch_emails_async,
-                        announcement_id=announcement.id,
-                        title=request.title,
-                        content=request.content,
-                        priority=request.priority,
-                        base_url=self.settings.BASE_URL_PUBLIC,
+            if request.send_email and request.content:
+                if not background_tasks:
+                    logger.warning(
+                        f"Email sending was requested for announcement {announcement.id}, "
+                        "but BackgroundTasks is not available. Emails will not be sent."
                     )
-                    logger.info(f"Queued background email send for announcement {announcement.id}")
-                except Exception as e:
-                    logger.error(f"Error queuing background email send for announcement {announcement.id}: {e}")
-                    # Continue even if async task fails - announcement is still created
+                else:
+                    try:
+                        background_tasks.add_task(
+                            self._send_batch_emails_async,
+                            announcement_id=announcement.id,
+                            title=request.title,
+                            content=request.content,
+                            priority=request.priority,
+                            base_url=self.settings.BASE_URL_PUBLIC,
+                        )
+                        logger.info(f"Queued background email send for announcement {announcement.id}")
+                    except Exception as e:
+                        logger.error(f"Error queuing background email send for announcement {announcement.id}: {e}")
+                        # Continue even if async task fails - announcement is still created
 
             return CreateAnnouncementResponse(
                 success=True,
