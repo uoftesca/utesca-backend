@@ -774,7 +774,10 @@ def build_announcement_email(
     escaped_title = html.escape(announcement_title)
     escaped_content = html.escape(announcement_content)
     
-    greeting = f"Hi {escaped_name}," if escaped_name else "Hello,"
+    # HTML greeting (with escaped name)
+    html_greeting = f"Hi {escaped_name}," if escaped_name else "Hello,"
+    # Plain text greeting (with unescaped name)
+    text_greeting = f"Hi {full_name}," if full_name else "Hello,"
     priority_badge = "[URGENT] " if priority == "urgent" else ""
 
     # HTML version
@@ -795,7 +798,7 @@ def build_announcement_email(
                             </table>
 
                             <p style="font-size: 16px; color: #333333; margin: 20px 0 20px 0;">
-                                {greeting}
+                                {html_greeting}
                             </p>
 
                             <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
@@ -806,7 +809,7 @@ def build_announcement_email(
         # Normal announcements
         body_content = f"""
                             <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
-                                {greeting}
+                                {html_greeting}
                             </p>
 
                             <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
@@ -817,7 +820,7 @@ def build_announcement_email(
     html_body = _build_email_html(priority_badge + escaped_title, body_content)
 
     # Plain text version
-    text_body = f"""{greeting}
+    text_body = f"""{text_greeting}
 
 {announcement_content}
 
