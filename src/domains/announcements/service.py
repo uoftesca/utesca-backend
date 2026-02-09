@@ -712,7 +712,7 @@ class AnnouncementService:
                 .execute()
             )
 
-            if not user_result.data or len(user_result.data) == 0:
+            if not user_result.data:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User not found",
