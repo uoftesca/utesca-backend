@@ -31,6 +31,7 @@ router = APIRouter()
 # Announcement Endpoints
 # ============================================================================
 
+
 @router.post(
     "/",
     response_model=CreateAnnouncementResponse,
@@ -61,6 +62,7 @@ async def create_announcement(
     # Use internal users.id for created_by FK
     # Convert to legacy format for service
     from .models import CreateAnnouncementRequest
+
     legacy_request = CreateAnnouncementRequest(
         title=request.title,
         content=request.content,

@@ -33,7 +33,6 @@ class AnnouncementRepository:
         content: Optional[str],
         priority: str,
         created_by: UUID,
-        send_email: bool,
         expires_at: Optional[datetime] = None,
     ) -> AnnouncementResponse:
         """
@@ -44,7 +43,6 @@ class AnnouncementRepository:
             content: Announcement content/message
             priority: Announcement priority ('normal' or 'urgent')
             created_by: ID of the user creating the announcement
-            send_email: Whether to send email notification
             expires_at: When the announcement expires (optional)
 
         Returns:
@@ -65,36 +63,14 @@ class AnnouncementRepository:
 
         # Attempt insert, with graceful fallback when schema lacks optional columns
         try:
-            result = (
-                self.client
-                .schema(self.schema)
-                .table("announcements")
-                .insert(data)
-                .execute()
-            )
+            result = self.client.schema(self.schema).table("announcements").insert(data).execute()
         except Exception as e:
             # Handle missing column in schema cache (e.g., test schema without expires_at)
             msg = str(e)
             if "PGRST204" in msg and "expires_at" in msg and "schema cache" in msg:
                 # Retry without the expires_at field
                 data.pop("expires_at", None)
-                result = (
-                    self.client
-                    .schema(self.schema)
-                    .table("announcements")
-                    .insert(data)
-                    .execute()
-                )
-            elif "PGRST204" in msg and "send_email" in msg and "schema cache" in msg:
-                # Retry without the send_email field
-                data.pop("send_email", None)
-                result = (
-                    self.client
-                    .schema(self.schema)
-                    .table("announcements")
-                    .insert(data)
-                    .execute()
-                )
+                result = self.client.schema(self.schema).table("announcements").insert(data).execute()
             else:
                 raise
 
@@ -113,10 +89,9 @@ class AnnouncementRepository:
         Returns:
             AnnouncementResponse or None if not found
         """
-        result = self.client.schema(self.schema).table("announcements") \
-            .select("*") \
-            .eq("id", str(announcement_id)) \
-            .execute()
+        result = (
+            self.client.schema(self.schema).table("announcements").select("*").eq("id", str(announcement_id)).execute()
+        )
 
         if not result.data or len(result.data) == 0:
             return None
@@ -139,8 +114,7 @@ class AnnouncementRepository:
             Tuple of (list of announcements, total count)
         """
         # Build query
-        query = self.client.schema(self.schema).table("announcements") \
-            .select("*", count="exact")  # type: ignore[arg-type]
+        query = self.client.schema(self.schema).table("announcements").select("*", count="exact")  # type: ignore[arg-type]
 
         # Order by created_at descending (newest first)
         query = query.order("created_at", desc=True)
@@ -205,10 +179,13 @@ class AnnouncementRepository:
         Returns:
             List of announcement reads
         """
-        result = self.client.schema(self.schema).table("announcement_reads") \
-            .select("*") \
-            .eq("user_id", str(user_id)) \
+        result = (
+            self.client.schema(self.schema)
+            .table("announcement_reads")
+            .select("*")
+            .eq("user_id", str(user_id))
             .execute()
+        )
 
         if not result.data:
             return []
@@ -230,11 +207,14 @@ class AnnouncementRepository:
         Returns:
             True if user has read the announcement, False otherwise
         """
-        result = self.client.schema(self.schema).table("announcement_reads") \
-            .select("id") \
-            .eq("announcement_id", str(announcement_id)) \
-            .eq("user_id", str(user_id)) \
+        result = (
+            self.client.schema(self.schema)
+            .table("announcement_reads")
+            .select("id")
+            .eq("announcement_id", str(announcement_id))
+            .eq("user_id", str(user_id))
             .execute()
+        )
 
         return result.data is not None and len(result.data) > 0
 
@@ -271,10 +251,9 @@ class AnnouncementRepository:
 
         data["updated_at"] = datetime.utcnow().isoformat()
 
-        result = self.client.schema(self.schema).table("announcements") \
-            .update(data) \
-            .eq("id", str(announcement_id)) \
-            .execute()
+        result = (
+            self.client.schema(self.schema).table("announcements").update(data).eq("id", str(announcement_id)).execute()
+        )
 
         if not result.data or len(result.data) == 0:
             return None
@@ -291,10 +270,9 @@ class AnnouncementRepository:
         Returns:
             True if deleted successfully, False otherwise
         """
-        result = self.client.schema(self.schema).table("announcements") \
-            .delete() \
-            .eq("id", str(announcement_id)) \
-            .execute()
+        result = (
+            self.client.schema(self.schema).table("announcements").delete().eq("id", str(announcement_id)).execute()
+        )
 
         return result.data is not None and len(result.data) > 0
 

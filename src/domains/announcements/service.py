@@ -47,10 +47,7 @@ class AnnouncementService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(
-            self.settings.SUPABASE_URL,
-            self.settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
     def _get_all_users(self) -> list[dict]:
         """
@@ -64,8 +61,7 @@ class AnnouncementService:
         """
         try:
             result = (
-                self.supabase
-                .schema(self.schema)
+                self.supabase.schema(self.schema)
                 .table("users")
                 .select("id, email, role, notification_preferences, first_name, last_name")
                 .execute()
@@ -140,17 +136,13 @@ class AnnouncementService:
             if self._should_send_to_user(announcements_pref, priority):
                 filtered.append(user)
                 logger.debug(
-                    f"Including {email} - preference allows "
-                    f"(pref: {announcements_pref}, priority: {priority})"
+                    f"Including {email} - preference allows (pref: {announcements_pref}, priority: {priority})"
                 )
             else:
                 skipped_by_pref += 1
                 logger.info(f"Skipping {email} - preference blocks (pref: {announcements_pref}, priority: {priority})")
 
-        logger.info(
-            f"Filtering complete: {len(filtered)} recipients, "
-            f"{skipped_by_pref} skipped by preferences"
-        )
+        logger.info(f"Filtering complete: {len(filtered)} recipients, {skipped_by_pref} skipped by preferences")
 
         return filtered
 
@@ -447,7 +439,6 @@ class AnnouncementService:
                 content=request.content,
                 priority=request.priority,
                 created_by=current_user_id,
-                send_email=request.send_email,
                 expires_at=request.expires_at,
             )
 
@@ -623,8 +614,7 @@ class AnnouncementService:
                         return read
                 # If not found in list (shouldn't happen), create new one
                 logger.warning(
-                    f"has_user_read returned True but no record found for "
-                    f"announcement {announcement_id} user {user_id}"
+                    f"has_user_read returned True but no record found for announcement {announcement_id} user {user_id}"
                 )
 
             # Mark as read
