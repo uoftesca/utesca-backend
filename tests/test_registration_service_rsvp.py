@@ -830,7 +830,6 @@ class TestDeclineNotifications:
         """Should skip notifications if attendee email is missing."""
         # Arrange
         sample_registration.form_data = {"first_name": "John"}  # No email
-        
         # Mock subscribed users (will be queried but no email sent)
         mock_user1 = Mock()
         mock_user1.email = "vp1@utesca.ca"
