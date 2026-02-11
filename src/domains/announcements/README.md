@@ -12,8 +12,8 @@ The Announcements domain handles sending system-wide announcements to all users 
 
 ## API Endpoints
 
-### Send Announcement
-**POST** `/api/v1/announcements/send`
+### Send Announcement Email
+**POST** `/api/v1/announcements/send-email`
 
 Sends an announcement email to users based on their preferences.
 
@@ -23,15 +23,15 @@ Sends an announcement email to users based on their preferences.
 **Request Body:**
 ```json
 {
-  "subject": "Important Update",
-  "message": "This is the announcement message body.",
+  "title": "Important Update",
+  "content": "This is the announcement message body.",
   "priority": "normal"
 }
 ```
 
 **Parameters:**
-- `subject` (string, required): Email subject line (1-255 characters)
-- `message` (string, required): Email message body as plain text
+- `title` (string, required): Email subject line (1-255 characters)
+- `content` (string, required): Email message body as plain text
 - `priority` (string, optional): "normal" or "urgent" (default: "normal")
   - When set to "urgent", "[URGENT]" is prepended to the subject
 - For "urgent", emails send to everyone regardless of preferences
@@ -48,8 +48,7 @@ Sends an announcement email to users based on their preferences.
     "emailsSkipped": 5,
     "failedEmails": 0
   },
-  "announcementId": "550e8400-e29b-41d4-a716-446655440000",
-  "createdAt": "2024-01-21T10:30:00Z"
+  "announcementId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -72,14 +71,13 @@ Retrieves a paginated list of announcements that have been sent.
   "announcements": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",
-      "subject": "Important Update",
-      "message": "This is the announcement message body.",
+      "title": "Important Update",
+      "content": "This is the announcement message body.",
       "priority": "normal",
-      "sentById": "660e8400-e29b-41d4-a716-446655440001",
-      "totalRecipients": 50,
-      "emailsSent": 45,
+      "createdBy": "660e8400-e29b-41d4-a716-446655440001",
       "createdAt": "2024-01-21T10:30:00Z",
-      "updatedAt": "2024-01-21T10:30:00Z"
+      "updatedAt": "2024-01-21T10:30:00Z",
+      "isRead": false
     }
   ],
   "page": 1,
@@ -116,7 +114,7 @@ The announcements domain follows the same pattern as other domains:
 
 The announcement service uses Supabase's Admin Auth API to send emails:
 
-1. Admin sends announcement request with subject, message, and priority
+1. Admin sends announcement request with title, content, and priority
 2. Service fetches all users from the database
 3. For each user, checks if email should be sent based on priority and preferences
 4. Sends emails via Supabase Auth's email service
@@ -128,26 +126,26 @@ The announcement service uses Supabase's Admin Auth API to send emails:
 **announcements table:**
 ```sql
 - id: UUID (primary key)
-- subject: VARCHAR(255)
-- message: TEXT
+- title: VARCHAR(255)
+- content: TEXT
 - priority: ENUM ('normal', 'urgent')
-- sent_by_id: UUID (foreign key to users)
-- total_recipients: INTEGER
-- emails_sent: INTEGER
+- created_by: UUID (foreign key to users)
 - created_at: TIMESTAMP
 - updated_at: TIMESTAMP
 ```
+
+**Note:** Database columns use snake_case (e.g., `created_by`, `created_at`), but API responses use camelCase (e.g., `createdBy`, `createdAt`) due to the camelCase alias generator.
 
 ## Usage Example
 
 ### Send an urgent announcement:
 ```bash
-curl -X POST http://localhost:8000/api/v1/announcements/send \
+curl -X POST http://localhost:8000/api/v1/announcements/send-email \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "subject": "Server Maintenance Tonight",
-    "message": "The system will be under maintenance from 10 PM to 2 AM tonight. Please plan accordingly.",
+    "title": "Server Maintenance Tonight",
+    "content": "The system will be under maintenance from 10 PM to 2 AM tonight. Please plan accordingly.",
     "priority": "urgent"
   }'
 ```

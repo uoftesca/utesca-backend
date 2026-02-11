@@ -7,6 +7,7 @@ This module defines the FastAPI router for announcement-related endpoints.
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from domains.auth.dependencies import get_current_admin, get_current_user
 from domains.auth.models import UserResponse
@@ -26,27 +27,32 @@ from .service import AnnouncementService
 # Create router
 router = APIRouter()
 
+# Security scheme for extracting JWT token
+security = HTTPBearer()
+
 
 # ============================================================================
 # Announcement Endpoints
 # ============================================================================
+
 
 @router.post(
     "/",
     response_model=CreateAnnouncementResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Announcement",
-    description="Create a new announcement (authenticated users)",
+    description="Create a new announcement (co-president only)",
 )
 async def create_announcement(
     request: AnnouncementCreate,
     current_user: UserResponse = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """
     Create a new announcement in the system.
 
     **Requirements:**
-    - Caller must be authenticated (RLS enforces co-president permission)
+    - Caller must be a co-president (admin)
 
     **Request Body:**
     - title: Announcement title (required)
@@ -57,10 +63,12 @@ async def create_announcement(
     **Returns:**
     - Announcement ID and creation status
     """
-    service = AnnouncementService()
+    # Create service with user token so RLS policies are enforced
+    service = AnnouncementService(user_token=credentials.credentials)
     # Use internal users.id for created_by FK
     # Convert to legacy format for service
     from .models import CreateAnnouncementRequest
+
     legacy_request = CreateAnnouncementRequest(
         title=request.title,
         content=request.content,
@@ -68,7 +76,7 @@ async def create_announcement(
         send_email=request.send_email,
         expires_at=None,
     )
-    return service.create_announcement(legacy_request, current_user.id)
+    return service.create_announcement(legacy_request, current_user.id, background_tasks)
 
 
 @router.post(
@@ -95,7 +103,7 @@ async def send_announcement_email(
          - "urgent_only": only receives urgent announcements
          - "none": never receives announcements
          Urgent priority bypasses preferences and sends to everyone.
-    3. Sends emails via Supabase
+    3. Sends emails via Resend
     4. Optionally creates announcement record if send_email=true
 
     **Request Body:**
@@ -106,6 +114,7 @@ async def send_announcement_email(
     **Returns:**
     - Delivery stats and status message
     """
+    # Use service without token (admin client) since we need to fetch all users
     service = AnnouncementService()
     # Use internal users.id for created_by FK
     return service.send_announcement_email(request, current_user.id)
@@ -121,6 +130,7 @@ async def get_announcements(
     page: int = 1,
     page_size: int = 50,
     current_user: UserResponse = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """
     Get list of announcements with pagination.
@@ -135,7 +145,8 @@ async def get_announcements(
     **Returns:**
     - List of announcements with metadata
     """
-    service = AnnouncementService()
+    # Create service with user token so RLS policies are enforced
+    service = AnnouncementService(user_token=credentials.credentials)
     return service.get_announcements(page=page, page_size=page_size)
 
 
@@ -149,6 +160,7 @@ async def get_announcements(
 async def mark_announcement_as_read(
     announcement_id: UUID,
     current_user: UserResponse = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """
     Mark an announcement as read.
@@ -162,7 +174,8 @@ async def mark_announcement_as_read(
     **Returns:**
     - Read record with timestamp
     """
-    service = AnnouncementService()
+    # Create service with user token so RLS policies are enforced
+    service = AnnouncementService(user_token=credentials.credentials)
     # Use internal users.id for read tracking
     return service.mark_as_read(announcement_id, current_user.id)
 
@@ -176,6 +189,7 @@ async def mark_announcement_as_read(
 async def get_announcement(
     announcement_id: UUID,
     current_user: UserResponse = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """
     Get a single announcement by ID.
@@ -186,7 +200,8 @@ async def get_announcement(
     **Returns:**
     - Announcement with is_read field indicating if current user has read it
     """
-    service = AnnouncementService()
+    # Create service with user token so RLS policies are enforced
+    service = AnnouncementService(user_token=credentials.credentials)
     return service.get_announcement(announcement_id, current_user.id)
 
 
@@ -200,12 +215,13 @@ async def update_announcement(
     announcement_id: UUID,
     request: AnnouncementUpdate,
     current_user: UserResponse = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """
     Update an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Request Body:**
     - title: New title (optional)
@@ -215,7 +231,8 @@ async def update_announcement(
     **Returns:**
     - Updated announcement
     """
-    service = AnnouncementService()
+    # Create service with user token so RLS policies are enforced
+    service = AnnouncementService(user_token=credentials.credentials)
     return service.update_announcement(
         announcement_id=announcement_id,
         title=request.title,
@@ -234,15 +251,17 @@ async def update_announcement(
 async def delete_announcement(
     announcement_id: UUID,
     current_user: UserResponse = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """
     Delete an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Returns:**
     - Success message
     """
-    service = AnnouncementService()
+    # Create service with user token so RLS policies are enforced
+    service = AnnouncementService(user_token=credentials.credentials)
     return service.delete_announcement(announcement_id, current_user.id)

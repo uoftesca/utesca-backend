@@ -5,12 +5,11 @@ This module handles creating announcements and sending announcement emails to al
 """
 
 import logging
-import threading
 import time
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, status
 from supabase import Client, create_client
 
 from core.config import get_settings
@@ -20,6 +19,7 @@ from .models import (
     AnnouncementEmailStats,
     AnnouncementListResponse,
     AnnouncementReadResponse,
+    AnnouncementResponse,
     CreateAnnouncementRequest,
     CreateAnnouncementResponse,
     SendAnnouncementEmailRequest,
@@ -30,27 +30,82 @@ from .repository import AnnouncementRepository
 logger = logging.getLogger(__name__)
 
 
+def _redact_email(email: str) -> str:
+    """
+    Redact email address for logging to protect PII.
+    
+    Shows first 2 chars of local part and domain, masks the rest.
+    Example: test.user@example.com -> te***@ex***
+    
+    Args:
+        email: Email address to redact
+        
+    Returns:
+        Redacted email string
+    """
+    if not email or "@" not in email:
+        return "***"
+    
+    try:
+        local, domain = email.split("@", 1)
+        local_redacted = (local[:2] + "***") if len(local) > 2 else "***"
+        domain_redacted = (domain[:2] + "***") if len(domain) > 2 else "***"
+        return f"{local_redacted}@{domain_redacted}"
+    except Exception:
+        return "***"
+
+
 class AnnouncementService:
     """Service class for announcement operations."""
 
-    def __init__(self):
+    def __init__(self, user_token: Optional[str] = None):
+        """
+        Initialize AnnouncementService with optional user token for RLS enforcement.
+
+        Args:
+            user_token: Optional JWT token for user-scoped operations.
+                       If provided, creates a client that respects RLS policies.
+                       If not provided, uses service role client (for background tasks).
+        """
         self.settings = get_settings()
         self.schema = get_schema()
-        # Use admin client to bypass RLS (endpoints are protected by authentication)
-        self.supabase = self._get_admin_client()
+        # Create appropriate client based on whether user token is provided
+        if user_token:
+            # User-scoped client - RLS policies will be enforced
+            self.supabase = self._get_user_client(user_token)
+        else:
+            # Admin client - RLS bypassed (for background tasks like email sending)
+            self.supabase = self._get_admin_client()
         self.repository = AnnouncementRepository(self.supabase, self.schema)
 
     def _get_admin_client(self) -> Client:
         """
         Get Supabase client with service role key for admin operations.
+        This bypasses RLS policies and should only be used for background tasks.
 
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
+
+    def _get_user_client(self, user_token: str) -> Client:
+        """
+        Get Supabase client with user JWT token for RLS-enforced operations.
+        This client respects Row Level Security policies.
+
+        Args:
+            user_token: JWT token from the Authorization header
+
+        Returns:
+            Client: Supabase client with user-level access
+        """
+        client = create_client(
             self.settings.SUPABASE_URL,
-            self.settings.SUPABASE_SERVICE_ROLE_KEY
+            self.settings.SUPABASE_KEY  # Use anon/public key, not service role
         )
+        # Set the auth token for this client so RLS policies apply
+        client.postgrest.auth(user_token)
+        return client
 
     def _get_all_users(self) -> list[dict]:
         """
@@ -64,8 +119,7 @@ class AnnouncementService:
         """
         try:
             result = (
-                self.supabase
-                .schema(self.schema)
+                self.supabase.schema(self.schema)
                 .table("users")
                 .select("id, email, role, notification_preferences, first_name, last_name")
                 .execute()
@@ -118,39 +172,37 @@ class AnnouncementService:
 
         for user in users:
             email = user.get("email", "unknown")
+            redacted_email = _redact_email(email)
 
             # Urgent announcements go to everyone
             if priority == "urgent":
                 filtered.append(user)
-                logger.debug(f"Including {email} - urgent announcement bypasses preferences")
+                logger.debug(f"Including {redacted_email} - urgent announcement bypasses preferences")
                 continue
 
             # Normal announcements: check notification preferences
             prefs = user.get("notification_preferences")
-            logger.debug(f"User {email} notification_preferences: {prefs} (type: {type(prefs)})")
+            prefs_type = type(prefs).__name__
+            logger.debug(f"User {redacted_email} has notification_preferences of type: {prefs_type}")
 
             if isinstance(prefs, dict):
                 announcements_pref = prefs.get("announcements", "all")
             else:
                 announcements_pref = "all"  # Default to "all" if no preferences
-                logger.warning(f"User {email} has non-dict notification_preferences: {prefs}")
+                logger.debug(f"User {redacted_email} has non-dict notification_preferences (type: {prefs_type}), defaulting to 'all'")
 
-            logger.debug(f"User {email} announcements preference: {announcements_pref}")
+            logger.debug(f"User {redacted_email} announcements preference: {announcements_pref}")
 
             if self._should_send_to_user(announcements_pref, priority):
                 filtered.append(user)
                 logger.debug(
-                    f"Including {email} - preference allows "
-                    f"(pref: {announcements_pref}, priority: {priority})"
+                    f"Including {email} - preference allows (pref: {announcements_pref}, priority: {priority})"
                 )
             else:
                 skipped_by_pref += 1
-                logger.info(f"Skipping {email} - preference blocks (pref: {announcements_pref}, priority: {priority})")
+                logger.debug(f"Skipping {redacted_email} - preference blocks (pref: {announcements_pref}, priority: {priority})")
 
-        logger.info(
-            f"Filtering complete: {len(filtered)} recipients, "
-            f"{skipped_by_pref} skipped by preferences"
-        )
+        logger.info(f"Filtering complete: {len(filtered)} recipients, {skipped_by_pref} skipped by preferences")
 
         return filtered
 
@@ -163,10 +215,13 @@ class AnnouncementService:
         base_url: str,
     ) -> None:
         """
-        Send announcement notification emails in a background thread.
+        Send announcement notification emails in a background task.
 
-        This is a blocking operation that runs asynchronously via threading.
+        This is a blocking operation that runs asynchronously via FastAPI BackgroundTasks.
         It fetches all recipients, filters them, and sends emails with rate limiting.
+
+        Note: This method uses an admin client to fetch all users, as background tasks
+        need elevated privileges.
 
         Args:
             announcement_id: ID of the announcement
@@ -176,8 +231,23 @@ class AnnouncementService:
             base_url: Base URL for view links
         """
         try:
-            # Fetch all users with their roles and preferences
-            all_users = self._get_all_users()
+            # Create admin client for background task (needs to fetch all users)
+            # Note: Cannot reuse self.supabase as it may be user-scoped
+            admin_client = self._get_admin_client()
+            
+            # Fetch all users with their roles and preferences using admin client
+            try:
+                result = (
+                    admin_client
+                    .schema(self.schema)
+                    .table("users")
+                    .select("id, email, role, notification_preferences, first_name, last_name")
+                    .execute()
+                )
+                all_users = result.data if result.data else []
+            except Exception as e:
+                logger.error(f"Error fetching users in background task: {e}")
+                raise
 
             # Filter by priority and role
             recipients = self._filter_recipients_by_priority(all_users, priority)
@@ -275,8 +345,9 @@ class AnnouncementService:
                     failed_emails += 1
 
             except Exception as e:
+                redacted_email = _redact_email(email) if email else "unknown"
                 logger.error(
-                    f"Error sending announcement email to {email}: {str(e)}",
+                    f"Error sending announcement email to {redacted_email}: {str(e)}",
                     exc_info=True,
                 )
                 failed_emails += 1
@@ -286,35 +357,6 @@ class AnnouncementService:
             f"{emails_sent} sent, {emails_skipped} skipped, {failed_emails} failed "
             f"out of {len(recipients)} recipients"
         )
-
-    def start_batch_email_send_async(
-        self,
-        announcement_id: UUID,
-        title: str,
-        content: str,
-        priority: str,
-        base_url: str,
-    ) -> None:
-        """
-        Start batch email sending in a background thread.
-
-        Does NOT block the API request. Email sending happens asynchronously.
-
-        Args:
-            announcement_id: ID of the announcement
-            title: Announcement title
-            content: Announcement content (HTML)
-            priority: "urgent" or "normal"
-            base_url: Base URL for view links
-        """
-        # Create and start background thread
-        thread = threading.Thread(
-            target=self._send_batch_emails_async,
-            args=(announcement_id, title, content, priority, base_url),
-            daemon=True,
-        )
-        thread.start()
-        logger.info(f"Started background thread for batch email send of announcement {announcement_id}")
 
     def _send_emails_via_resend(
         self,
@@ -363,6 +405,7 @@ class AnnouncementService:
         last_send_time: float = 0.0
 
         for user in users:
+            email = None
             try:
                 email = user.get("email")
                 if not email:
@@ -398,13 +441,14 @@ class AnnouncementService:
 
                 if success:
                     emails_sent += 1
-                    logger.info(f"Announcement email sent to {email}")
+                    logger.debug(f"Announcement email sent to {_redact_email(email)}")
                 else:
                     failed_emails += 1
-                    logger.warning(f"Failed to send announcement email to {email}")
+                    logger.debug(f"Failed to send announcement email to {_redact_email(email)}")
 
             except Exception as e:
-                logger.error(f"Error sending announcement email to user: {e}", exc_info=True)
+                redacted_email = _redact_email(email) if email else "unknown"
+                logger.error(f"Error sending announcement email to {redacted_email}: {e}", exc_info=True)
                 failed_emails += 1
 
         logger.info(
@@ -423,16 +467,18 @@ class AnnouncementService:
         self,
         request: CreateAnnouncementRequest,
         current_user_id: UUID,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> CreateAnnouncementResponse:
         """
         Create a new announcement.
 
-        If send_email is true, starts async background task to send emails to executives
+        If send_email is true, queues async background task to send emails to executives
         based on priority level (urgent goes to all, normal respects preferences).
 
         Args:
             request: Create announcement request data
             current_user_id: ID of the user creating the announcement
+            background_tasks: FastAPI BackgroundTasks for queuing email send
 
         Returns:
             CreateAnnouncementResponse with announcement ID
@@ -447,24 +493,30 @@ class AnnouncementService:
                 content=request.content,
                 priority=request.priority,
                 created_by=current_user_id,
-                send_email=request.send_email,
                 expires_at=request.expires_at,
             )
 
-            # Send batch emails asynchronously when send_email is true
+            # Queue batch emails asynchronously when send_email is true
             if request.send_email and request.content:
-                try:
-                    self.start_batch_email_send_async(
-                        announcement_id=announcement.id,
-                        title=request.title,
-                        content=request.content,
-                        priority=request.priority,
-                        base_url=self.settings.BASE_URL_PUBLIC,
+                if not background_tasks:
+                    logger.warning(
+                        f"Email sending was requested for announcement {announcement.id}, "
+                        "but BackgroundTasks is not available. Emails will not be sent."
                     )
-                    logger.info(f"Started background email send for announcement {announcement.id}")
-                except Exception as e:
-                    logger.error(f"Error starting background email send for announcement {announcement.id}: {e}")
-                    # Continue even if async task fails - announcement is still created
+                else:
+                    try:
+                        background_tasks.add_task(
+                            self._send_batch_emails_async,
+                            announcement_id=announcement.id,
+                            title=request.title,
+                            content=request.content,
+                            priority=request.priority,
+                            base_url=self.settings.BASE_URL_PUBLIC,
+                        )
+                        logger.info(f"Queued background email send for announcement {announcement.id}")
+                    except Exception as e:
+                        logger.error(f"Error queuing background email send for announcement {announcement.id}: {e}")
+                        # Continue even if async task fails - announcement is still created
 
             return CreateAnnouncementResponse(
                 success=True,
@@ -623,8 +675,7 @@ class AnnouncementService:
                         return read
                 # If not found in list (shouldn't happen), create new one
                 logger.warning(
-                    f"has_user_read returned True but no record found for "
-                    f"announcement {announcement_id} user {user_id}"
+                    f"has_user_read returned True but no record found for announcement {announcement_id} user {user_id}"
                 )
 
             # Mark as read
@@ -681,6 +732,63 @@ class AnnouncementService:
                 detail="Failed to fetch announcement",
             ) from e
 
+    def _check_update_delete_permission(
+        self,
+        announcement: AnnouncementResponse,
+        current_user_id: UUID,
+    ) -> None:
+        """
+        Check if the current user has permission to update/delete an announcement.
+
+        Permission is granted if:
+        - User is a co-president, OR
+        - User is the creator of the announcement
+
+        Args:
+            announcement: The announcement to check permission for
+            current_user_id: ID of the current user
+
+        Raises:
+            HTTPException: If user lacks permission
+        """
+        # Get current user's role from the database
+        try:
+            user_result = (
+                self.supabase
+                .schema(self.schema)
+                .table("users")
+                .select("role")
+                .eq("id", str(current_user_id))
+                .execute()
+            )
+
+            if not user_result.data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found",
+                )
+
+            user_role = user_result.data[0].get("role")
+
+            # Check permission: co-president OR creator
+            is_co_president = user_role == "co_president"
+            is_creator = str(announcement.created_by) == str(current_user_id)
+
+            if not (is_co_president or is_creator):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only co-presidents or the announcement creator can perform this action",
+                )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error checking user permissions: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to verify permissions",
+            ) from e
+
     def update_announcement(
         self,
         announcement_id: UUID,
@@ -714,9 +822,8 @@ class AnnouncementService:
                     detail="Announcement not found",
                 )
 
-            # Permission check is handled by RLS policies, but we can add app-level check
-            # Note: RLS will enforce this at DB level, this is just for better error messages
-            # For now, trust RLS policies
+            # Explicit permission check (service uses admin client that bypasses RLS)
+            self._check_update_delete_permission(announcement, current_user_id)
 
             # Update announcement
             updated = self.repository.update_announcement(
@@ -770,7 +877,8 @@ class AnnouncementService:
                     detail="Announcement not found",
                 )
 
-            # Permission check is handled by RLS policies
+            # Explicit permission check (service uses admin client that bypasses RLS)
+            self._check_update_delete_permission(announcement, current_user_id)
 
             # Delete announcement
             deleted = self.repository.delete_announcement(announcement_id)

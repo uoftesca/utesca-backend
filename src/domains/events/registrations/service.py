@@ -2,17 +2,23 @@
 Business logic for event registrations.
 """
 
+import io
+import json
+import logging
 import re
+import zipfile
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
+import httpx
 from fastapi import HTTPException, status
 from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
+from utils.file_utils import deduplicate_filename, generate_zip_filename
 
 from ..models import EventResponse, RegistrationFormSchema
 from ..repository import EventRepository
@@ -27,6 +33,8 @@ from .models import (
     RegistrationWithFilesResponse,
 )
 from .repository import RegistrationsRepository
+
+logger = logging.getLogger(__name__)
 
 REGISTRATION_NOT_FOUND = "Registration not found"
 EVENT_NOT_FOUND = "Event not found"
@@ -533,7 +541,7 @@ class RegistrationService:
             event: The event object
             previous_status: Status before decline ("confirmed" or "accepted")
             notification_types: List of notification preference types to check
-                              (e.g., ["rsvp_changes", "announcements"]. Defaults to ["rsvp_changes"]
+                              (e.g., ["rsvp_changes", "announcements"]). Defaults to ["rsvp_changes"]
         """
         import logging
 
@@ -1129,8 +1137,9 @@ class RegistrationService:
         limit: int,
         search: Optional[str],
     ) -> RegistrationListResponse:
+        statuses = [status] if status else None
         registrations, total = self.reg_repo.list_registrations(
-            event_id=event_id, status=status, page=page, limit=limit, search=search
+            event_id=event_id, statuses=statuses, page=page, limit=limit, search=search
         )
 
         # Add RSVP links to all registrations
@@ -1139,6 +1148,241 @@ class RegistrationService:
         total_pages = (total + limit - 1) // limit if limit else 1
         pagination = RegistrationListPagination(total=total, page=page, limit=limit, total_pages=total_pages)
         return RegistrationListResponse(registrations=registrations, pagination=pagination)
+
+    @staticmethod
+    def _camel_to_title(name: str) -> str:
+        segments = name.split(".")
+        titled = []
+        for segment in segments:
+            spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", segment)
+            titled.append(spaced.replace("_", " ").title())
+        return ".".join(titled)
+
+    @staticmethod
+    def _flatten_form_data(form_data: Dict[str, Any], prefix: str = "") -> Dict[str, str]:
+        result: Dict[str, str] = {}
+        for key, value in form_data.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+            if value is None:
+                result[full_key] = ""
+            elif isinstance(value, dict):
+                result.update(RegistrationService._flatten_form_data(value, full_key))
+            elif isinstance(value, list):
+                if all(isinstance(item, str) for item in value):
+                    result[full_key] = ", ".join(value)
+                else:
+                    result[full_key] = json.dumps(value)
+            else:
+                result[full_key] = str(value)
+        return result
+
+    def _build_column_order(
+        self,
+        schema_fields: List[dict],
+        all_form_keys: List[str],
+        file_field_names: set,
+    ) -> List[Tuple[str, str]]:
+        """
+        Derive the ordered list of (column_header, source) pairs for the export.
+
+        Source is one of: "form:<key>", "file:<field_name>".
+        Columns follow registration_form_schema field order. File fields from the
+        schema emit their File URL column in place. Any form keys present in the
+        data but absent from the schema are appended at the end, followed by any
+        file fields not in the schema.
+        """
+        columns: List[Tuple[str, str]] = []
+        seen_form_keys: set = set()
+        seen_file_fields: set = set()
+
+        for field in schema_fields:
+            field_id = field.get("id", "")
+            field_type = field.get("type", "")
+
+            if field_type == "file":
+                if field_id in file_field_names:
+                    columns.append((f"{self._camel_to_title(field_id)} File URL", f"file:{field_id}"))
+                    seen_file_fields.add(field_id)
+            else:
+                # Emit any flattened sub-keys that start with this field_id
+                matched = [k for k in all_form_keys if k == field_id or k.startswith(f"{field_id}.")]
+                for key in matched:
+                    columns.append((self._camel_to_title(key), f"form:{key}"))
+                    seen_form_keys.add(key)
+
+        # Append form keys not covered by the schema (preserving first-seen order)
+        for key in all_form_keys:
+            if key not in seen_form_keys:
+                columns.append((self._camel_to_title(key), f"form:{key}"))
+
+        # Append file fields not covered by the schema (sorted)
+        for field_name in sorted(file_field_names):
+            if field_name not in seen_file_fields:
+                columns.append((f"{self._camel_to_title(field_name)} File URL", f"file:{field_name}"))
+
+        return columns
+
+    def export_registrations(self, event_id: UUID, statuses: Optional[List[str]]) -> Tuple[str, List[Dict[str, str]]]:
+        event = self.events_repo.get_by_id(event_id)
+        if not event:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=EVENT_NOT_FOUND)
+        slug = event.slug or str(event_id)
+
+        registrations, _ = self.reg_repo.list_registrations(
+            event_id=event_id, statuses=statuses, page=1, limit=10_000, search=None
+        )
+        if not registrations:
+            return slug, []
+
+        all_files = self.files_repo.get_files_by_registration_ids([reg.id for reg in registrations])
+
+        files_by_reg: Dict[UUID, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
+        file_field_names: set = set()
+        for f in all_files:
+            if f.registration_id is None:
+                continue
+            files_by_reg[f.registration_id][f.field_name].append(f.file_url)
+            file_field_names.add(f.field_name)
+
+        # First pass: flatten form_data and collect all keys in first-seen order
+        flattened: List[Dict[str, str]] = []
+        all_form_keys: List[str] = []
+        seen_keys: set = set()
+        for reg in registrations:
+            flat = self._flatten_form_data(reg.form_data or {})
+            flattened.append(flat)
+            for key in flat:
+                if key not in seen_keys:
+                    all_form_keys.append(key)
+                    seen_keys.add(key)
+
+        # Derive column order from the registration form schema
+        schema_fields = event.registration_form_schema.fields if event.registration_form_schema else []
+        columns = self._build_column_order(schema_fields, all_form_keys, file_field_names)
+
+        # Second pass: build rows
+        rows: List[Dict[str, str]] = []
+        for reg, flat in zip(registrations, flattened, strict=True):
+            row: Dict[str, str] = {
+                "Registration ID": str(reg.id),
+                "Status": reg.status,
+                "Submitted At": str(reg.submitted_at) if reg.submitted_at else "",
+                "Reviewed By": str(reg.reviewed_by) if reg.reviewed_by else "",
+                "Reviewed At": str(reg.reviewed_at) if reg.reviewed_at else "",
+                "Confirmed At": str(reg.confirmed_at) if reg.confirmed_at else "",
+                "Checked In": str(reg.checked_in),
+                "Checked In At": str(reg.checked_in_at) if reg.checked_in_at else "",
+            }
+
+            reg_files = files_by_reg.get(reg.id, {})
+            for header, source in columns:
+                kind, key = source.split(":", 1)
+                if kind == "form":
+                    row[header] = flat.get(key, "")
+                else:  # file
+                    urls = reg_files.get(key, [])
+                    row[header] = ", ".join(urls) if urls else ""
+
+            rows.append(row)
+
+        return slug, rows
+
+    # -------------------------------------------------------------------------
+    # ZIP bulk file download
+    # -------------------------------------------------------------------------
+    def download_files_as_zip(self, event_id: UUID) -> Tuple[str, bytes, int]:
+        """Download all files from accepted/confirmed registrations as a ZIP archive.
+
+        Returns:
+            Tuple of (event_slug, zip_bytes, error_count) where error_count is the
+            number of individual file downloads that failed.
+
+        Raises:
+            HTTPException: 404 if event not found or no files made it into the archive.
+        """
+        event = self.events_repo.get_by_id(event_id)
+        if not event:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=EVENT_NOT_FOUND)
+
+        slug = event.slug or str(event_id)
+
+        registrations, _ = self.reg_repo.list_registrations(
+            event_id=event_id, statuses=["accepted", "confirmed"], page=1, limit=10_000, search=None
+        )
+        if not registrations:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No accepted or confirmed registrations found",
+            )
+
+        all_files = self.files_repo.get_files_by_registration_ids([reg.id for reg in registrations])
+
+        # Filter out deleted files and orphans (no registration_id) in-memory
+        active_files = [f for f in all_files if not f.deleted and f.registration_id is not None]
+        if not active_files:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No downloadable files found")
+
+        # Build a map from registration_id -> form_data for filename generation
+        form_data_by_reg: Dict[UUID, Dict[str, Any]] = {reg.id: reg.form_data or {} for reg in registrations}
+
+        # Download each file sequentially, track failures
+        file_entries: List[Tuple[str, bytes]] = []
+        used_names: set = set()
+        error_count = 0
+
+        for file_meta in active_files:
+            content = self._download_file_bytes(file_meta.file_url)
+            if content is None:
+                error_count += 1
+                continue
+
+            assert file_meta.registration_id is not None  # Guaranteed by active_files filter  # nosec B101
+            form_data = form_data_by_reg.get(file_meta.registration_id, {})
+            zip_name = generate_zip_filename(
+                field_name=file_meta.field_name,
+                form_data=form_data,
+                original_filename=file_meta.file_name,
+                registration_id=file_meta.registration_id,
+            )
+            zip_name = deduplicate_filename(zip_name, used_names)
+            used_names.add(zip_name)
+            file_entries.append((zip_name, content))
+
+        if not file_entries:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="All file downloads failed")
+
+        zip_bytes = self._build_zip_archive(file_entries)
+        return slug, zip_bytes, error_count
+
+    def _download_file_bytes(self, url: str) -> Optional[bytes]:
+        """Download a single file's raw bytes via HTTP GET.
+
+        Returns None on any network or HTTP error (logged).
+        """
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(url)
+                response.raise_for_status()
+                return response.content
+        except Exception as exc:
+            logger.warning("Failed to download file from %s: %s", url, exc)
+            return None
+
+    @staticmethod
+    def _build_zip_archive(file_entries: List[Tuple[str, bytes]]) -> bytes:
+        """Write a ZIP archive in memory from pre-downloaded file entries.
+
+        Args:
+            file_entries: List of (zip_filename, content_bytes) pairs.
+
+        Returns:
+            Complete ZIP archive as bytes.
+        """
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for name, data in file_entries:
+                zf.writestr(name, data)
+        return buffer.getvalue()
 
     def get_registration_detail(self, registration_id: UUID) -> RegistrationWithFilesResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)

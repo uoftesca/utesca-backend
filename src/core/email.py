@@ -1,83 +1,25 @@
 """
-Email service for sending transactional emails via Resend.
+DEPRECATED MODULE: `core.email` is implemented as a package (`core/email/`),
+and this file (`core/email.py`) shadows that package and breaks imports like
+`from core.email.service import EmailService`.
 
-This service provides methods for sending various email types including
-confirmations, announcements, and notifications.
+This module is intentionally disabled to avoid shadowing the `core.email`
+package. Use the package submodules directly instead, for example:
+
+    from core.email.service import EmailService
+
+In the codebase, this file should be removed or renamed (for example to
+`core/email/resend_service.py`) so that `core.email` remains a proper
+package.
 """
 
-import logging
-from typing import List, Optional
-
-from core.config import get_settings
-
-logger = logging.getLogger(__name__)
-
-
-class EmailService:
-    """Service for sending emails via Resend API."""
-
-    def __init__(self):
-        """Initialize email service with Resend API key."""
-        self.settings = get_settings()
-        self.api_key = self.settings.RESEND_API_KEY
-
-        # Initialize Resend client if API key exists
-        if self.api_key:
-            try:
-                from resend import Resend
-                self.client = Resend(api_key=self.api_key)
-            except ImportError:
-                logger.warning("Resend package not installed. Email sending will be unavailable.")
-                self.client = None
-        else:
-            logger.warning("RESEND_API_KEY not configured. Email sending will be unavailable.")
-            self.client = None
-
-    def _is_enabled(self) -> bool:
-        """Check if email service is properly configured."""
-        return self.client is not None
-
-    def send_announcement(
-        self,
-        to: str,
-        full_name: Optional[str],
-        announcement_title: str,
-        announcement_content: str,
-        priority: str = "normal",
-    ) -> bool:
-        """
-        Send an announcement email to a user.
-
-        Args:
-            to: Recipient email address
-            full_name: Recipient's full name (optional)
-            announcement_title: Title of the announcement
-            announcement_content: Content of the announcement
-            priority: Priority level ('normal' or 'urgent')
-
-        Returns:
-            True if email was sent successfully, False otherwise
-        """
-        if not self._is_enabled():
-            logger.warning(f"Email service not configured. Would send announcement to {to}")
-            return False
-
-        try:
-            # Format the subject with priority indicator
-            subject = announcement_title
-            if priority == "urgent":
-                subject = f"[URGENT] {announcement_title}"
-
-            # Build greeting
-            greeting = f"Hi {full_name}," if full_name else "Hello,"
-
-            # Create email body
-            email_body = f"""
-{greeting}
-
-{announcement_content}
-
-Best regards,
+raise ImportError(
+    "The module 'core.email' defined by 'core/email.py' is deprecated and "
+    "conflicts with the 'core.email' package. Please import from the "
+    "'core.email' package instead, for example: "
+    "'from core.email.service import EmailService'. "
+    "This file should be removed or renamed (e.g. to 'core/email/resend_service.py')."
+)
 UTESCA Team
             """.strip()
 

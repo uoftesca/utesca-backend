@@ -85,14 +85,22 @@ CREATE POLICY "announcement_reads_select_own"
 ON announcement_reads
 FOR SELECT
 TO authenticated
-USING (user_id = auth.uid());
+USING (
+    user_id IN (
+        SELECT id FROM users WHERE user_id = auth.uid()
+    )
+);
 
 -- Policy: Users can INSERT their own read records
 CREATE POLICY "announcement_reads_insert_own"
 ON announcement_reads
 FOR INSERT
 TO authenticated
-WITH CHECK (user_id = auth.uid());
+WITH CHECK (
+    user_id IN (
+        SELECT id FROM users WHERE user_id = auth.uid()
+    )
+);
 
 -- Policy: Users cannot UPDATE read records (read_at is set once)
 -- No UPDATE policy = no updates allowed
@@ -102,7 +110,11 @@ CREATE POLICY "announcement_reads_delete_own"
 ON announcement_reads
 FOR DELETE
 TO authenticated
-USING (user_id = auth.uid());
+USING (
+    user_id IN (
+        SELECT id FROM users WHERE user_id = auth.uid()
+    )
+);
 
 -- ============================================================================
 -- Notes:

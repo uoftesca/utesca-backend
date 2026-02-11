@@ -4,7 +4,8 @@ Portal-facing registration endpoints (authenticated).
 
 import csv
 import io
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
@@ -181,45 +182,26 @@ async def export_registrations(
     """
     Export event registrations as CSV file.
 
-    Generates a downloadable CSV file containing all registration data
-    for the specified event. Can be filtered by status. Includes:
-    - Registration ID and status
-    - Submission and review timestamps
-    - Confirmation and check-in information
-    - Attendee name and email
+    Generates a downloadable CSV containing all registration data for the
+    specified event. Supports comma-separated multi-status filtering. Includes
+    all dynamic form fields, file upload URLs, and handles nested/array values.
 
     Returns:
-        CSV file as downloadable attachment
+        CSV file as downloadable attachment with the event slug in the filename.
 
     Raises:
         HTTPException: 404 if event not found
     """
-    data = service.list_registrations(event_id, status, page=1, limit=10_000, search=None)
-    rows = []
-    for reg in data.registrations:
-        fd = reg.form_data or {}
-        rows.append(
-            {
-                "Registration ID": reg.id,
-                "Status": reg.status,
-                "Submitted At": reg.submitted_at,
-                "Reviewed By": reg.reviewed_by,
-                "Reviewed At": reg.reviewed_at,
-                "Confirmed At": reg.confirmed_at,
-                "Checked In": reg.checked_in,
-                "Checked In At": reg.checked_in_at,
-                "Full Name": fd.get("fullName") or fd.get("full_name"),
-                "Email": fd.get("email"),
-            }
-        )
+    statuses: Optional[List[str]] = [s.strip() for s in status.split(",")] if status else None
+    slug, rows = service.export_registrations(event_id, statuses)
 
-    fieldnames = rows[0].keys() if rows else ["Registration ID"]
+    fieldnames = list(rows[0].keys()) if rows else ["Registration ID"]
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=fieldnames)
     writer.writeheader()
     writer.writerows(rows)
     csv_bytes = buf.getvalue().encode("utf-8")
-    filename = f"event-registrations-{event_id}.csv"
+    filename = f"event-registrations-{slug}.csv"
     return Response(
         content=csv_bytes,
         media_type="text/csv",
@@ -228,3 +210,41 @@ async def export_registrations(
             "Content-Type": "text/csv",
         },
     )
+
+
+@router.get(
+    "/events/{event_id}/registrations/files/download",
+    status_code=status.HTTP_200_OK,
+)
+async def download_registration_files(
+    event_id: UUID,
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: RegistrationService = Depends(get_registration_service),
+):
+    """
+    Download all uploaded files from accepted/confirmed registrations as a ZIP.
+
+    Each file inside the ZIP is renamed to ``lastname-firstname-fieldname.ext``.
+    Duplicate names are automatically suffixed with -2, -3, etc. Files from
+    rejected, submitted, or deleted registrations are excluded.
+
+    Returns:
+        ZIP file as a downloadable attachment. Includes an ``X-Download-Errors``
+        header if any individual file downloads failed during archive creation.
+
+    Raises:
+        HTTPException: 404 if event not found or no files are available.
+    """
+    slug, zip_bytes, error_count = service.download_files_as_zip(event_id)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"{slug}-files-{timestamp}.zip"
+
+    headers: Dict[str, str] = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Type": "application/zip",
+    }
+    if error_count > 0:
+        headers["X-Download-Errors"] = str(error_count)
+
+    return Response(content=zip_bytes, media_type="application/zip", headers=headers)
