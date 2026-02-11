@@ -58,6 +58,7 @@ class AnnouncementRepository:
             "content": content,
             "priority": priority,
             "created_by": str(created_by),
+            "send_email": send_email,
         }
 
         if expires_at:

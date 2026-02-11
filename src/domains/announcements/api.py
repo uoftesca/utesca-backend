@@ -6,7 +6,7 @@ This module defines the FastAPI router for announcement-related endpoints.
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from domains.auth.dependencies import get_current_admin, get_current_user
 from domains.auth.models import UserResponse
@@ -30,6 +30,7 @@ router = APIRouter()
 # ============================================================================
 # Announcement Endpoints
 # ============================================================================
+
 
 @router.post(
     "/",
@@ -61,6 +62,7 @@ async def create_announcement(
     # Use internal users.id for created_by FK
     # Convert to legacy format for service
     from .models import CreateAnnouncementRequest
+
     legacy_request = CreateAnnouncementRequest(
         title=request.title,
         content=request.content,
@@ -68,7 +70,7 @@ async def create_announcement(
         send_email=request.send_email,
         expires_at=None,
     )
-    return service.create_announcement(legacy_request, current_user.id)
+    return service.create_announcement(legacy_request, current_user.id, background_tasks)
 
 
 @router.post(
@@ -95,7 +97,7 @@ async def send_announcement_email(
          - "urgent_only": only receives urgent announcements
          - "none": never receives announcements
          Urgent priority bypasses preferences and sends to everyone.
-    3. Sends emails via Supabase
+    3. Sends emails via Resend
     4. Optionally creates announcement record if send_email=true
 
     **Request Body:**
@@ -205,7 +207,7 @@ async def update_announcement(
     Update an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Request Body:**
     - title: New title (optional)
@@ -239,7 +241,7 @@ async def delete_announcement(
     Delete an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Returns:**
     - Success message
