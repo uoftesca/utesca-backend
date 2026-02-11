@@ -141,7 +141,7 @@ class UserRepository:
             filter_value: Value to match in JSONB
                          - For boolean types: defaults to "true" if None
                          - For string types: "all", "urgent_only", "none" (for announcements)
-                         - If None and notification_type is 'announcements', queries all users
+                         - If None and notification_type is 'announcements', defaults to "all" or "urgent_only"
 
         Returns:
             List of users matching the notification criteria
@@ -151,8 +151,12 @@ class UserRepository:
         # Handle default filter_value based on notification_type
         if filter_value is None:
             if notification_type == "announcements":
-                # For announcements with no filter, return all users
-                result = query.execute()
+                # For announcements with no filter, default to users with "all" or "urgent_only"
+                # This excludes users who explicitly set announcements to "none"
+                result = query.or_(
+                    f"notification_preferences->>{notification_type}.eq.all,"
+                    f"notification_preferences->>{notification_type}.eq.urgent_only"
+                ).execute()
             else:
                 # For other types (rsvp_changes, etc), default to "true"
                 result = query.eq(f"notification_preferences->>{notification_type}", "true").execute()
