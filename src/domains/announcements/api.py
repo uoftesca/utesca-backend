@@ -6,7 +6,7 @@ This module defines the FastAPI router for announcement-related endpoints.
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from domains.auth.dependencies import get_current_admin, get_current_user
@@ -45,6 +45,7 @@ security = HTTPBearer()
 )
 async def create_announcement(
     request: AnnouncementCreate,
+    background_tasks: BackgroundTasks,
     current_user: UserResponse = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):

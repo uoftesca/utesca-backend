@@ -767,7 +767,8 @@ class TestDeclineNotifications:
             mock_email_service.send_rsvp_decline_notification.return_value = True
 
             registration_service.send_decline_notification_to_subscribed_users(
-                sample_registration, sample_event, previous_status="confirmed"
+                sample_registration, sample_event, previous_status="confirmed",
+                notification_types=["rsvp_changes", "announcements"]
             )
 
         # Assert
@@ -815,7 +816,8 @@ class TestDeclineNotifications:
             mock_email_service = MockEmailService.return_value
 
             registration_service.send_decline_notification_to_subscribed_users(
-                sample_registration, sample_event, previous_status="confirmed"
+                sample_registration, sample_event, previous_status="confirmed",
+                notification_types=["rsvp_changes", "announcements"]
             )
 
         # Assert
@@ -828,13 +830,21 @@ class TestDeclineNotifications:
         """Should skip notifications if attendee email is missing."""
         # Arrange
         sample_registration.form_data = {"first_name": "John"}  # No email
+        
+        # Mock subscribed users (will be queried but no email sent)
+        mock_user1 = Mock()
+        mock_user1.email = "vp1@utesca.ca"
+        registration_service.user_repo.get_users_with_notification_enabled.return_value = [
+            mock_user1
+        ]
 
         # Act
         with patch("core.email.EmailService") as MockEmailService:
             mock_email_service = MockEmailService.return_value
 
             registration_service.send_decline_notification_to_subscribed_users(
-                sample_registration, sample_event, previous_status="confirmed"
+                sample_registration, sample_event, previous_status="confirmed",
+                notification_types=["rsvp_changes", "announcements"]
             )
 
         # Assert - should query users but not send emails

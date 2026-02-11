@@ -773,7 +773,7 @@ def build_announcement_email(
     escaped_name = html.escape(full_name) if full_name else None
     escaped_title = html.escape(announcement_title)
     escaped_content = html.escape(announcement_content)
-    
+
     # HTML greeting (with escaped name)
     html_greeting = f"Hi {escaped_name}," if escaped_name else "Hello,"
     # Plain text greeting (with unescaped name)

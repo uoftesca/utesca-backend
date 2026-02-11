@@ -33,19 +33,19 @@ logger = logging.getLogger(__name__)
 def _redact_email(email: str) -> str:
     """
     Redact email address for logging to protect PII.
-    
+
     Shows first 2 chars of local part and domain, masks the rest.
     Example: test.user@example.com -> te***@ex***
-    
+
     Args:
         email: Email address to redact
-        
+
     Returns:
         Redacted email string
     """
     if not email or "@" not in email:
         return "***"
-    
+
     try:
         local, domain = email.split("@", 1)
         local_redacted = (local[:2] + "***") if len(local) > 2 else "***"
@@ -189,7 +189,10 @@ class AnnouncementService:
                 announcements_pref = prefs.get("announcements", "all")
             else:
                 announcements_pref = "all"  # Default to "all" if no preferences
-                logger.debug(f"User {redacted_email} has non-dict notification_preferences (type: {prefs_type}), defaulting to 'all'")
+                logger.debug(
+                    f"User {redacted_email} has non-dict notification_preferences "
+                    f"(type: {prefs_type}), defaulting to 'all'"
+                )
 
             logger.debug(f"User {redacted_email} announcements preference: {announcements_pref}")
 
@@ -200,7 +203,10 @@ class AnnouncementService:
                 )
             else:
                 skipped_by_pref += 1
-                logger.debug(f"Skipping {redacted_email} - preference blocks (pref: {announcements_pref}, priority: {priority})")
+                logger.debug(
+                    f"Skipping {redacted_email} - preference blocks "
+                    f"(pref: {announcements_pref}, priority: {priority})"
+                )
 
         logger.info(f"Filtering complete: {len(filtered)} recipients, {skipped_by_pref} skipped by preferences")
 
@@ -234,7 +240,7 @@ class AnnouncementService:
             # Create admin client for background task (needs to fetch all users)
             # Note: Cannot reuse self.supabase as it may be user-scoped
             admin_client = self._get_admin_client()
-            
+
             # Fetch all users with their roles and preferences using admin client
             try:
                 result = (
