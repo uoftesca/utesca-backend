@@ -72,10 +72,7 @@ class AnnouncementService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(
-            self.settings.SUPABASE_URL,
-            self.settings.SUPABASE_SERVICE_ROLE_KEY
-        )
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
     def _get_all_users(self) -> list[dict]:
         """
@@ -89,8 +86,7 @@ class AnnouncementService:
         """
         try:
             result = (
-                self.supabase
-                .schema(self.schema)
+                self.supabase.schema(self.schema)
                 .table("users")
                 .select("id, email, role, notification_preferences, first_name, last_name")
                 .execute()
@@ -167,17 +163,13 @@ class AnnouncementService:
             if self._should_send_to_user(announcements_pref, priority):
                 filtered.append(user)
                 logger.debug(
-                    f"Including {redacted_email} - preference allows "
-                    f"(pref: {announcements_pref}, priority: {priority})"
+                    f"Including {email} - preference allows (pref: {announcements_pref}, priority: {priority})"
                 )
             else:
                 skipped_by_pref += 1
                 logger.debug(f"Skipping {redacted_email} - preference blocks (pref: {announcements_pref}, priority: {priority})")
 
-        logger.info(
-            f"Filtering complete: {len(filtered)} recipients, "
-            f"{skipped_by_pref} skipped by preferences"
-        )
+        logger.info(f"Filtering complete: {len(filtered)} recipients, {skipped_by_pref} skipped by preferences")
 
         return filtered
 
@@ -190,9 +182,9 @@ class AnnouncementService:
         base_url: str,
     ) -> None:
         """
-        Send announcement notification emails in a background thread.
+        Send announcement notification emails in a background task.
 
-        This is a blocking operation that runs asynchronously via threading.
+        This is a blocking operation that runs asynchronously via FastAPI BackgroundTasks.
         It fetches all recipients, filters them, and sends emails with rate limiting.
 
         Args:
@@ -315,39 +307,6 @@ class AnnouncementService:
             f"out of {len(recipients)} recipients"
         )
 
-    def start_batch_email_send_async(
-        self,
-        background_tasks: BackgroundTasks,
-        announcement_id: UUID,
-        title: str,
-        content: str,
-        priority: str,
-        base_url: str,
-    ) -> None:
-        """
-        Start batch email sending using FastAPI BackgroundTasks.
-
-        Does NOT block the API request. Email sending happens asynchronously.
-
-        Args:
-            background_tasks: FastAPI BackgroundTasks instance
-            announcement_id: ID of the announcement
-            title: Announcement title
-            content: Announcement content (HTML)
-            priority: "urgent" or "normal"
-            base_url: Base URL for view links
-        """
-        # Add background task to FastAPI's task queue
-        background_tasks.add_task(
-            self._send_batch_emails_async,
-            announcement_id,
-            title,
-            content,
-            priority,
-            base_url,
-        )
-        logger.info(f"Scheduled background task for batch email send of announcement {announcement_id}")
-
     def _send_emails_via_resend(
         self,
         users: list[dict],
@@ -462,13 +421,13 @@ class AnnouncementService:
         """
         Create a new announcement.
 
-        If send_email is true, starts async background task to send emails to executives
+        If send_email is true, queues async background task to send emails to executives
         based on priority level (urgent goes to all, normal respects preferences).
 
         Args:
             request: Create announcement request data
             current_user_id: ID of the user creating the announcement
-            background_tasks: FastAPI BackgroundTasks instance for async email sending
+            background_tasks: FastAPI BackgroundTasks for queuing email send
 
         Returns:
             CreateAnnouncementResponse with announcement ID
@@ -487,21 +446,27 @@ class AnnouncementService:
                 expires_at=request.expires_at,
             )
 
-            # Send batch emails asynchronously when send_email is true
-            if request.send_email and request.content and background_tasks:
-                try:
-                    self.start_batch_email_send_async(
-                        background_tasks=background_tasks,
-                        announcement_id=announcement.id,
-                        title=request.title,
-                        content=request.content,
-                        priority=request.priority,
-                        base_url=self.settings.BASE_URL_PUBLIC,
+            # Queue batch emails asynchronously when send_email is true
+            if request.send_email and request.content:
+                if not background_tasks:
+                    logger.warning(
+                        f"Email sending was requested for announcement {announcement.id}, "
+                        "but BackgroundTasks is not available. Emails will not be sent."
                     )
-                    logger.info(f"Scheduled background email send for announcement {announcement.id}")
-                except Exception as e:
-                    logger.error(f"Error scheduling background email send for announcement {announcement.id}: {e}")
-                    # Continue even if async task fails - announcement is still created
+                else:
+                    try:
+                        background_tasks.add_task(
+                            self._send_batch_emails_async,
+                            announcement_id=announcement.id,
+                            title=request.title,
+                            content=request.content,
+                            priority=request.priority,
+                            base_url=self.settings.BASE_URL_PUBLIC,
+                        )
+                        logger.info(f"Queued background email send for announcement {announcement.id}")
+                    except Exception as e:
+                        logger.error(f"Error queuing background email send for announcement {announcement.id}: {e}")
+                        # Continue even if async task fails - announcement is still created
 
             return CreateAnnouncementResponse(
                 success=True,
@@ -660,8 +625,7 @@ class AnnouncementService:
                         return read
                 # If not found in list (shouldn't happen), create new one
                 logger.warning(
-                    f"has_user_read returned True but no record found for "
-                    f"announcement {announcement_id} user {user_id}"
+                    f"has_user_read returned True but no record found for announcement {announcement_id} user {user_id}"
                 )
 
             # Mark as read
