@@ -442,7 +442,6 @@ class AnnouncementService:
                 content=request.content,
                 priority=request.priority,
                 created_by=current_user_id,
-                send_email=request.send_email,
                 expires_at=request.expires_at,
             )
 
