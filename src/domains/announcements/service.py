@@ -58,21 +58,54 @@ def _redact_email(email: str) -> str:
 class AnnouncementService:
     """Service class for announcement operations."""
 
-    def __init__(self):
+    def __init__(self, user_token: Optional[str] = None):
+        """
+        Initialize AnnouncementService with optional user token for RLS enforcement.
+
+        Args:
+            user_token: Optional JWT token for user-scoped operations.
+                       If provided, creates a client that respects RLS policies.
+                       If not provided, uses service role client (for background tasks).
+        """
         self.settings = get_settings()
         self.schema = get_schema()
-        # Use admin client to bypass RLS (endpoints are protected by authentication)
-        self.supabase = self._get_admin_client()
+        # Create appropriate client based on whether user token is provided
+        if user_token:
+            # User-scoped client - RLS policies will be enforced
+            self.supabase = self._get_user_client(user_token)
+        else:
+            # Admin client - RLS bypassed (for background tasks like email sending)
+            self.supabase = self._get_admin_client()
         self.repository = AnnouncementRepository(self.supabase, self.schema)
 
     def _get_admin_client(self) -> Client:
         """
         Get Supabase client with service role key for admin operations.
+        This bypasses RLS policies and should only be used for background tasks.
 
         Returns:
             Client: Supabase client with admin privileges
         """
         return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
+
+    def _get_user_client(self, user_token: str) -> Client:
+        """
+        Get Supabase client with user JWT token for RLS-enforced operations.
+        This client respects Row Level Security policies.
+
+        Args:
+            user_token: JWT token from the Authorization header
+
+        Returns:
+            Client: Supabase client with user-level access
+        """
+        client = create_client(
+            self.settings.SUPABASE_URL,
+            self.settings.SUPABASE_KEY  # Use anon/public key, not service role
+        )
+        # Set the auth token for this client so RLS policies apply
+        client.postgrest.auth(user_token)
+        return client
 
     def _get_all_users(self) -> list[dict]:
         """
@@ -187,6 +220,9 @@ class AnnouncementService:
         This is a blocking operation that runs asynchronously via FastAPI BackgroundTasks.
         It fetches all recipients, filters them, and sends emails with rate limiting.
 
+        Note: This method uses an admin client to fetch all users, as background tasks
+        need elevated privileges.
+
         Args:
             announcement_id: ID of the announcement
             title: Announcement title
@@ -195,8 +231,23 @@ class AnnouncementService:
             base_url: Base URL for view links
         """
         try:
-            # Fetch all users with their roles and preferences
-            all_users = self._get_all_users()
+            # Create admin client for background task (needs to fetch all users)
+            # Note: Cannot reuse self.supabase as it may be user-scoped
+            admin_client = self._get_admin_client()
+            
+            # Fetch all users with their roles and preferences using admin client
+            try:
+                result = (
+                    admin_client
+                    .schema(self.schema)
+                    .table("users")
+                    .select("id, email, role, notification_preferences, first_name, last_name")
+                    .execute()
+                )
+                all_users = result.data if result.data else []
+            except Exception as e:
+                logger.error(f"Error fetching users in background task: {e}")
+                raise
 
             # Filter by priority and role
             recipients = self._filter_recipients_by_priority(all_users, priority)
