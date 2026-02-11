@@ -35,12 +35,13 @@ security = HTTPBearer()
 # Announcement Endpoints
 # ============================================================================
 
+
 @router.post(
     "/",
     response_model=CreateAnnouncementResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Announcement",
-    description="Create a new announcement (authenticated users)",
+    description="Create a new announcement (co-president only)",
 )
 async def create_announcement(
     request: AnnouncementCreate,
@@ -51,7 +52,7 @@ async def create_announcement(
     Create a new announcement in the system.
 
     **Requirements:**
-    - Caller must be authenticated (RLS enforces co-president permission)
+    - Caller must be a co-president (admin)
 
     **Request Body:**
     - title: Announcement title (required)
@@ -67,6 +68,7 @@ async def create_announcement(
     # Use internal users.id for created_by FK
     # Convert to legacy format for service
     from .models import CreateAnnouncementRequest
+
     legacy_request = CreateAnnouncementRequest(
         title=request.title,
         content=request.content,
@@ -74,7 +76,7 @@ async def create_announcement(
         send_email=request.send_email,
         expires_at=None,
     )
-    return service.create_announcement(legacy_request, current_user.id)
+    return service.create_announcement(legacy_request, current_user.id, background_tasks)
 
 
 @router.post(
@@ -101,7 +103,7 @@ async def send_announcement_email(
          - "urgent_only": only receives urgent announcements
          - "none": never receives announcements
          Urgent priority bypasses preferences and sends to everyone.
-    3. Sends emails via Supabase
+    3. Sends emails via Resend
     4. Optionally creates announcement record if send_email=true
 
     **Request Body:**
@@ -219,7 +221,7 @@ async def update_announcement(
     Update an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Request Body:**
     - title: New title (optional)
@@ -255,7 +257,7 @@ async def delete_announcement(
     Delete an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Returns:**
     - Success message

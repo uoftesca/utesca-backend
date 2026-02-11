@@ -22,38 +22,28 @@ AnnouncementPriority = Literal["normal", "urgent"]
 # Base Models
 # ============================================================================
 
+
 class AnnouncementBase(BaseModel):
     """Base model for announcements with common fields."""
 
     title: str = Field(..., min_length=1, max_length=500, description="Announcement title")
     content: str = Field(..., min_length=1, description="Announcement content/message body")
-    priority: AnnouncementPriority = Field(
-        "normal",
-        description="Announcement priority: 'normal' or 'urgent'"
-    )
+    priority: AnnouncementPriority = Field("normal", description="Announcement priority: 'normal' or 'urgent'")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 # ============================================================================
 # Request Models
 # ============================================================================
 
+
 class AnnouncementCreate(AnnouncementBase):
     """Request to create an announcement (inherits from AnnouncementBase)."""
 
-    send_email: bool = Field(
-        False,
-        description="If true, sends email notification to all users"
-    )
+    send_email: bool = Field(False, description="If true, sends email notification to all users")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class AnnouncementUpdate(BaseModel):
@@ -63,19 +53,13 @@ class AnnouncementUpdate(BaseModel):
     content: Optional[str] = Field(None, min_length=1, description="Announcement content/message body")
     priority: Optional[AnnouncementPriority] = Field(None, description="Announcement priority")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class AnnouncementReadStatusUpdate(BaseModel):
     """Request to mark announcement as read (empty body - action is idempotent)."""
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 # Legacy model for backward compatibility with existing service methods
@@ -84,24 +68,11 @@ class CreateAnnouncementRequest(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=500, description="Announcement title")
     content: Optional[str] = Field(None, description="Announcement content/message body")
-    priority: AnnouncementPriority = Field(
-        "normal",
-        description="Announcement priority: 'normal' or 'urgent'"
-    )
-    send_email: bool = Field(
-        False,
-        description="If true, sends email notification to all users"
-    )
-    expires_at: Optional[datetime] = Field(
-        None,
-        description="When this announcement expires (optional)"
-    )
+    priority: AnnouncementPriority = Field("normal", description="Announcement priority: 'normal' or 'urgent'")
+    send_email: bool = Field(False, description="If true, sends email notification to all users")
+    expires_at: Optional[datetime] = Field(None, description="When this announcement expires (optional)")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
-
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class SendAnnouncementEmailRequest(BaseModel):
@@ -110,19 +81,16 @@ class SendAnnouncementEmailRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Email subject line")
     content: str = Field(..., min_length=1, description="Email message body (plain text)")
     priority: AnnouncementPriority = Field(
-        "normal",
-        description="Announcement priority: 'normal' respects preferences, 'urgent' sends to everyone"
+        "normal", description="Announcement priority: 'normal' respects preferences, 'urgent' sends to everyone"
     )
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 # ============================================================================
 # Response Models
 # ============================================================================
+
 
 class AnnouncementEmailStats(BaseModel):
     """Statistics about an announcement email send."""
@@ -132,10 +100,7 @@ class AnnouncementEmailStats(BaseModel):
     emails_skipped: int = Field(..., description="Number of users who skipped based on preferences")
     failed_emails: int = Field(..., description="Number of emails that failed to send")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class CreateAnnouncementResponse(BaseModel):
@@ -146,10 +111,7 @@ class CreateAnnouncementResponse(BaseModel):
     announcement_id: UUID = Field(..., description="ID of the created announcement")
     created_at: datetime = Field(..., description="When the announcement was created")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class SendAnnouncementResponse(BaseModel):
@@ -160,10 +122,7 @@ class SendAnnouncementResponse(BaseModel):
     stats: AnnouncementEmailStats = Field(..., description="Email delivery statistics")
     announcement_id: Optional[UUID] = Field(None, description="ID of the announcement record")
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class AnnouncementResponse(BaseModel):
@@ -176,16 +135,9 @@ class AnnouncementResponse(BaseModel):
     created_by: UUID
     created_at: datetime
     updated_at: Optional[datetime] = None
-    is_read: bool = Field(
-        False,
-        description="Whether the current user has marked this announcement as read"
-    )
+    is_read: bool = Field(False, description="Whether the current user has marked this announcement as read")
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
 class AnnouncementWithReadCount(BaseModel):
@@ -201,11 +153,7 @@ class AnnouncementWithReadCount(BaseModel):
     total_reads: int = Field(..., description="Total number of users who have read this announcement")
     unread_count: int = Field(..., description="Total number of users who have NOT read this announcement")
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
 class AnnouncementReadResponse(BaseModel):
@@ -216,11 +164,7 @@ class AnnouncementReadResponse(BaseModel):
     user_id: UUID
     read_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
 class AnnouncementListResponse(BaseModel):
@@ -231,7 +175,4 @@ class AnnouncementListResponse(BaseModel):
     page: Optional[int] = None
     page_size: Optional[int] = None
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
