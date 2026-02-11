@@ -19,6 +19,7 @@ from .models import (
     AnnouncementEmailStats,
     AnnouncementListResponse,
     AnnouncementReadResponse,
+    AnnouncementResponse,
     CreateAnnouncementRequest,
     CreateAnnouncementResponse,
     SendAnnouncementEmailRequest,
@@ -27,6 +28,31 @@ from .models import (
 from .repository import AnnouncementRepository
 
 logger = logging.getLogger(__name__)
+
+
+def _redact_email(email: str) -> str:
+    """
+    Redact email address for logging to protect PII.
+    
+    Shows first 2 chars of local part and domain, masks the rest.
+    Example: test.user@example.com -> te***@ex***
+    
+    Args:
+        email: Email address to redact
+        
+    Returns:
+        Redacted email string
+    """
+    if not email or "@" not in email:
+        return "***"
+    
+    try:
+        local, domain = email.split("@", 1)
+        local_redacted = (local[:2] + "***") if len(local) > 2 else "***"
+        domain_redacted = (domain[:2] + "***") if len(domain) > 2 else "***"
+        return f"{local_redacted}@{domain_redacted}"
+    except Exception:
+        return "***"
 
 
 class AnnouncementService:
@@ -113,24 +139,26 @@ class AnnouncementService:
 
         for user in users:
             email = user.get("email", "unknown")
+            redacted_email = _redact_email(email)
 
             # Urgent announcements go to everyone
             if priority == "urgent":
                 filtered.append(user)
-                logger.debug(f"Including {email} - urgent announcement bypasses preferences")
+                logger.debug(f"Including {redacted_email} - urgent announcement bypasses preferences")
                 continue
 
             # Normal announcements: check notification preferences
             prefs = user.get("notification_preferences")
-            logger.debug(f"User {email} notification_preferences: {prefs} (type: {type(prefs)})")
+            prefs_type = type(prefs).__name__
+            logger.debug(f"User {redacted_email} has notification_preferences of type: {prefs_type}")
 
             if isinstance(prefs, dict):
                 announcements_pref = prefs.get("announcements", "all")
             else:
                 announcements_pref = "all"  # Default to "all" if no preferences
-                logger.warning(f"User {email} has non-dict notification_preferences: {prefs}")
+                logger.debug(f"User {redacted_email} has non-dict notification_preferences (type: {prefs_type}), defaulting to 'all'")
 
-            logger.debug(f"User {email} announcements preference: {announcements_pref}")
+            logger.debug(f"User {redacted_email} announcements preference: {announcements_pref}")
 
             if self._should_send_to_user(announcements_pref, priority):
                 filtered.append(user)
@@ -139,7 +167,7 @@ class AnnouncementService:
                 )
             else:
                 skipped_by_pref += 1
-                logger.info(f"Skipping {email} - preference blocks (pref: {announcements_pref}, priority: {priority})")
+                logger.debug(f"Skipping {redacted_email} - preference blocks (pref: {announcements_pref}, priority: {priority})")
 
         logger.info(f"Filtering complete: {len(filtered)} recipients, {skipped_by_pref} skipped by preferences")
 
@@ -266,8 +294,9 @@ class AnnouncementService:
                     failed_emails += 1
 
             except Exception as e:
+                redacted_email = _redact_email(email) if email else "unknown"
                 logger.error(
-                    f"Error sending announcement email to {email}: {str(e)}",
+                    f"Error sending announcement email to {redacted_email}: {str(e)}",
                     exc_info=True,
                 )
                 failed_emails += 1
@@ -325,6 +354,7 @@ class AnnouncementService:
         last_send_time: float = 0.0
 
         for user in users:
+            email = None
             try:
                 email = user.get("email")
                 if not email:
@@ -360,13 +390,14 @@ class AnnouncementService:
 
                 if success:
                     emails_sent += 1
-                    logger.info(f"Announcement email sent to {email}")
+                    logger.debug(f"Announcement email sent to {_redact_email(email)}")
                 else:
                     failed_emails += 1
-                    logger.warning(f"Failed to send announcement email to {email}")
+                    logger.debug(f"Failed to send announcement email to {_redact_email(email)}")
 
             except Exception as e:
-                logger.error(f"Error sending announcement email to user: {e}", exc_info=True)
+                redacted_email = _redact_email(email) if email else "unknown"
+                logger.error(f"Error sending announcement email to {redacted_email}: {e}", exc_info=True)
                 failed_emails += 1
 
         logger.info(
@@ -651,6 +682,63 @@ class AnnouncementService:
                 detail="Failed to fetch announcement",
             ) from e
 
+    def _check_update_delete_permission(
+        self,
+        announcement: AnnouncementResponse,
+        current_user_id: UUID,
+    ) -> None:
+        """
+        Check if the current user has permission to update/delete an announcement.
+
+        Permission is granted if:
+        - User is a co-president, OR
+        - User is the creator of the announcement
+
+        Args:
+            announcement: The announcement to check permission for
+            current_user_id: ID of the current user
+
+        Raises:
+            HTTPException: If user lacks permission
+        """
+        # Get current user's role from the database
+        try:
+            user_result = (
+                self.supabase
+                .schema(self.schema)
+                .table("users")
+                .select("role")
+                .eq("id", str(current_user_id))
+                .execute()
+            )
+
+            if not user_result.data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found",
+                )
+
+            user_role = user_result.data[0].get("role")
+
+            # Check permission: co-president OR creator
+            is_co_president = user_role == "co_president"
+            is_creator = str(announcement.created_by) == str(current_user_id)
+
+            if not (is_co_president or is_creator):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only co-presidents or the announcement creator can perform this action",
+                )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error checking user permissions: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to verify permissions",
+            ) from e
+
     def update_announcement(
         self,
         announcement_id: UUID,
@@ -684,9 +772,8 @@ class AnnouncementService:
                     detail="Announcement not found",
                 )
 
-            # Permission check is handled by RLS policies, but we can add app-level check
-            # Note: RLS will enforce this at DB level, this is just for better error messages
-            # For now, trust RLS policies
+            # Explicit permission check (service uses admin client that bypasses RLS)
+            self._check_update_delete_permission(announcement, current_user_id)
 
             # Update announcement
             updated = self.repository.update_announcement(
@@ -740,7 +827,8 @@ class AnnouncementService:
                     detail="Announcement not found",
                 )
 
-            # Permission check is handled by RLS policies
+            # Explicit permission check (service uses admin client that bypasses RLS)
+            self._check_update_delete_permission(announcement, current_user_id)
 
             # Delete announcement
             deleted = self.repository.delete_announcement(announcement_id)

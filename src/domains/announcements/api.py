@@ -98,7 +98,7 @@ async def send_announcement_email(
          - "urgent_only": only receives urgent announcements
          - "none": never receives announcements
          Urgent priority bypasses preferences and sends to everyone.
-    3. Sends emails via Supabase
+    3. Sends emails via Resend
     4. Optionally creates announcement record if send_email=true
 
     **Request Body:**
@@ -208,7 +208,7 @@ async def update_announcement(
     Update an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Request Body:**
     - title: New title (optional)
@@ -242,7 +242,7 @@ async def delete_announcement(
     Delete an announcement.
 
     **Requirements:**
-    - Caller must be co-president OR the creator of the announcement (enforced by RLS)
+    - Caller must be co-president OR the creator of the announcement
 
     **Returns:**
     - Success message

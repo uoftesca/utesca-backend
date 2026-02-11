@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS {schema}.announcements (
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT announcements_pkey PRIMARY KEY (id),
     CONSTRAINT announcements_created_by_fkey FOREIGN KEY (created_by)
-        REFERENCES auth.users (id) ON DELETE CASCADE
+        REFERENCES {schema}.users (id) ON DELETE CASCADE
 );
 
 -- Indexes for common queries
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS {schema}.announcement_reads (
     CONSTRAINT announcement_reads_announcement_id_fkey
         FOREIGN KEY (announcement_id) REFERENCES {schema}.announcements (id) ON DELETE CASCADE,
     CONSTRAINT announcement_reads_user_id_fkey
-        FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES {schema}.users (id) ON DELETE CASCADE,
     CONSTRAINT announcement_reads_unique UNIQUE (announcement_id, user_id)
 );
 
@@ -146,14 +146,22 @@ DROP POLICY IF EXISTS "announcement_reads_insert_own" ON {schema}.announcement_r
 CREATE POLICY "announcement_reads_insert_own"
     ON {schema}.announcement_reads FOR INSERT
     TO authenticated
-    WITH CHECK (user_id = auth.uid());
+    WITH CHECK (
+        user_id IN (
+            SELECT id FROM {schema}.users WHERE user_id = auth.uid()
+        )
+    );
 
 -- Policy: Users can only view their own read status
 DROP POLICY IF EXISTS "announcement_reads_select_own" ON {schema}.announcement_reads;
 CREATE POLICY "announcement_reads_select_own"
     ON {schema}.announcement_reads FOR SELECT
     TO authenticated
-    USING (user_id = auth.uid());
+    USING (
+        user_id IN (
+            SELECT id FROM {schema}.users WHERE user_id = auth.uid()
+        )
+    );
 
 
 -- ============================================================================

@@ -541,7 +541,7 @@ class RegistrationService:
             event: The event object
             previous_status: Status before decline ("confirmed" or "accepted")
             notification_types: List of notification preference types to check
-                              (e.g., ["rsvp_changes", "announcements"]. Defaults to ["rsvp_changes"]
+                              (e.g., ["rsvp_changes", "announcements"]). Defaults to ["rsvp_changes"]
         """
         import logging
 
