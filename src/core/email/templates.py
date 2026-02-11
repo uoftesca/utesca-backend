@@ -3,6 +3,7 @@ Email template builders for various email types.
 Returns both HTML and plain text versions for better email client compatibility.
 """
 
+import html
 from typing import Dict, Literal, Optional, Tuple
 
 from core.config import get_settings
@@ -768,8 +769,20 @@ def build_announcement_email(
     Returns:
         Tuple of (html_body, text_body)
     """
-    greeting = f"Hi {full_name}," if full_name else "Hello,"
+    # Escape HTML to prevent XSS vulnerabilities
+    escaped_name = html.escape(full_name) if full_name else None
+    escaped_title = html.escape(announcement_title)
+    escaped_content = html.escape(announcement_content)
+    
+    # HTML greeting (with escaped name)
+    html_greeting = f"Hi {escaped_name}," if escaped_name else "Hello,"
+    # Plain text greeting (with unescaped name)
+    text_greeting = f"Hi {full_name}," if full_name else "Hello,"
     priority_badge = "[URGENT] " if priority == "urgent" else ""
+
+    # Escape HTML in announcement content to prevent XSS attacks
+    # Uses default quote=True since content is inserted in text nodes, not attributes
+    escaped_content = html.escape(announcement_content)
 
     # HTML version
     if priority == "urgent":
@@ -789,29 +802,29 @@ def build_announcement_email(
                             </table>
 
                             <p style="font-size: 16px; color: #333333; margin: 20px 0 20px 0;">
-                                {greeting}
+                                {html_greeting}
                             </p>
 
                             <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
-                                {announcement_content}
+                                {escaped_content}
                             </p>
         """
     else:
         # Normal announcements
         body_content = f"""
                             <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
-                                {greeting}
+                                {html_greeting}
                             </p>
 
                             <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
-                                {announcement_content}
+                                {escaped_content}
                             </p>
         """
 
-    html_body = _build_email_html(priority_badge + announcement_title, body_content)
+    html_body = _build_email_html(priority_badge + escaped_title, body_content)
 
     # Plain text version
-    text_body = f"""{greeting}
+    text_body = f"""{text_greeting}
 
 {announcement_content}
 
@@ -851,6 +864,10 @@ def build_announcement_notification_email(
     view_link = f"{base_url}/announcements/{announcement_id}"
     priority_upper = priority.upper()
 
+    # Escape HTML in announcement content to prevent XSS attacks
+    # Uses default quote=True since content is inserted in text nodes, not attributes
+    escaped_content = html.escape(announcement_content)
+
     # Priority badge styling
     if priority == "urgent":
         priority_badge = '<span style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; margin-right: 8px;">URGENT</span>'
@@ -873,7 +890,7 @@ def build_announcement_notification_email(
                                     {announcement_title}
                                 </h2>
                                 <div style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0;">
-                                    {announcement_content}
+                                    {escaped_content}
                                 </div>
                             </div>
 
