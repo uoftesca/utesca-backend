@@ -19,6 +19,7 @@ from .models import (
     AnnouncementEmailStats,
     AnnouncementListResponse,
     AnnouncementReadResponse,
+    AnnouncementResponse,
     CreateAnnouncementRequest,
     CreateAnnouncementResponse,
     SendAnnouncementEmailRequest,
@@ -687,6 +688,63 @@ class AnnouncementService:
                 detail="Failed to fetch announcement",
             ) from e
 
+    def _check_update_delete_permission(
+        self,
+        announcement: AnnouncementResponse,
+        current_user_id: UUID,
+    ) -> None:
+        """
+        Check if the current user has permission to update/delete an announcement.
+
+        Permission is granted if:
+        - User is a co-president, OR
+        - User is the creator of the announcement
+
+        Args:
+            announcement: The announcement to check permission for
+            current_user_id: ID of the current user
+
+        Raises:
+            HTTPException: If user lacks permission
+        """
+        # Get current user's role from the database
+        try:
+            user_result = (
+                self.supabase
+                .schema(self.schema)
+                .table("users")
+                .select("role")
+                .eq("id", str(current_user_id))
+                .execute()
+            )
+
+            if not user_result.data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found",
+                )
+
+            user_role = user_result.data[0].get("role")
+
+            # Check permission: co-president OR creator
+            is_co_president = user_role == "co_president"
+            is_creator = str(announcement.created_by) == str(current_user_id)
+
+            if not (is_co_president or is_creator):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only co-presidents or the announcement creator can perform this action",
+                )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error checking user permissions: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to verify permissions",
+            ) from e
+
     def update_announcement(
         self,
         announcement_id: UUID,
@@ -720,9 +778,8 @@ class AnnouncementService:
                     detail="Announcement not found",
                 )
 
-            # Permission check is handled by RLS policies, but we can add app-level check
-            # Note: RLS will enforce this at DB level, this is just for better error messages
-            # For now, trust RLS policies
+            # Explicit permission check (service uses admin client that bypasses RLS)
+            self._check_update_delete_permission(announcement, current_user_id)
 
             # Update announcement
             updated = self.repository.update_announcement(
@@ -776,7 +833,8 @@ class AnnouncementService:
                     detail="Announcement not found",
                 )
 
-            # Permission check is handled by RLS policies
+            # Explicit permission check (service uses admin client that bypasses RLS)
+            self._check_update_delete_permission(announcement, current_user_id)
 
             # Delete announcement
             deleted = self.repository.delete_announcement(announcement_id)
