@@ -780,6 +780,10 @@ def build_announcement_email(
     text_greeting = f"Hi {full_name}," if full_name else "Hello,"
     priority_badge = "[URGENT] " if priority == "urgent" else ""
 
+    # Escape HTML in announcement content to prevent XSS attacks
+    # Uses default quote=True since content is inserted in text nodes, not attributes
+    escaped_content = html.escape(announcement_content)
+
     # HTML version
     if priority == "urgent":
         # Urgent announcements get a warning box
@@ -860,6 +864,10 @@ def build_announcement_notification_email(
     view_link = f"{base_url}/announcements/{announcement_id}"
     priority_upper = priority.upper()
 
+    # Escape HTML in announcement content to prevent XSS attacks
+    # Uses default quote=True since content is inserted in text nodes, not attributes
+    escaped_content = html.escape(announcement_content)
+
     # Priority badge styling
     if priority == "urgent":
         priority_badge = '<span style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; margin-right: 8px;">URGENT</span>'
@@ -882,7 +890,7 @@ def build_announcement_notification_email(
                                     {announcement_title}
                                 </h2>
                                 <div style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0;">
-                                    {announcement_content}
+                                    {escaped_content}
                                 </div>
                             </div>
 
