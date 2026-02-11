@@ -38,8 +38,8 @@ TO authenticated
 WITH CHECK (
     EXISTS (
         SELECT 1 FROM users
-        WHERE users.user_id = auth.uid()
-        AND users.role = 'co-president'
+        WHERE users.id = auth.uid()
+        AND users.role = 'co_president'
     )
 );
 
@@ -51,15 +51,15 @@ TO authenticated
 USING (
     EXISTS (
         SELECT 1 FROM users
-        WHERE users.user_id = auth.uid()
-        AND (users.role = 'co-president' OR announcements.created_by = users.id)
+        WHERE users.id = auth.uid()
+        AND (users.role = 'co_president' OR announcements.created_by = users.id)
     )
 )
 WITH CHECK (
     EXISTS (
         SELECT 1 FROM users
-        WHERE users.user_id = auth.uid()
-        AND (users.role = 'co-president' OR announcements.created_by = users.id)
+        WHERE users.id = auth.uid()
+        AND (users.role = 'co_president' OR announcements.created_by = users.id)
     )
 );
 
@@ -71,8 +71,8 @@ TO authenticated
 USING (
     EXISTS (
         SELECT 1 FROM users
-        WHERE users.user_id = auth.uid()
-        AND (users.role = 'co-president' OR announcements.created_by = users.id)
+        WHERE users.id = auth.uid()
+        AND (users.role = 'co_president' OR announcements.created_by = users.id)
     )
 );
 
@@ -120,7 +120,7 @@ USING (
 -- Notes:
 -- ============================================================================
 -- 1. auth.uid() returns the authenticated user's UUID from JWT token
--- 2. Co-presidents are identified by users.role = 'co-president'
+-- 2. Co-presidents are identified by users.role = 'co_president'
 -- 3. Creators are identified by announcements.created_by matching users.id
 -- 4. All policies require authentication (TO authenticated)
 -- 5. announcement_reads has no UPDATE policy - reads are immutable once created
