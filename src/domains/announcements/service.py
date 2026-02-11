@@ -6,7 +6,7 @@ This module handles creating announcements and sending announcement emails to al
 
 import logging
 import time
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 from uuid import UUID
 
 from fastapi import BackgroundTasks, HTTPException, status
@@ -107,7 +107,7 @@ class AnnouncementService:
         client.postgrest.auth(user_token)
         return client
 
-    def _get_all_users(self) -> list[dict]:
+    def _get_all_users(self) -> list[dict[str, Any]]:
         """
         Retrieve all users from the database with roles and notification preferences.
 
@@ -124,7 +124,9 @@ class AnnouncementService:
                 .select("id, email, role, notification_preferences, first_name, last_name")
                 .execute()
             )
-            return result.data if result.data else []  # type: ignore[return-value]
+            # supabase-py types result.data as a JSON union; we know this query
+            # returns a list of row dictionaries.
+            return cast(list[dict[str, Any]], result.data or [])
         except Exception as e:
             logger.error(f"Error fetching users: {e}")
             raise HTTPException(
@@ -250,7 +252,9 @@ class AnnouncementService:
                     .select("id, email, role, notification_preferences, first_name, last_name")
                     .execute()
                 )
-                all_users = result.data if result.data else []
+                # supabase-py types result.data as a JSON union; this query returns
+                # a list of row dictionaries.
+                all_users: list[dict[str, Any]] = cast(list[dict[str, Any]], result.data or [])
             except Exception as e:
                 logger.error(f"Error fetching users in background task: {e}")
                 raise
@@ -768,13 +772,23 @@ class AnnouncementService:
                 .execute()
             )
 
-            if not user_result.data:
+            # supabase-py types `data` as a JSON union, so we need to narrow it.
+            data = user_result.data
+            if not isinstance(data, list) or not data:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User not found",
                 )
 
-            user_role = user_result.data[0].get("role")
+            first_row = data[0]
+            if not isinstance(first_row, dict):
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Unexpected user row format",
+                )
+
+            role_value = first_row.get("role")
+            user_role = role_value if isinstance(role_value, str) else None
 
             # Check permission: co-president OR creator
             is_co_president = user_role == "co_president"
