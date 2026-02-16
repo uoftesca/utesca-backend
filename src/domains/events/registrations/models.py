@@ -87,7 +87,7 @@ class RegistrationWithFilesResponse(RegistrationResponse):
 class RegistrationStatusUpdate(BaseModel):
     """Portal status update request."""
 
-    status: Literal["accepted", "rejected"]
+    status: Literal["accepted", "rejected", "waitlist"]
 
     model_config = ConfigDict(
         alias_generator=to_camel,
