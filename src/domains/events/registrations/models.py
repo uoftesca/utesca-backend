@@ -142,6 +142,7 @@ class RegistrationStatusBreakdown(BaseModel):
     confirmed: int
     not_attending: int
     checked_in: int
+    waitlist: int
 
     model_config = ConfigDict(
         alias_generator=to_camel,
