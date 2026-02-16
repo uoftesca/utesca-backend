@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed", "not_attending"]
+RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed", "not_attending", "waitlist"]
 
 
 class FileMeta(BaseModel):
