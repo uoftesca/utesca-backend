@@ -278,8 +278,6 @@ class RegistrationService:
 
         self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
 
-        
-
         return registration
 
     def _extract_name(self, form_data: Dict[str, Any]) -> Optional[str]:
