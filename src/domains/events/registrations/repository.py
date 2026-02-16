@@ -100,6 +100,20 @@ class RegistrationsRepository:
         )
         return result.count or 0
 
+    def count_by_status(self, event_id: UUID, status: str) -> int:
+        """
+        Return the number of registrations for an event with a specific status.
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("id", count=CountMethod.exact)
+            .eq("event_id", str(event_id))
+            .eq("status", status)
+            .execute()
+        )
+        return result.count or 0
+
     def update_status(
         self,
         registration_id: UUID,

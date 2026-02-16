@@ -259,6 +259,9 @@ class RegistrationService:
 
         auto_accept = bool(form_schema.get("auto_accept"))
         status_value: RegistrationStatus = "accepted" if auto_accept else "submitted"
+        confirmed_count = self.reg_repo.count_by_status(event.id, "confirmed")        
+        if event.max_capacity != None and confirmed_count >= event.max_capacity and auto_accept:
+            status_value: RegistrationStatus = "waitlist"
 
         registration = self.reg_repo.create_registration(
             event_id=event.id,
@@ -274,6 +277,8 @@ class RegistrationService:
         )
 
         self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
+
+        
 
         return registration
 
