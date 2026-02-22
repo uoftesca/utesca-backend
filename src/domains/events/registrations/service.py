@@ -276,7 +276,7 @@ class RegistrationService:
             event_date=event.date_time,
         )
 
-        self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
+        # self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
 
         return registration
 
