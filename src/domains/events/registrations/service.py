@@ -833,6 +833,68 @@ class RegistrationService:
             # Log but don't raise - email failures should not block rejection
             logger.error(f"Error sending rejection email for registration {registration.id}: {str(e)}", exc_info=True)
 
+    def send_waitlisted_email(
+        self,
+        registration: RegistrationResponse,
+        event: EventResponse,
+    ) -> None:
+        """
+        Send waitlisted email after VP/Admin waitlists application.
+
+        Email sending failures are logged but do not block the waitlisting.
+        This method is called as a background task.
+
+        Args:
+            registration: The registration record (status = waitlist)
+            event: The event object (includes custom templates if set)
+        """
+        import logging
+
+        from core.email import EmailService
+        from utils.timezone import format_datetime_toronto
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Extract email from form_data
+            email = registration.form_data.get("email")
+            if not email:
+                logger.warning(
+                    f"No email found in form_data for registration {registration.id}. Skipping waitlisted email."
+                )
+                return
+
+            # Extract user's name (with fallback)
+            full_name = self._extract_name(registration.form_data)
+
+            # Format event datetime to Toronto timezone
+            event_datetime_str = format_datetime_toronto(event.date_time)
+
+            # Initialize email service
+            email_service = EmailService()
+
+            # Get custom template if exists
+            custom_template = event.waitlisted_email_template
+
+            # Send waitlisted email
+            success = email_service.send_application_waitlisted(
+                to=email,
+                full_name=full_name,
+                event_title=event.title,
+                event_datetime=event_datetime_str,
+                event_location=event.location or "TBA",
+                custom_template=custom_template,
+            )
+
+            if success:
+                logger.info(f"Waitlisted email sent successfully for registration {registration.id} to {email}")
+            else:
+                logger.warning(f"Failed to send waitlisted email for registration {registration.id} to {email}")
+
+        except Exception as e:
+            # Log but don't raise - email failures should not block rejection
+            logger.error(f"Error sending rejection email for registration {registration.id}: {str(e)}", exc_info=True)
+
     def accept_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)
         if not registration:
@@ -876,6 +938,29 @@ class RegistrationService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
 
         # Add RSVP link (will be null for rejected status)
+        self._add_rsvp_link(updated)
+
+        return updated
+    
+    def waitlist_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
+        registration = self.reg_repo.get_registration_by_id(registration_id)
+        if not registration:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REGISTRATION_NOT_FOUND)
+        if registration.status != "submitted":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only submitted registrations can be waitlisted",
+            )
+        updated = self.reg_repo.update_status(
+            registration_id=registration_id,
+            status="waitlist",
+            reviewer_id=reviewer_id,
+            reviewed_at=datetime.now(timezone.utc),
+        )
+        if not updated:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
+
+        # Add RSVP link (will be null for waitlisted status)
         self._add_rsvp_link(updated)
 
         return updated

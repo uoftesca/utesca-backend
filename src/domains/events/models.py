@@ -123,6 +123,7 @@ class EventResponse(BaseModel):
     registration_link: Optional[str] = None
     acceptance_email_template: Optional[EmailTemplate] = None
     rejection_email_template: Optional[EmailTemplate] = None
+    waitlist_email_template: Optional[EmailTemplate] = None
 
     model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 

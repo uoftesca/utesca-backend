@@ -136,6 +136,18 @@ async def update_status(
                 event=event,
             )
 
+    elif payload.status == "waitlist":
+        updated = service.reject_application(registration_id, current_user.id)
+
+        # Queue rejection email
+        event = service.events_repo.get_by_id(updated.event_id)
+        if event:
+            background_tasks.add_task(
+                service.send_rejection_email,
+                registration=updated,
+                event=event,
+            )
+
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
 
