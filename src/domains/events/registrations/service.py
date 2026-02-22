@@ -667,8 +667,7 @@ class RegistrationService:
             # Send subscriber notifications if declined from confirmed status
             if previous_status == "confirmed":
                 self.send_decline_notification_to_subscribed_users(
-                    registration, event, previous_status,
-                    notification_types=["rsvp_changes", "announcements"]
+                    registration, event, previous_status, notification_types=["rsvp_changes", "announcements"]
                 )
 
         except Exception as e:

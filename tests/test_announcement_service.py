@@ -14,7 +14,7 @@ Run with:
 """
 
 from datetime import datetime, timezone
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
@@ -27,7 +27,6 @@ from domains.announcements.models import (
     AnnouncementWithReadCount,
 )
 from domains.announcements.service import AnnouncementService
-
 
 # ============================================================================
 # Fixtures
@@ -116,9 +115,7 @@ class TestCreateAnnouncement:
         )
         assert result == sample_announcement
 
-    def test_queues_email_when_send_email_is_true(
-        self, announcement_service, mock_repository, sample_announcement
-    ):
+    def test_queues_email_when_send_email_is_true(self, announcement_service, mock_repository, sample_announcement):
         """Should add background task when send_email=True."""
         mock_repository.create_announcement.return_value = sample_announcement
         request = AnnouncementCreate(title="Test", content="Body", priority="urgent", send_email=True)
@@ -128,9 +125,7 @@ class TestCreateAnnouncement:
 
         background_tasks.add_task.assert_called_once()
 
-    def test_skips_email_when_send_email_is_false(
-        self, announcement_service, mock_repository, sample_announcement
-    ):
+    def test_skips_email_when_send_email_is_false(self, announcement_service, mock_repository, sample_announcement):
         """Should not queue background task when send_email=False."""
         mock_repository.create_announcement.return_value = sample_announcement
         request = AnnouncementCreate(title="Test", content="Body", priority="normal", send_email=False)
@@ -247,9 +242,7 @@ class TestFilterRecipientsByPriority:
 class TestMarkAsRead:
     """Tests for mark_as_read idempotency."""
 
-    def test_creates_read_record_when_not_yet_read(
-        self, announcement_service, mock_repository, sample_read_record
-    ):
+    def test_creates_read_record_when_not_yet_read(self, announcement_service, mock_repository, sample_read_record):
         """Should insert a new read record when the announcement hasn't been read."""
         mock_repository.has_user_read.return_value = False
         mock_repository.mark_as_read.return_value = sample_read_record
@@ -259,9 +252,7 @@ class TestMarkAsRead:
         mock_repository.mark_as_read.assert_called_once()
         assert result == sample_read_record
 
-    def test_returns_existing_record_when_already_read(
-        self, announcement_service, mock_repository, sample_read_record
-    ):
+    def test_returns_existing_record_when_already_read(self, announcement_service, mock_repository, sample_read_record):
         """Should return existing read record without duplicate insert."""
         announcement_id = sample_read_record.announcement_id
         user_id = sample_read_record.user_id
@@ -292,9 +283,7 @@ class TestMarkAsRead:
 class TestGetAnnouncements:
     """Tests for get_announcements with read count aggregation."""
 
-    def test_returns_announcements_with_read_counts(
-        self, announcement_service, mock_repository, sample_announcement
-    ):
+    def test_returns_announcements_with_read_counts(self, announcement_service, mock_repository, sample_announcement):
         """Should enrich announcements with total_reads and unread_count."""
         user_id = uuid4()
         aid = str(sample_announcement.id)
@@ -329,9 +318,7 @@ class TestGetAnnouncements:
 
         assert result.announcements[0].is_read is True
 
-    def test_is_read_false_when_user_has_not_read(
-        self, announcement_service, mock_repository, sample_announcement
-    ):
+    def test_is_read_false_when_user_has_not_read(self, announcement_service, mock_repository, sample_announcement):
         """is_read should be False when the current user has not read the announcement."""
         mock_repository.get_all.return_value = ([sample_announcement], 1)
         mock_repository.get_all_read_counts.return_value = {}
@@ -370,9 +357,7 @@ class TestGetAnnouncements:
 class TestGetAnnouncement:
     """Tests for get_announcement (single)."""
 
-    def test_returns_announcement_with_is_read_false(
-        self, announcement_service, mock_repository, sample_announcement
-    ):
+    def test_returns_announcement_with_is_read_false(self, announcement_service, mock_repository, sample_announcement):
         """Should return announcement with is_read=False when user hasn't read it."""
         mock_repository.get_announcement.return_value = sample_announcement
         mock_repository.has_user_read.return_value = False
@@ -381,9 +366,7 @@ class TestGetAnnouncement:
 
         assert result.is_read is False
 
-    def test_returns_announcement_with_is_read_true(
-        self, announcement_service, mock_repository, sample_announcement
-    ):
+    def test_returns_announcement_with_is_read_true(self, announcement_service, mock_repository, sample_announcement):
         """Should return announcement with is_read=True when user has read it."""
         mock_repository.get_announcement.return_value = sample_announcement
         mock_repository.has_user_read.return_value = True

@@ -40,6 +40,7 @@ def format_datetime_toronto(dt: datetime, format_str: Optional[str] = None) -> s
     # Default format: "Wednesday, January 15, 2025 at 6:00 PM EST"
     if format_str is None:
         import platform
+
         # Windows requires %#I, POSIX systems use %-I for no leading zero
         hour_format = "%#I" if platform.system() == "Windows" else "%-I"
         format_str = f"%A, %B %d, %Y at {hour_format}:%M %p %Z"

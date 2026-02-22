@@ -767,8 +767,10 @@ class TestDeclineNotifications:
             mock_email_service.send_rsvp_decline_notification.return_value = True
 
             registration_service.send_decline_notification_to_subscribed_users(
-                sample_registration, sample_event, previous_status="confirmed",
-                notification_types=["rsvp_changes", "announcements"]
+                sample_registration,
+                sample_event,
+                previous_status="confirmed",
+                notification_types=["rsvp_changes", "announcements"],
             )
 
         # Assert
@@ -816,8 +818,10 @@ class TestDeclineNotifications:
             mock_email_service = MockEmailService.return_value
 
             registration_service.send_decline_notification_to_subscribed_users(
-                sample_registration, sample_event, previous_status="confirmed",
-                notification_types=["rsvp_changes", "announcements"]
+                sample_registration,
+                sample_event,
+                previous_status="confirmed",
+                notification_types=["rsvp_changes", "announcements"],
             )
 
         # Assert
@@ -833,17 +837,17 @@ class TestDeclineNotifications:
         # Mock subscribed users (will be queried but no email sent)
         mock_user1 = Mock()
         mock_user1.email = "vp1@utesca.ca"
-        registration_service.user_repo.get_users_with_notification_enabled.return_value = [
-            mock_user1
-        ]
+        registration_service.user_repo.get_users_with_notification_enabled.return_value = [mock_user1]
 
         # Act
         with patch("core.email.EmailService") as MockEmailService:
             mock_email_service = MockEmailService.return_value
 
             registration_service.send_decline_notification_to_subscribed_users(
-                sample_registration, sample_event, previous_status="confirmed",
-                notification_types=["rsvp_changes", "announcements"]
+                sample_registration,
+                sample_event,
+                previous_status="confirmed",
+                notification_types=["rsvp_changes", "announcements"],
             )
 
         # Assert - should query users but not send emails
@@ -890,8 +894,7 @@ class TestDeclineNotifications:
         # Assert
         mock_send_declined.assert_called_once_with(sample_registration, sample_event)
         mock_send_notifications.assert_called_once_with(
-            sample_registration, sample_event, "confirmed",
-            notification_types=["rsvp_changes", "announcements"]
+            sample_registration, sample_event, "confirmed", notification_types=["rsvp_changes", "announcements"]
         )
 
     def test_handle_decline_notifications_handles_missing_registration(self, registration_service):

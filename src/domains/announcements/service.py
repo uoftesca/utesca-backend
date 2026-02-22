@@ -97,7 +97,7 @@ class AnnouncementService:
         """
         client = create_client(
             self.settings.SUPABASE_URL,
-            self.settings.SUPABASE_KEY  # Use anon/public key, not service role
+            self.settings.SUPABASE_KEY,  # Use anon/public key, not service role
         )
         # Set the auth token for this client so RLS policies apply
         client.postgrest.auth(user_token)
@@ -175,8 +175,7 @@ class AnnouncementService:
             else:
                 skipped_by_pref += 1
                 logger.debug(
-                    f"Skipping {redacted_email} - preference blocks "
-                    f"(pref: {announcements_pref}, priority: {priority})"
+                    f"Skipping {redacted_email} - preference blocks (pref: {announcements_pref}, priority: {priority})"
                 )
 
         logger.info(f"Filtering complete: {len(filtered)} recipients, {skipped_by_pref} skipped by preferences")
@@ -215,8 +214,7 @@ class AnnouncementService:
             # Fetch all users with their roles and preferences using admin client
             try:
                 result = (
-                    admin_client
-                    .schema(self.schema)
+                    admin_client.schema(self.schema)
                     .table("users")
                     .select("id, email, role, notification_preferences, first_name, last_name")
                     .execute()
@@ -375,9 +373,7 @@ class AnnouncementService:
                         )
                         logger.info(f"Queued background email send for announcement {announcement.id}")
                     except Exception as e:
-                        logger.error(
-                            f"Error queuing background email send for announcement {announcement.id}: {e}"
-                        )
+                        logger.error(f"Error queuing background email send for announcement {announcement.id}: {e}")
                         # Continue even if queuing fails — announcement is still created
 
             return announcement
@@ -572,12 +568,7 @@ class AnnouncementService:
         # Get current user's role from the database
         try:
             user_result = (
-                self.supabase
-                .schema(self.schema)
-                .table("users")
-                .select("role")
-                .eq("id", str(current_user_id))
-                .execute()
+                self.supabase.schema(self.schema).table("users").select("role").eq("id", str(current_user_id)).execute()
             )
 
             # supabase-py types `data` as a JSON union, so we need to narrow it.

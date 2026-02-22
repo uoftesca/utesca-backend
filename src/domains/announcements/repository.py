@@ -5,7 +5,7 @@ This module handles all database operations related to announcements.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from uuid import UUID
 
 from supabase import Client
@@ -287,16 +287,12 @@ class AnnouncementRepository:
         Returns:
             Dict mapping announcement_id (str) to read count
         """
-        result = (
-            self.client.schema(self.schema)
-            .table("announcement_reads")
-            .select("announcement_id")
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("announcement_reads").select("announcement_id").execute()
 
         counts: dict[str, int] = {}
         for row in result.data or []:
-            aid = row["announcement_id"]
+            row_dict: dict[str, Any] = row  # type: ignore[assignment]
+            aid: str = row_dict["announcement_id"]
             counts[aid] = counts.get(aid, 0) + 1
         return counts
 

@@ -498,9 +498,7 @@ class EmailService:
         """
         try:
             subject = (
-                f"[UTESCA] URGENT: {announcement_title}"
-                if priority == "urgent"
-                else f"[UTESCA] {announcement_title}"
+                f"[UTESCA] URGENT: {announcement_title}" if priority == "urgent" else f"[UTESCA] {announcement_title}"
             )
 
             html_body, text_body = build_announcement_notification_email(
