@@ -5,7 +5,6 @@ This module handles creating announcements and sending announcement emails to al
 """
 
 import logging
-import time
 from typing import Any, List, Optional, cast
 from uuid import UUID
 
@@ -16,14 +15,11 @@ from core.config import get_settings
 from core.database import get_schema
 
 from .models import (
-    AnnouncementEmailStats,
+    AnnouncementCreate,
     AnnouncementListResponse,
     AnnouncementReadResponse,
     AnnouncementResponse,
-    CreateAnnouncementRequest,
-    CreateAnnouncementResponse,
-    SendAnnouncementEmailRequest,
-    SendAnnouncementResponse,
+    AnnouncementWithReadCount,
 )
 from .repository import AnnouncementRepository
 
@@ -106,33 +102,6 @@ class AnnouncementService:
         # Set the auth token for this client so RLS policies apply
         client.postgrest.auth(user_token)
         return client
-
-    def _get_all_users(self) -> list[dict[str, Any]]:
-        """
-        Retrieve all users from the database with roles and notification preferences.
-
-        Returns:
-            List of user records with id, email, role, and preferences
-
-        Raises:
-            HTTPException: If retrieval fails
-        """
-        try:
-            result = (
-                self.supabase.schema(self.schema)
-                .table("users")
-                .select("id, email, role, notification_preferences, first_name, last_name")
-                .execute()
-            )
-            # supabase-py types result.data as a JSON union; we know this query
-            # returns a list of row dictionaries.
-            return cast(list[dict[str, Any]], result.data or [])
-        except Exception as e:
-            logger.error(f"Error fetching users: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to fetch users",
-            ) from e
 
     def _should_send_to_user(self, preference: str, priority: str) -> bool:
         """
@@ -311,10 +280,6 @@ class AnnouncementService:
             logger.error(f"Failed to initialize EmailService: {e}")
             return
 
-        # Rate limiting: Resend allows 2 requests/second, so 500ms between emails
-        MIN_DELAY_SECONDS = 0.5
-        last_send_time: float = 0.0
-
         emails_sent = 0
         emails_skipped = 0
         failed_emails = 0
@@ -331,14 +296,7 @@ class AnnouncementService:
                 last_name = user.get("last_name", "").strip() if user.get("last_name") else ""
                 full_name = f"{first_name} {last_name}".strip() if first_name or last_name else None
 
-                # Rate limiting: ensure minimum delay between requests
-                elapsed = time.time() - last_send_time
-                if elapsed < MIN_DELAY_SECONDS:
-                    time.sleep(MIN_DELAY_SECONDS - elapsed)
-
-                last_send_time = time.time()
-
-                # Send email
+                # Send email (rate limiting handled globally in EmailService.send_email)
                 success = email_service.send_announcement_notification(
                     to=email,
                     full_name=full_name,
@@ -368,122 +326,17 @@ class AnnouncementService:
             f"out of {len(recipients)} recipients"
         )
 
-    def _send_emails_via_resend(
-        self,
-        users: list[dict],
-        title: str,
-        content: str,
-        priority: str,
-    ) -> AnnouncementEmailStats:
-        """
-        Send announcement emails to users using Resend email service.
-
-        Applies priority-based filtering. Rate-limited to respect Resend API limits.
-
-        Args:
-            users: List of user records with 'id', 'email', 'notification_preferences'
-            title: Announcement title
-            content: Announcement content/message
-            priority: Announcement priority ('normal' or 'urgent')
-
-        Returns:
-            AnnouncementEmailStats with delivery information
-        """
-        from core.email import EmailService
-
-        # Apply priority-based filtering
-        users = self._filter_recipients_by_priority(users, priority)
-
-        try:
-            email_service = EmailService()
-        except Exception as e:
-            logger.error(f"Failed to initialize EmailService: {e}")
-            return AnnouncementEmailStats(
-                total_recipients=len(users),
-                emails_sent=0,
-                emails_skipped=0,
-                failed_emails=len(users),
-            )
-
-        total_recipients = len(users)
-        emails_sent = 0
-        emails_skipped = 0
-        failed_emails = 0
-
-        # Rate limiting: Resend allows 2 requests/second, so 500ms between emails
-        MIN_DELAY_SECONDS = 0.5
-        last_send_time: float = 0.0
-
-        for user in users:
-            email = None
-            try:
-                email = user.get("email")
-                if not email:
-                    emails_skipped += 1
-                    continue
-
-                # Rate limiting: ensure minimum delay between requests
-                elapsed = time.time() - last_send_time
-                if elapsed < MIN_DELAY_SECONDS:
-                    time.sleep(MIN_DELAY_SECONDS - elapsed)
-
-                last_send_time = time.time()
-
-                # Extract user's full name if available
-                full_name = user.get("full_name")
-                if not full_name:
-                    # Try to build name from first/last name fields
-                    first_name = user.get("first_name", "").strip() if user.get("first_name") else ""
-                    last_name = user.get("last_name", "").strip() if user.get("last_name") else ""
-                    if first_name or last_name:
-                        full_name = f"{first_name} {last_name}".strip()
-
-                # Send email via Resend
-                success = email_service.send_announcement_notification(
-                    to=email,
-                    full_name=full_name,
-                    announcement_title=title,
-                    announcement_content=content,
-                    priority=priority,
-                    announcement_id="unknown",  # No announcement ID for legacy send-email endpoint
-                    base_url=self.settings.BASE_URL_PUBLIC,
-                )
-
-                if success:
-                    emails_sent += 1
-                    logger.debug(f"Announcement email sent to {_redact_email(email)}")
-                else:
-                    failed_emails += 1
-                    logger.debug(f"Failed to send announcement email to {_redact_email(email)}")
-
-            except Exception as e:
-                redacted_email = _redact_email(email) if email else "unknown"
-                logger.error(f"Error sending announcement email to {redacted_email}: {e}", exc_info=True)
-                failed_emails += 1
-
-        logger.info(
-            f"Announcement email delivery: {emails_sent} sent, "
-            f"{emails_skipped} skipped, {failed_emails} failed out of {total_recipients} recipients"
-        )
-
-        return AnnouncementEmailStats(
-            total_recipients=total_recipients,
-            emails_sent=emails_sent,
-            emails_skipped=emails_skipped,
-            failed_emails=failed_emails,
-        )
-
     def create_announcement(
         self,
-        request: CreateAnnouncementRequest,
+        request: AnnouncementCreate,
         current_user_id: UUID,
         background_tasks: Optional[BackgroundTasks] = None,
-    ) -> CreateAnnouncementResponse:
+    ) -> AnnouncementResponse:
         """
         Create a new announcement.
 
-        If send_email is true, queues async background task to send emails to executives
-        based on priority level (urgent goes to all, normal respects preferences).
+        If send_email is true, queues an async background task to send email notifications
+        based on priority level (urgent goes to all, normal respects user preferences).
 
         Args:
             request: Create announcement request data
@@ -491,23 +344,20 @@ class AnnouncementService:
             background_tasks: FastAPI BackgroundTasks for queuing email send
 
         Returns:
-            CreateAnnouncementResponse with announcement ID
+            AnnouncementResponse with the created announcement
 
         Raises:
             HTTPException: If operation fails
         """
         try:
-            # Create announcement in database
             announcement = self.repository.create_announcement(
                 title=request.title,
                 content=request.content,
                 priority=request.priority,
                 created_by=current_user_id,
-                expires_at=request.expires_at,
             )
 
-            # Queue batch emails asynchronously when send_email is true
-            if request.send_email and request.content:
+            if request.send_email:
                 if not background_tasks:
                     logger.warning(
                         f"Email sending was requested for announcement {announcement.id}, "
@@ -525,15 +375,12 @@ class AnnouncementService:
                         )
                         logger.info(f"Queued background email send for announcement {announcement.id}")
                     except Exception as e:
-                        logger.error(f"Error queuing background email send for announcement {announcement.id}: {e}")
-                        # Continue even if async task fails - announcement is still created
+                        logger.error(
+                            f"Error queuing background email send for announcement {announcement.id}: {e}"
+                        )
+                        # Continue even if queuing fails — announcement is still created
 
-            return CreateAnnouncementResponse(
-                success=True,
-                message="Announcement created successfully",
-                announcement_id=announcement.id,
-                created_at=announcement.created_at,
-            )
+            return announcement
 
         except HTTPException:
             raise
@@ -544,67 +391,17 @@ class AnnouncementService:
                 detail=f"Failed to create announcement: {str(e)}",
             ) from e
 
-    def send_announcement_email(
-        self,
-        request: SendAnnouncementEmailRequest,
-        current_user_id: UUID,
-    ) -> SendAnnouncementResponse:
-        """
-        Send an announcement email to all users without creating an announcement record.
-
-        Args:
-            request: Send announcement email request data
-            current_user_id: ID of the user sending the email
-
-        Returns:
-            SendAnnouncementResponse with delivery statistics
-
-        Raises:
-            HTTPException: If operation fails
-        """
-        try:
-            # Fetch all users
-            users = self._get_all_users()
-
-            if not users:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="No users found to send emails to",
-                )
-
-            # Send emails
-            stats = self._send_emails_via_resend(
-                users=users,
-                title=request.title,
-                content=request.content,
-                priority=request.priority,
-            )
-
-            return SendAnnouncementResponse(
-                success=stats.emails_sent > 0,
-                message=f"Email sent to {stats.emails_sent} users",
-                stats=stats,
-                announcement_id=None,
-            )
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error sending announcement email: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to send announcement email: {str(e)}",
-            ) from e
-
     def get_announcements(
         self,
+        user_id: UUID,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
     ) -> AnnouncementListResponse:
         """
-        Get list of announcements with pagination.
+        Get list of announcements with read counts and per-user read status.
 
         Args:
+            user_id: ID of the current user (for is_read status)
             page: Page number (1-indexed)
             page_size: Number of items per page
 
@@ -615,7 +412,6 @@ class AnnouncementService:
             HTTPException: If retrieval fails
         """
         try:
-            # Calculate offset for pagination
             limit = None
             offset = None
 
@@ -630,18 +426,30 @@ class AnnouncementService:
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Page size must be >= 1",
                     )
-
                 limit = page_size
                 offset = (page - 1) * page_size
 
-            announcements, total = self.repository.get_all(
-                limit=limit,
-                offset=offset,
-            )
+            announcements, total = self.repository.get_all(limit=limit, offset=offset)
+
+            # Fetch aggregates in 2 queries regardless of announcement count
+            read_counts = self.repository.get_all_read_counts()
+            user_reads = self.repository.get_user_reads(user_id)
+            read_by_user = {str(r.announcement_id) for r in user_reads}
+            total_users = self.repository.get_total_users_count()
+
+            items = [
+                AnnouncementWithReadCount(
+                    **a.model_dump(exclude={"is_read"}),
+                    is_read=str(a.id) in read_by_user,
+                    total_reads=read_counts.get(str(a.id), 0),
+                    unread_count=total_users - read_counts.get(str(a.id), 0),
+                )
+                for a in announcements
+            ]
 
             return AnnouncementListResponse(
                 total=total,
-                announcements=announcements,
+                announcements=items,
                 page=page,
                 page_size=page_size,
             )

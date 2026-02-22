@@ -4,7 +4,7 @@ Data access layer for announcements.
 This module handles all database operations related to announcements.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 from uuid import UUID
 
@@ -30,10 +30,9 @@ class AnnouncementRepository:
     def create_announcement(
         self,
         title: str,
-        content: Optional[str],
+        content: str,
         priority: str,
         created_by: UUID,
-        expires_at: Optional[datetime] = None,
     ) -> AnnouncementResponse:
         """
         Create a new announcement record in the database.
@@ -43,7 +42,6 @@ class AnnouncementRepository:
             content: Announcement content/message
             priority: Announcement priority ('normal' or 'urgent')
             created_by: ID of the user creating the announcement
-            expires_at: When the announcement expires (optional)
 
         Returns:
             AnnouncementResponse: Created announcement record
@@ -51,28 +49,14 @@ class AnnouncementRepository:
         Raises:
             Exception: If creation fails
         """
-        data: dict = {
+        data = {
             "title": title,
             "content": content,
             "priority": priority,
             "created_by": str(created_by),
         }
 
-        if expires_at:
-            data["expires_at"] = expires_at.isoformat()
-
-        # Attempt insert, with graceful fallback when schema lacks optional columns
-        try:
-            result = self.client.schema(self.schema).table("announcements").insert(data).execute()
-        except Exception as e:
-            # Handle missing column in schema cache (e.g., test schema without expires_at)
-            msg = str(e)
-            if "PGRST204" in msg and "expires_at" in msg and "schema cache" in msg:
-                # Retry without the expires_at field
-                data.pop("expires_at", None)
-                result = self.client.schema(self.schema).table("announcements").insert(data).execute()
-            else:
-                raise
+        result = self.client.schema(self.schema).table("announcements").insert(data).execute()
 
         if not result.data or len(result.data) == 0:
             raise Exception("Failed to create announcement record")
@@ -249,7 +233,7 @@ class AnnouncementRepository:
             # No updates to make, just fetch and return
             return self.get_announcement(announcement_id)
 
-        data["updated_at"] = datetime.utcnow().isoformat()
+        data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         result = (
             self.client.schema(self.schema).table("announcements").update(data).eq("id", str(announcement_id)).execute()
@@ -295,6 +279,26 @@ class AnnouncementRepository:
         )
 
         return result.count if result.count is not None else 0
+
+    def get_all_read_counts(self) -> dict[str, int]:
+        """
+        Get read counts for all announcements in one query.
+
+        Returns:
+            Dict mapping announcement_id (str) to read count
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("announcement_reads")
+            .select("announcement_id")
+            .execute()
+        )
+
+        counts: dict[str, int] = {}
+        for row in result.data or []:
+            aid = row["announcement_id"]
+            counts[aid] = counts.get(aid, 0) + 1
+        return counts
 
     def get_total_users_count(self) -> int:
         """

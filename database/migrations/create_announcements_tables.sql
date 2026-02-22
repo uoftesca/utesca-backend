@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS test.announcements (
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT announcements_pkey PRIMARY KEY (id),
     CONSTRAINT announcements_created_by_fkey FOREIGN KEY (created_by)
-        REFERENCES {schema}.users (id) ON DELETE CASCADE
+        REFERENCES test.users (id) ON DELETE CASCADE
 );
 
 -- Indexes for common queries (test schema)
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS test.announcement_reads (
     CONSTRAINT announcement_reads_announcement_id_fkey
         FOREIGN KEY (announcement_id) REFERENCES test.announcements (id) ON DELETE CASCADE,
     CONSTRAINT announcement_reads_user_id_fkey
-        FOREIGN KEY (user_id) REFERENCES {schema}.users (id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES test.users (id) ON DELETE CASCADE,
     CONSTRAINT announcement_reads_unique UNIQUE (announcement_id, user_id)
 );
 
@@ -157,7 +157,7 @@ CREATE POLICY "announcements_select_authenticated"
     TO authenticated
     USING (true);
 
--- Policy: Co-presidents can INSERT announcements
+-- Policy: Co-presidents and VPs can INSERT announcements
 DROP POLICY IF EXISTS "announcements_insert_copresidents" ON test.announcements;
 CREATE POLICY "announcements_insert_copresidents"
     ON test.announcements FOR INSERT
@@ -166,7 +166,7 @@ CREATE POLICY "announcements_insert_copresidents"
         EXISTS (
             SELECT 1 FROM test.users
             WHERE user_id = auth.uid()
-            AND role = 'co_president'
+            AND role IN ('co_president', 'vp')
         )
     );
 
@@ -179,14 +179,14 @@ CREATE POLICY "announcements_update_copresidents_or_creator"
         EXISTS (
             SELECT 1 FROM test.users
             WHERE user_id = auth.uid()
-            AND (users.role = 'co_president' OR {schema}.announcements.created_by = users.id)
+            AND (users.role = 'co_president' OR test.announcements.created_by = users.id)
         )
     )
     WITH CHECK (
         EXISTS (
             SELECT 1 FROM test.users
             WHERE user_id = auth.uid()
-            AND (users.role = 'co_president' OR {schema}.announcements.created_by = users.id)
+            AND (users.role = 'co_president' OR test.announcements.created_by = users.id)
         )
     );
 
@@ -199,7 +199,7 @@ CREATE POLICY "announcements_delete_copresidents_or_creator"
         EXISTS (
             SELECT 1 FROM test.users
             WHERE user_id = auth.uid()
-            AND (users.role = 'co_president' OR {schema}.announcements.created_by = users.id)
+            AND (users.role = 'co_president' OR test.announcements.created_by = users.id)
         )
     );
 
@@ -215,7 +215,7 @@ CREATE POLICY "announcements_select_authenticated"
     TO authenticated
     USING (true);
 
--- Policy: Co-presidents can INSERT announcements
+-- Policy: Co-presidents and VPs can INSERT announcements
 DROP POLICY IF EXISTS "announcements_insert_copresidents" ON prod.announcements;
 CREATE POLICY "announcements_insert_copresidents"
     ON prod.announcements FOR INSERT
@@ -224,7 +224,7 @@ CREATE POLICY "announcements_insert_copresidents"
         EXISTS (
             SELECT 1 FROM prod.users
             WHERE user_id = auth.uid()
-            AND role = 'co-president'
+            AND role IN ('co_president', 'vp')
         )
     );
 
@@ -237,14 +237,14 @@ CREATE POLICY "announcements_update_copresidents_or_creator"
         EXISTS (
             SELECT 1 FROM prod.users
             WHERE user_id = auth.uid()
-            AND (users.role = 'co-president' OR prod.announcements.created_by = users.id)
+            AND (users.role = 'co_president' OR prod.announcements.created_by = users.id)
         )
     )
     WITH CHECK (
         EXISTS (
             SELECT 1 FROM prod.users
             WHERE user_id = auth.uid()
-            AND (users.role = 'co-president' OR prod.announcements.created_by = users.id)
+            AND (users.role = 'co_president' OR prod.announcements.created_by = users.id)
         )
     );
 
@@ -257,7 +257,7 @@ CREATE POLICY "announcements_delete_copresidents_or_creator"
         EXISTS (
             SELECT 1 FROM prod.users
             WHERE user_id = auth.uid()
-            AND (users.role = 'co-president' OR prod.announcements.created_by = users.id)
+            AND (users.role = 'co_president' OR prod.announcements.created_by = users.id)
         )
     );
 

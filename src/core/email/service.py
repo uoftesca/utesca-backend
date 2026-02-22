@@ -497,8 +497,11 @@ class EmailService:
             True if sent successfully, False otherwise
         """
         try:
-            priority_upper = priority.upper()
-            subject = f"[UTESCA] {priority_upper}: {announcement_title}"
+            subject = (
+                f"[UTESCA] URGENT: {announcement_title}"
+                if priority == "urgent"
+                else f"[UTESCA] {announcement_title}"
+            )
 
             html_body, text_body = build_announcement_notification_email(
                 full_name=full_name,
