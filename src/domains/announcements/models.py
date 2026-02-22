@@ -5,7 +5,7 @@ These models define the request/response schemas for announcement endpoints.
 """
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -28,7 +28,9 @@ class AnnouncementBase(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=500, description="Announcement title")
     content: str = Field(..., min_length=1, description="Announcement content/message body")
-    priority: AnnouncementPriority = Field("normal", description="Announcement priority: 'normal' or 'urgent'")
+    priority: Annotated[AnnouncementPriority, Field(description="Announcement priority: 'normal' or 'urgent'")] = (
+        "normal"
+    )
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -41,7 +43,7 @@ class AnnouncementBase(BaseModel):
 class AnnouncementCreate(AnnouncementBase):
     """Request to create an announcement (inherits from AnnouncementBase)."""
 
-    send_email: bool = Field(False, description="If true, sends email notification to all users")
+    send_email: Annotated[bool, Field(description="If true, sends email notification to all users")] = False
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
