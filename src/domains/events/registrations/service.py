@@ -899,10 +899,10 @@ class RegistrationService:
         registration = self.reg_repo.get_registration_by_id(registration_id)
         if not registration:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REGISTRATION_NOT_FOUND)
-        if registration.status != "submitted":
+        if registration.status != "submitted" or registration.status != "waitlist":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only submitted registrations can be accepted",
+                detail="Only submitted or waitlisted registrations can be accepted",
             )
 
         updated = self.reg_repo.update_status(

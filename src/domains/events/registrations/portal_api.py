@@ -139,7 +139,7 @@ async def update_status(
     elif payload.status == "waitlist":
         updated = service.waitlist_application(registration_id, current_user.id)
 
-        # Queue rejection email
+        # Queue waitlisted email
         event = service.events_repo.get_by_id(updated.event_id)
         if event:
             background_tasks.add_task(
