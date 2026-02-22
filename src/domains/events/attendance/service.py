@@ -48,6 +48,11 @@ class AttendanceService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot check in a registration marked as not attending",
                 )
+            if registration.status == "waitlist":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot check in a waitlist registration. Accept them first.",
+                )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only accepted registrations can be checked in",
