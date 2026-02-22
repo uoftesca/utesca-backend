@@ -196,8 +196,8 @@ class TestFilterRecipientsByPriority:
             "notification_preferences": {"announcements": pref},
         }
 
-    def test_urgent_sends_to_all_regardless_of_preference(self, announcement_service):
-        """Urgent announcements bypass notification preferences."""
+    def test_urgent_sends_to_all_and_urgent_only_but_not_none(self, announcement_service):
+        """Urgent announcements still respect 'none' preference (used to suppress emails during dev/testing)."""
         users = [
             self._make_user("a@test.com", "all"),
             self._make_user("b@test.com", "urgent_only"),
@@ -206,7 +206,11 @@ class TestFilterRecipientsByPriority:
 
         result = announcement_service._filter_recipients_by_priority(users, "urgent")
 
-        assert len(result) == 3
+        assert len(result) == 2
+        emails = [u["email"] for u in result]
+        assert "a@test.com" in emails
+        assert "b@test.com" in emails
+        assert "c@test.com" not in emails
 
     def test_normal_excludes_urgent_only_and_none(self, announcement_service):
         """Normal announcements only go to users with 'all' preference."""

@@ -145,13 +145,7 @@ class AnnouncementService:
             email = user.get("email", "unknown")
             redacted_email = _redact_email(email)
 
-            # Urgent announcements go to everyone
-            if priority == "urgent":
-                filtered.append(user)
-                logger.debug(f"Including {redacted_email} - urgent announcement bypasses preferences")
-                continue
-
-            # Normal announcements: check notification preferences
+            # Check notification preferences for all priorities
             prefs = user.get("notification_preferences")
             prefs_type = type(prefs).__name__
             logger.debug(f"User {redacted_email} has notification_preferences of type: {prefs_type}")
