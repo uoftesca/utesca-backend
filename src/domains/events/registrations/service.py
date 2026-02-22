@@ -525,12 +525,13 @@ class RegistrationService:
         registration: RegistrationResponse,
         event,
         previous_status: str,
+        notification_types: list[str] | None = None,
     ) -> None:
         """
         Send notification emails to subscribed users when attendee declines confirmed attendance.
 
         Only sends if previous_status was "confirmed" (not "accepted").
-        Queries users with notification_preferences.rsvp_changes = true.
+        Queries users with notification preferences matching the specified types.
 
         Email sending failures are logged but do not block the decline action.
         This method is called as a background task.
@@ -539,6 +540,8 @@ class RegistrationService:
             registration: The registration record (after status update)
             event: The event object
             previous_status: Status before decline ("confirmed" or "accepted")
+            notification_types: List of notification preference types to check
+                              (e.g., ["rsvp_changes", "announcements"]). Defaults to ["rsvp_changes"]
         """
         import logging
 
@@ -546,6 +549,10 @@ class RegistrationService:
         from utils.timezone import format_datetime_toronto
 
         logger = logging.getLogger(__name__)
+
+        # Default to rsvp_changes if not specified
+        if notification_types is None:
+            notification_types = ["rsvp_changes"]
 
         try:
             # Only send notifications if declined from confirmed status
@@ -556,8 +563,17 @@ class RegistrationService:
                 )
                 return
 
-            # Query users with rsvp_changes notification enabled
-            subscribed_users = self.user_repo.get_users_with_notification_enabled("rsvp_changes")
+            # Query users with any of the specified notification types enabled
+            subscribed_users_by_type = {}
+            all_subscribed_users = {}
+
+            for notification_type in notification_types:
+                users = self.user_repo.get_users_with_notification_enabled(notification_type)
+                subscribed_users_by_type[notification_type] = users
+                for user in users:
+                    all_subscribed_users[user.id] = user
+
+            subscribed_users = list(all_subscribed_users.values())
 
             if not subscribed_users:
                 logger.info("No users subscribed to RSVP change notifications")
@@ -650,7 +666,9 @@ class RegistrationService:
 
             # Send subscriber notifications if declined from confirmed status
             if previous_status == "confirmed":
-                self.send_decline_notification_to_subscribed_users(registration, event, previous_status)
+                self.send_decline_notification_to_subscribed_users(
+                    registration, event, previous_status, notification_types=["rsvp_changes", "announcements"]
+                )
 
         except Exception as e:
             # Log but don't raise - email failures should not block decline action

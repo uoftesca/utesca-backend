@@ -3,6 +3,7 @@ Email template builders for various email types.
 Returns both HTML and plain text versions for better email client compatibility.
 """
 
+import html
 from typing import Dict, Literal, Optional, Tuple
 
 from core.config import get_settings
@@ -748,3 +749,180 @@ def build_custom_email_from_template(
     html_body = _build_email_html(subject, body_content)
 
     return (html_body, body_text, subject)
+
+
+def build_announcement_email(
+    full_name: Optional[str],
+    announcement_title: str,
+    announcement_content: str,
+    priority: str,
+) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for announcements.
+
+    Args:
+        full_name: Recipient's name (None if not available)
+        announcement_title: Announcement title
+        announcement_content: Announcement content/message
+        priority: Announcement priority ('normal' or 'urgent')
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    # Escape HTML to prevent XSS vulnerabilities
+    escaped_name = html.escape(full_name) if full_name else None
+    escaped_title = html.escape(announcement_title)
+    escaped_content = html.escape(announcement_content)
+
+    # HTML greeting (with escaped name)
+    html_greeting = f"Hi {escaped_name}," if escaped_name else "Hello,"
+    # Plain text greeting (with unescaped name)
+    text_greeting = f"Hi {full_name}," if full_name else "Hello,"
+    priority_badge = "[URGENT] " if priority == "urgent" else ""
+
+    # Escape HTML in announcement content to prevent XSS attacks
+    # Uses default quote=True since content is inserted in text nodes, not attributes
+    escaped_content = html.escape(announcement_content)
+
+    # HTML version
+    if priority == "urgent":
+        # Urgent announcements get a warning box
+        body_content = f"""
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #856404; margin: 20px 0;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 10px 0; font-size: 14px; font-weight: bold; color: #856404;">
+                                            ⚠️ URGENT ANNOUNCEMENT
+                                        </p>
+                                        <p style="margin: 0; font-size: 14px; color: #856404;">
+                                            This is an urgent announcement. Please read carefully.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0 20px 0;">
+                                {html_greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
+                                {escaped_content}
+                            </p>
+        """
+    else:
+        # Normal announcements
+        body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {html_greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
+                                {escaped_content}
+                            </p>
+        """
+
+    html_body = _build_email_html(priority_badge + escaped_title, body_content)
+
+    # Plain text version
+    text_body = f"""{text_greeting}
+
+{announcement_content}
+
+---
+University of Toronto Engineering Students Consulting Association
+"""
+
+    return (html_body, text_body)
+
+
+def build_announcement_notification_email(
+    full_name: Optional[str],
+    announcement_title: str,
+    announcement_content: str,
+    priority: str,
+    announcement_id: str,
+    base_url: str,
+) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for announcement notification.
+
+    Subject: [UTESCA] {priority}: {title}
+    Includes announcement content, view link, and unsubscribe instructions.
+
+    Args:
+        full_name: User's name (None if not available)
+        announcement_title: Title of the announcement
+        announcement_content: HTML content of the announcement
+        priority: "urgent" or "normal"
+        announcement_id: ID of the announcement for view link
+        base_url: Base URL for view link
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    greeting = f"Hi {full_name}," if full_name else "Hello,"
+    view_link = f"{base_url}/announcements/{announcement_id}"
+    priority_upper = priority.upper()
+
+    # Escape HTML in announcement content to prevent XSS attacks
+    # Uses default quote=True since content is inserted in text nodes, not attributes
+    escaped_content = html.escape(announcement_content)
+
+    # Priority badge styling
+    if priority == "urgent":
+        priority_badge = '<span style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; margin-right: 8px;">URGENT</span>'
+        priority_color = "#dc3545"
+    else:
+        priority_badge = '<span style="background-color: #0c63e4; color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; margin-right: 8px;">ANNOUNCEMENT</span>'
+        priority_color = "#0c63e4"
+
+    # Build HTML body content
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <div style="background-color: #f8f9fa; border-left: 4px solid {priority_color}; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                                <p style="margin: 0 0 15px 0; font-size: 14px; color: #666;">
+                                    {priority_badge}
+                                </p>
+                                <h2 style="margin: 0 0 15px 0; font-size: 20px; color: #333; line-height: 1.4;">
+                                    {announcement_title}
+                                </h2>
+                                <div style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0;">
+                                    {escaped_content}
+                                </div>
+                            </div>
+
+                            {_build_cta_button(view_link, "View in Portal")}
+
+                            <hr style="border: none; border-top: 1px solid #e9ecef; margin: 30px 0;">
+
+                            <p style="font-size: 13px; color: #999; margin: 0;">
+                                <strong>Manage your preferences:</strong><br>
+                                You received this email because you're subscribed to UTESCA announcements.
+                                To unsubscribe or adjust your notification preferences, visit your account settings in the portal.
+                            </p>
+"""
+
+    html_body = _build_email_html("[UTESCA] " + priority_upper + ": " + announcement_title, body_content)
+
+    # Plain text version
+    text_body = f"""{greeting}
+
+{priority_upper}: {announcement_title}
+
+{announcement_content}
+
+VIEW IN PORTAL
+{view_link}
+
+---
+MANAGE YOUR PREFERENCES
+You received this email because you're subscribed to UTESCA announcements.
+To unsubscribe or adjust your notification preferences, visit your account settings in the portal.
+
+University of Toronto Engineering Students Consulting Association
+"""
+
+    return (html_body, text_body)
