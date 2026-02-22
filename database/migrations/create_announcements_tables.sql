@@ -273,7 +273,7 @@ CREATE POLICY "announcement_reads_insert_own"
     TO authenticated
     WITH CHECK (
         user_id IN (
-            SELECT id FROM {schema}.users WHERE user_id = auth.uid()
+            SELECT id FROM test.users WHERE user_id = auth.uid()
         )
     );
 
@@ -284,7 +284,7 @@ CREATE POLICY "announcement_reads_select_own"
     TO authenticated
     USING (
         user_id IN (
-            SELECT id FROM {schema}.users WHERE user_id = auth.uid()
+            SELECT id FROM test.users WHERE user_id = auth.uid()
         )
     );
 
