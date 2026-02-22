@@ -427,7 +427,7 @@ class EmailService:
             text_body=text_body,
         )
 
-def send_application_waitlisted(
+    def send_application_waitlisted(
         self,
         to: str,
         full_name: Optional[str],
