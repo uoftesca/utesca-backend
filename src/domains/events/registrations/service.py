@@ -259,7 +259,7 @@ class RegistrationService:
 
         auto_accept = bool(form_schema.get("auto_accept"))
         status_value: RegistrationStatus = "accepted" if auto_accept else "submitted"
-        confirmed_count = self.reg_repo.count_by_status(event.id, "confirmed")        
+        confirmed_count = self.reg_repo.count_by_status(event.id, "confirmed")
         if event.max_capacity != None and confirmed_count >= event.max_capacity and auto_accept:
             status_value: RegistrationStatus = "waitlist"
 
@@ -364,6 +364,8 @@ class RegistrationService:
             # Determine if auto-accepted
             auto_accept = registration.status == "accepted"
 
+            waitlist = registration.status == "waitlist"
+
             # Send appropriate email based on auto_accept
             if auto_accept:
                 success = email_service.send_registration_confirmation(
@@ -374,6 +376,14 @@ class RegistrationService:
                     event_location=event.location or "TBA",
                     registration_id=str(registration.id),
                     base_url=base_url,
+                )
+            elif waitlist:
+                success = email_service.send_application_waitlisted(
+                    to=email,
+                    full_name=full_name,
+                    event_title=event.title,
+                    event_datetime=event_datetime_str,
+                    event_location=event.location or "TBA",
                 )
             else:
                 success = email_service.send_application_received(
