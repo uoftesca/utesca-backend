@@ -47,8 +47,15 @@ RSVP_CUTOFF_PASSED = "Cannot change RSVP - cutoff is 24 hours before event"
 class RegistrationService:
     """Service layer for handling registration lifecycle."""
 
-    MAX_FILE_SIZE = 2_097_152  # 2MB
-    ALLOWED_TYPES = {"application/pdf"}
+    MAX_FILE_SIZE = 8_388_608  # 8MB
+    ALLOWED_TYPES = {
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+    }
 
     def __init__(self):
         settings = get_settings()
@@ -683,12 +690,12 @@ class RegistrationService:
         if payload.file_size > self.MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File too large. Maximum size is 2MB.",
+                detail=f"File too large. Maximum size is {self.MAX_FILE_SIZE // (1024 * 1024)}MB.",
             )
         if payload.mime_type not in self.ALLOWED_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only PDF files are allowed.",
+                detail=f"Unsupported file type. Allowed types: {', '.join(sorted(self.ALLOWED_TYPES))}.",
             )
 
         created = self.files_repo.create_file_record(
