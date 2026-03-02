@@ -47,8 +47,15 @@ RSVP_CUTOFF_PASSED = "Cannot change RSVP - cutoff is 24 hours before event"
 class RegistrationService:
     """Service layer for handling registration lifecycle."""
 
-    MAX_FILE_SIZE = 2_097_152  # 2MB
-    ALLOWED_TYPES = {"application/pdf"}
+    MAX_FILE_SIZE = 8_388_608  # 8MB
+    ALLOWED_TYPES = {
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+    }
 
     def __init__(self):
         settings = get_settings()

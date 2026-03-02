@@ -142,9 +142,9 @@ Use when the registrant can select more than one option. If required, at least o
 }
 ```
 
-**File upload (resume)**
+**File upload**
 
-Currently supports PDF files only, max 2 MB. The public form renders a drag-and-drop upload area. Files are uploaded to Uploadthing and linked to the registration on submit.
+Supports PDF and image files (JPEG, PNG, WebP, HEIC/HEIF), max 8 MB. The public form renders a drag-and-drop upload area. Files are uploaded to Uploadthing and linked to the registration on submit. Use the `allowedTypes` validation to restrict to specific formats for a given field (e.g., images only for a payment screenshot, PDF only for a resume).
 
 ```json
 {
@@ -153,8 +153,24 @@ Currently supports PDF files only, max 2 MB. The public form renders a drag-and-
   "label": "Resume (PDF only)",
   "required": false,
   "validation": {
-    "maxSize": 2097152,
+    "maxSize": 8388608,
     "allowedTypes": ["application/pdf"]
+  }
+}
+```
+
+Payment screenshot example:
+
+```json
+{
+  "id": "paymentScreenshot",
+  "type": "file",
+  "label": "Payment Screenshot",
+  "required": true,
+  "helperText": "Upload a screenshot of your e-transfer confirmation.",
+  "validation": {
+    "maxSize": 8388608,
+    "allowedTypes": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]
   }
 }
 ```
@@ -233,10 +249,10 @@ To restrict to U of T email addresses specifically, tighten the pattern:
 
 ### File size limits
 
-File uploads enforce a hard max of **2 MB**. Set `maxSize` in bytes in the `validation` object. The value `2097152` equals 2 MB.
+File uploads enforce a hard max of **8 MB**. Set `maxSize` in bytes in the `validation` object. The value `8388608` equals 8 MB.
 
 ```json
-"validation": { "maxSize": 2097152, "allowedTypes": ["application/pdf"] }
+"validation": { "maxSize": 8388608, "allowedTypes": ["application/pdf"] }
 ```
 
 The backend enforces both the size limit and the allowed MIME type regardless of what is set in the schema.
