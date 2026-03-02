@@ -690,12 +690,12 @@ class RegistrationService:
         if payload.file_size > self.MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File too large. Maximum size is 2MB.",
+                detail=f"File too large. Maximum size is {self.MAX_FILE_SIZE // (1024 * 1024)}MB.",
             )
         if payload.mime_type not in self.ALLOWED_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only PDF files are allowed.",
+                detail=f"Unsupported file type. Allowed types: {', '.join(sorted(self.ALLOWED_TYPES))}.",
             )
 
         created = self.files_repo.create_file_record(
