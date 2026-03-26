@@ -180,7 +180,7 @@ class EventRepository:
         Returns:
             EventResponse if updated, None otherwise
         """
-        update_data = {"registration_form_schema": schema.model_dump(mode="json")}
+        update_data = {"registration_form_schema": schema.model_dump(mode="json", by_alias=True)}
         result = self.client.schema(self.schema).table("events").update(update_data).eq("id", str(event_id)).execute()
         if not result.data:
             return None
