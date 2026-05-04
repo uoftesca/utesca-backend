@@ -673,6 +673,7 @@ University of Toronto Engineering Students Consulting Association
 
     return (html_body, text_body)
 
+
 def build_application_waitlisted_email(
     full_name: Optional[str],
     event_title: str,

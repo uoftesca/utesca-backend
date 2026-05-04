@@ -206,7 +206,7 @@ class RegistrationsRepository:
     def get_oldest_waitlisted(self, event_id: UUID) -> Optional[RegistrationResponse]:
         """
         Get the oldest (first) waitlisted applicant for an event.
-        
+
         Returns the registration with the earliest submitted_at timestamp
         in waitlist status, or None if no waitlisted registrations exist.
         """
@@ -227,7 +227,7 @@ class RegistrationsRepository:
     def count_accepted_and_confirmed(self, event_id: UUID) -> int:
         """
         Count registrations with status 'accepted' or 'confirmed'.
-        
+
         This represents the current number of attendees who have either
         been accepted or have confirmed attendance.
         """

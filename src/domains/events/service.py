@@ -23,8 +23,8 @@ from .models import (
     EventStatus,
     EventUpdate,
 )
-from .repository import EventRepository
 from .registrations.repository import RegistrationsRepository
+from .repository import EventRepository
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
@@ -234,7 +234,7 @@ class EventService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to delete event with id {event_id}",
             )
-    
+
     def _is_event_at_capacity(self, event_id: UUID) -> bool:
         """
         Check whether an event has reached its maximum capacity.
