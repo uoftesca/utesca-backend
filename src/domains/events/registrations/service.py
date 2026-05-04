@@ -258,10 +258,9 @@ class RegistrationService:
             )
 
         auto_accept = bool(form_schema.get("auto_accept"))
-        print("autoaccept ", auto_accept)
         status_value: RegistrationStatus = "accepted" if auto_accept else "submitted"
-        confirmed_count = self.reg_repo.count_by_status(event.id, "confirmed")
-        if event.max_capacity != None and confirmed_count >= event.max_capacity and auto_accept:
+        attendee_count = self.reg_repo.count_accepted_and_confirmed(event.id)
+        if event.max_capacity is not None and attendee_count >= event.max_capacity and auto_accept:
             status_value: RegistrationStatus = "waitlist"
 
         registration = self.reg_repo.create_registration(
@@ -903,8 +902,8 @@ class RegistrationService:
                 logger.warning(f"Failed to send waitlisted email for registration {registration.id} to {email}")
 
         except Exception as e:
-            # Log but don't raise - email failures should not block rejection
-            logger.error(f"Error sending rejection email for registration {registration.id}: {str(e)}", exc_info=True)
+            # Log but don't raise - email failures should not block waitlisting
+            logger.error(f"Error sending waitlisted email for registration {registration.id}: {str(e)}", exc_info=True)
 
     def accept_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)
