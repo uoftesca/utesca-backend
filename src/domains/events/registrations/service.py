@@ -9,7 +9,7 @@ import re
 import zipfile
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import UUID
 
 import httpx
@@ -18,7 +18,9 @@ from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
+from core.email import EmailService
 from utils.file_utils import deduplicate_filename, generate_zip_filename
+from utils.timezone import format_datetime_toronto
 
 from ..models import EventResponse, RegistrationFormSchema
 from ..repository import EventRepository
@@ -331,14 +333,6 @@ class RegistrationService:
             registration: The created registration
             event: The event object
         """
-        import logging
-
-        from core.config import get_settings
-        from core.email import EmailService
-        from utils.timezone import format_datetime_toronto
-
-        logger = logging.getLogger(__name__)
-
         try:
             # Extract email from form_data
             email = registration.form_data.get("email")
@@ -417,14 +411,6 @@ class RegistrationService:
             registration: The registration record
             event: The event object
         """
-        import logging
-
-        from core.config import get_settings
-        from core.email import EmailService
-        from utils.timezone import format_datetime_toronto
-
-        logger = logging.getLogger(__name__)
-
         try:
             # Extract email from form_data
             email = registration.form_data.get("email")
@@ -486,13 +472,6 @@ class RegistrationService:
             registration: The registration record
             event: The event object
         """
-        import logging
-
-        from core.email import EmailService
-        from utils.timezone import format_datetime_toronto
-
-        logger = logging.getLogger(__name__)
-
         try:
             # Extract email from form_data
             email = registration.form_data.get("email")
@@ -553,13 +532,6 @@ class RegistrationService:
             event: The event object
             previous_status: Status before decline ("confirmed" or "accepted")
         """
-        import logging
-
-        from core.email import EmailService
-        from utils.timezone import format_datetime_toronto
-
-        logger = logging.getLogger(__name__)
-
         try:
             # Only send notifications if declined from confirmed status
             if previous_status != "confirmed":
@@ -727,183 +699,89 @@ class RegistrationService:
             registration: The registration record (status = accepted)
             event: The event object (includes custom templates if set)
         """
-        import logging
-
-        from core.config import get_settings
-        from core.email import EmailService
-        from utils.timezone import format_datetime_toronto
-
-        logger = logging.getLogger(__name__)
-
-        try:
-            # Extract email from form_data
-            email = registration.form_data.get("email")
-            if not email:
-                logger.warning(
-                    f"No email found in form_data for registration {registration.id}. Skipping acceptance email."
-                )
-                return
-
-            # Extract user's name (with fallback)
-            full_name = self._extract_name(registration.form_data)
-
-            # Format event datetime to Toronto timezone
-            event_datetime_str = format_datetime_toronto(event.date_time)
-
-            # Get public site base URL from settings
-            settings = get_settings()
-            base_url = settings.BASE_URL_PUBLIC
-
-            # Initialize email service
-            email_service = EmailService()
-
-            # Get custom template if exists
-            custom_template = event.acceptance_email_template
-
-            # Send acceptance email
-            success = email_service.send_application_acceptance(
-                to=email,
-                full_name=full_name,
-                event_title=event.title,
-                event_datetime=event_datetime_str,
-                event_location=event.location or "TBA",
-                registration_id=str(registration.id),
-                base_url=base_url,
-                custom_template=custom_template,
-            )
-
-            if success:
-                logger.info(f"Acceptance email sent successfully for registration {registration.id} to {email}")
-            else:
-                logger.warning(f"Failed to send acceptance email for registration {registration.id} to {email}")
-
-        except Exception as e:
-            # Log but don't raise - email failures should not block acceptance
-            logger.error(f"Error sending acceptance email for registration {registration.id}: {str(e)}", exc_info=True)
+        self._send_status_email(
+            registration=registration,
+            event=event,
+            action_name="acceptance",
+            custom_template=event.acceptance_email_template,
+            send_fn=EmailService().send_application_acceptance,
+            extra_kwargs={
+                "registration_id": str(registration.id),
+                "base_url": get_settings().BASE_URL_PUBLIC,
+            },
+        )
 
     def send_rejection_email(
         self,
         registration: RegistrationResponse,
         event: EventResponse,
     ) -> None:
-        """
-        Send rejection email after VP/Admin rejects application.
-
-        Email sending failures are logged but do not block the rejection.
-        This method is called as a background task.
-
-        Args:
-            registration: The registration record (status = rejected)
-            event: The event object (includes custom templates if set)
-        """
-        import logging
-
-        from core.email import EmailService
-        from utils.timezone import format_datetime_toronto
-
-        logger = logging.getLogger(__name__)
-
-        try:
-            # Extract email from form_data
-            email = registration.form_data.get("email")
-            if not email:
-                logger.warning(
-                    f"No email found in form_data for registration {registration.id}. Skipping rejection email."
-                )
-                return
-
-            # Extract user's name (with fallback)
-            full_name = self._extract_name(registration.form_data)
-
-            # Format event datetime to Toronto timezone
-            event_datetime_str = format_datetime_toronto(event.date_time)
-
-            # Initialize email service
-            email_service = EmailService()
-
-            # Get custom template if exists
-            custom_template = event.rejection_email_template
-
-            # Send rejection email
-            success = email_service.send_application_rejection(
-                to=email,
-                full_name=full_name,
-                event_title=event.title,
-                event_datetime=event_datetime_str,
-                event_location=event.location or "TBA",
-                custom_template=custom_template,
-            )
-
-            if success:
-                logger.info(f"Rejection email sent successfully for registration {registration.id} to {email}")
-            else:
-                logger.warning(f"Failed to send rejection email for registration {registration.id} to {email}")
-
-        except Exception as e:
-            # Log but don't raise - email failures should not block rejection
-            logger.error(f"Error sending rejection email for registration {registration.id}: {str(e)}", exc_info=True)
+        self._send_status_email(
+            registration=registration,
+            event=event,
+            action_name="rejection",
+            custom_template=event.rejection_email_template,
+            send_fn=EmailService().send_application_rejection,
+        )
 
     def send_waitlisted_email(
         self,
         registration: RegistrationResponse,
         event: EventResponse,
     ) -> None:
-        """
-        Send waitlisted email after VP/Admin waitlists application.
+        self._send_status_email(
+            registration=registration,
+            event=event,
+            action_name="waitlisted",
+            custom_template=event.waitlisted_email_template,
+            send_fn=EmailService().send_application_waitlisted,
+        )
 
-        Email sending failures are logged but do not block the waitlisting.
-        This method is called as a background task.
-
-        Args:
-            registration: The registration record (status = waitlist)
-            event: The event object (includes custom templates if set)
-        """
-        import logging
-
-        from core.email import EmailService
-        from utils.timezone import format_datetime_toronto
-
-        logger = logging.getLogger(__name__)
-
+    def _send_status_email(
+        self,
+        registration: RegistrationResponse,
+        event: EventResponse,
+        action_name: str,
+        custom_template: Any,
+        send_fn: Callable[..., bool],
+        extra_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> None:
         try:
-            # Extract email from form_data
             email = registration.form_data.get("email")
             if not email:
                 logger.warning(
-                    f"No email found in form_data for registration {registration.id}. Skipping waitlisted email."
+                    f"No email found in form_data for registration {registration.id}. Skipping {action_name} email."
                 )
                 return
 
-            # Extract user's name (with fallback)
             full_name = self._extract_name(registration.form_data)
-
-            # Format event datetime to Toronto timezone
             event_datetime_str = format_datetime_toronto(event.date_time)
 
-            # Initialize email service
-            email_service = EmailService()
+            kwargs: Dict[str, Any] = {
+                "to": email,
+                "full_name": full_name,
+                "event_title": event.title,
+                "event_datetime": event_datetime_str,
+                "event_location": event.location or "TBA",
+                "custom_template": custom_template,
+            }
+            if extra_kwargs:
+                kwargs.update(extra_kwargs)
 
-            # Get custom template if exists
-            custom_template = event.waitlisted_email_template
-
-            # Send waitlisted email
-            success = email_service.send_application_waitlisted(
-                to=email,
-                full_name=full_name,
-                event_title=event.title,
-                event_datetime=event_datetime_str,
-                event_location=event.location or "TBA",
-                custom_template=custom_template,
-            )
+            success = send_fn(**kwargs)
 
             if success:
-                logger.info(f"Waitlisted email sent successfully for registration {registration.id} to {email}")
+                logger.info(
+                    f"{action_name.capitalize()} email sent successfully for registration {registration.id} to {email}"
+                )
             else:
-                logger.warning(f"Failed to send waitlisted email for registration {registration.id} to {email}")
+                logger.warning(f"Failed to send {action_name} email for registration {registration.id} to {email}")
 
         except Exception as e:
-            # Log but don't raise - email failures should not block waitlisting
-            logger.error(f"Error sending waitlisted email for registration {registration.id}: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error sending {action_name} email for registration {registration.id}: {str(e)}",
+                exc_info=True,
+            )
 
     def accept_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)
