@@ -952,58 +952,6 @@ class RegistrationService:
 
         return updated
 
-    def _try_promote_waitlisted(self, event_id: UUID) -> Optional[RegistrationResponse]:
-        """
-        Check if a spot is available and promote the oldest waitlisted applicant.
-
-        Calculates: available_spots = max_capacity - (accepted + confirmed)
-        If available_spots > 0, promotes the oldest waitlisted applicant to 'accepted'.
-
-        Args:
-            event_id: The event ID
-
-        Returns:
-            The promoted registration if promotion occurred, None otherwise
-        """
-        event = self.events_repo.get_by_id(event_id)
-        if not event or not event.max_capacity:
-            # Cannot promote if no max capacity is set
-            return None
-
-        # Count current accepted and confirmed registrations
-        current_attendees = self.reg_repo.count_accepted_and_confirmed(event_id)
-
-        # Calculate available spots
-        available_spots = event.max_capacity - current_attendees
-
-        if available_spots <= 0:
-            # No spots available
-            return None
-
-        # Get oldest waitlisted applicant
-        oldest_waitlisted = self.reg_repo.get_oldest_waitlisted(event_id)
-        if not oldest_waitlisted:
-            # No one on the waitlist
-            return None
-
-        # Promote the oldest waitlisted applicant to accepted
-        logger.info(
-            f"Promoting waitlisted registration {oldest_waitlisted.id} "
-            f"for event {event_id} (available spots: {available_spots})"
-        )
-
-        promoted = self.reg_repo.update_status(
-            registration_id=oldest_waitlisted.id,
-            status="accepted",
-            reviewer_id=event.created_by or None,
-            reviewed_at=datetime.now(timezone.utc),
-        )
-
-        if promoted:
-            self._add_rsvp_link(promoted)
-
-        return promoted
-    
     def waitlist_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)
         if not registration:
@@ -1188,14 +1136,11 @@ class RegistrationService:
 
         return updated
 
-    def rsvp_decline(self, registration_id: UUID) -> Tuple[RegistrationResponse, str, EventResponse, Optional[RegistrationResponse]]:
+    def rsvp_decline(self, registration_id: UUID) -> Tuple[RegistrationResponse, str, EventResponse]:
         """
         Decline attendance (set status to not_attending).
 
         This is a TERMINAL operation - cannot be reversed.
-        When someone declines, if capacity is available, the oldest waitlisted
-        applicant is automatically promoted to 'accepted'.
-
         Validates that:
         - Registration exists and is accessible
         - Current status is 'accepted' or 'confirmed'
@@ -1205,8 +1150,7 @@ class RegistrationService:
             registration_id: The registration ID
 
         Returns:
-            Tuple of (updated_registration, previous_status, event, promoted_registration_or_none)
-            - promoted_registration_or_none: The promoted registration if promotion occurred, None otherwise
+            Tuple of (updated_registration, previous_status, event)
 
         Raises:
             HTTPException: If validation fails
@@ -1245,7 +1189,7 @@ class RegistrationService:
 
         # Allow idempotent decline
         if registration.status == "not_attending":
-            return registration, previous_status, event, None
+            return registration, previous_status, event
 
         # Only allow decline from 'accepted' or 'confirmed'
         if registration.status not in ("accepted", "confirmed"):
@@ -1261,12 +1205,7 @@ class RegistrationService:
                 detail="Failed to decline attendance",
             )
 
-        # Try to promote the oldest waitlisted applicant if capacity is available
-        promoted = self._try_promote_waitlisted(event.id)
-        if promoted:
-            logger.info(f"Automatically promoted waitlisted registration {promoted.id} due to decline of {registration_id}")
-
-        return updated, previous_status, event, promoted
+        return updated, previous_status, event
 
     def list_registrations(
         self,

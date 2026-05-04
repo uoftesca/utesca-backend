@@ -7,7 +7,7 @@ Provides REST API endpoints for event management.
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 
 from domains.auth.dependencies import get_current_vp_or_admin, get_optional_user
@@ -128,7 +128,6 @@ async def create_event(
 async def update_event(
     event_id: UUID,
     event_data: EventUpdate,
-    background_tasks: BackgroundTasks,
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: EventService = Depends(get_event_service),
 ):
@@ -137,10 +136,6 @@ async def update_event(
 
     - **Authorization**: Only VPs and Co-presidents can update events
     - **Directors**: Will receive 403 Forbidden
-
-    If max_capacity is increased, the oldest waitlisted applicants will be
-    automatically promoted to 'accepted' status up to the new capacity,
-    and they will receive acceptance/promotion emails.
 
     Args:
         event_id: Event UUID
@@ -156,37 +151,7 @@ async def update_event(
         400: If validation fails
         500: If update fails
     """
-    # Get the old event to check if max_capacity was increased
-    from domains.events.registrations.service import RegistrationService
-    
-    reg_service = RegistrationService()
-    old_event = service.repository.get_by_id(event_id)
-    
-    # Update the event
-    updated_event = service.update_event(event_id, event_data)
-    
-    # Check if max_capacity was increased
-    if (old_event and updated_event and 
-        event_data.max_capacity and 
-        old_event.max_capacity and 
-        event_data.max_capacity > old_event.max_capacity):
-        
-        # Promote waitlisted applicants for each new available spot
-        new_capacity = event_data.max_capacity
-        old_capacity = old_event.max_capacity
-        new_spots = new_capacity - old_capacity
-        
-        for _ in range(new_spots):
-            promoted = reg_service._try_promote_waitlisted(event_id)
-            if promoted:
-                # Queue promotion email
-                background_tasks.add_task(
-                    reg_service.send_acceptance_email,
-                    registration=promoted,
-                    event=updated_event,
-                )
-    
-    return updated_event
+    return service.update_event(event_id, event_data)
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
