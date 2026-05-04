@@ -90,12 +90,13 @@ async def update_status(
     service: RegistrationService = Depends(get_registration_service),
 ):
     """
-    Update registration status (accept or reject application).
+    Update registration status (accept, reject, or waitlist application).
 
-    VPs and Co-Presidents can accept or reject pending applications.
-    Automatically sends customizable email notifications to applicants as background tasks:
+    VPs and Co-Presidents can update application status.
+    Email notifications are sent for accept and reject actions only:
     - Acceptance email: includes RSVP link for attendance confirmation
     - Rejection email: polite notification with encouragement for future events
+    - Waitlist: no email is sent — this is an internal action only
 
     Email templates can be customized per event using acceptance_email_template
     and rejection_email_template fields. If no custom template is provided,
@@ -138,15 +139,8 @@ async def update_status(
 
     elif payload.status == "waitlist":
         updated = service.waitlist_application(registration_id, current_user.id)
-
-        # Queue waitlisted email
-        event = service.events_repo.get_by_id(updated.event_id)
-        if event:
-            background_tasks.add_task(
-                service.send_waitlisted_email,
-                registration=updated,
-                event=event,
-            )
+        # No email
+        # Manual waitlisting is an internal action; the applicant is not notified
 
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")

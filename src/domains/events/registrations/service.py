@@ -724,19 +724,6 @@ class RegistrationService:
             send_fn=EmailService().send_application_rejection,
         )
 
-    def send_waitlisted_email(
-        self,
-        registration: RegistrationResponse,
-        event: EventResponse,
-    ) -> None:
-        self._send_status_email(
-            registration=registration,
-            event=event,
-            action_name="waitlisted",
-            custom_template=event.waitlisted_email_template,
-            send_fn=EmailService().send_application_waitlisted,
-        )
-
     def _send_status_email(
         self,
         registration: RegistrationResponse,
