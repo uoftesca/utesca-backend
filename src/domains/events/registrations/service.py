@@ -263,7 +263,7 @@ class RegistrationService:
         status_value: RegistrationStatus = "accepted" if auto_accept else "submitted"
         attendee_count = self.reg_repo.count_accepted_and_confirmed(event.id)
         if event.max_capacity is not None and attendee_count >= event.max_capacity and auto_accept:
-            status_value: RegistrationStatus = "waitlist"
+            status_value = "waitlist"
 
         registration = self.reg_repo.create_registration(
             event_id=event.id,

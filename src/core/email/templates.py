@@ -758,7 +758,7 @@ def build_custom_email_from_template(
     event_location: str,
     registration_id: str,
     base_url: str,
-    email_type: Literal["acceptance", "rejection"],
+    email_type: Literal["acceptance", "rejection", "waitlisted"],
 ) -> Tuple[str, str, str]:
     """
     Build email from custom template with variable replacement.
@@ -779,7 +779,7 @@ def build_custom_email_from_template(
         event_location: Event location
         registration_id: Registration ID for RSVP link
         base_url: Base URL for RSVP link
-        email_type: "acceptance" or "rejection" (determines if RSVP link included)
+        email_type: "acceptance", "rejection", or "waitlisted" (determines if RSVP link included)
 
     Returns:
         Tuple of (html_body, text_body, subject)
