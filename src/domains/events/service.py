@@ -23,6 +23,7 @@ from .models import (
     EventStatus,
     EventUpdate,
 )
+from .registrations.repository import RegistrationsRepository
 from .repository import EventRepository
 
 # Set up logger for this module
@@ -233,3 +234,26 @@ class EventService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to delete event with id {event_id}",
             )
+
+    def _is_event_at_capacity(self, event_id: UUID) -> bool:
+        """
+        Check whether an event has reached its maximum capacity.
+
+        Counts registrations that occupy capacity (accepted + confirmed).
+        Returns True if the total is greater than or equal to the event's max_capacity.
+        """
+        event = self.repository.get_by_id(event_id)
+        if not event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event with id {event_id} not found",
+            )
+
+        if event.max_capacity is None:
+            return False
+
+        reg_repo = RegistrationsRepository(self.supabase, self.schema)
+        accepted_count = reg_repo.count_by_status(event.id, "accepted")
+        confirmed_count = reg_repo.count_by_status(event.id, "confirmed")
+
+        return (accepted_count + confirmed_count) >= event.max_capacity

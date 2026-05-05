@@ -100,6 +100,20 @@ class RegistrationsRepository:
         )
         return result.count or 0
 
+    def count_by_status(self, event_id: UUID, status: str) -> int:
+        """
+        Return the number of registrations for an event with a specific status.
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("id", count=CountMethod.exact)
+            .eq("event_id", str(event_id))
+            .eq("status", status)
+            .execute()
+        )
+        return result.count or 0
+
     def update_status(
         self,
         registration_id: UUID,
@@ -188,3 +202,41 @@ class RegistrationsRepository:
         if not result.data:
             return None
         return RegistrationResponse.model_validate(result.data[0])
+
+    def get_oldest_waitlisted(self, event_id: UUID) -> Optional[RegistrationResponse]:
+        """
+        Get the oldest (first) waitlisted applicant for an event.
+
+        Returns the registration with the earliest submitted_at timestamp
+        in waitlist status, or None if no waitlisted registrations exist.
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("*")
+            .eq("event_id", str(event_id))
+            .eq("status", "waitlist")
+            .order("submitted_at", desc=False)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])
+
+    def count_accepted_and_confirmed(self, event_id: UUID) -> int:
+        """
+        Count registrations with status 'accepted' or 'confirmed'.
+
+        This represents the current number of attendees who have either
+        been accepted or have confirmed attendance.
+        """
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .select("id", count=CountMethod.exact)
+            .eq("event_id", str(event_id))
+            .in_("status", ["accepted", "confirmed"])
+            .execute()
+        )
+        return result.count or 0

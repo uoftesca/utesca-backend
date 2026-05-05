@@ -675,6 +675,81 @@ University of Toronto Engineering Students Consulting Association
     return (html_body, text_body)
 
 
+def build_application_waitlisted_email(
+    full_name: Optional[str],
+    event_title: str,
+    event_datetime: str,
+    event_location: str,
+) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for application waitlisted.
+
+    Sent when VP/Admin waitlists a submitted application via portal.
+
+    Args:
+        full_name: Applicant's name (None if not available)
+        event_title: Title of the event
+        event_datetime: Formatted datetime string (Toronto time)
+        event_location: Event location
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    greeting = f"Hi {full_name}," if full_name else "Hello,"
+
+    # HTML version
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                Thank you for your interest in <strong>{event_title}</strong>. We have placed your application in the waitlist at this time due to capacity constraints.
+                            </p>
+
+                            {_build_event_details_box(event_title, event_datetime, event_location)}
+
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0;">
+                                Please keep an eye out for updates on your application.
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0;">
+                                We encourage you to apply for future UTESCA events and appreciate your continued interest in our community.
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0;">
+                                Thank you for your time.
+                            </p>
+"""
+
+    html_body = _build_email_html("Application Status Update", body_content)
+
+    # Plain text version
+    text_body = f"""{greeting}
+
+Thank you for your interest in {event_title}. We have placed your application in the waitlist at this time due to capacity constraints.
+
+EVENT DETAILS
+-------------
+Event: {event_title}
+Date & Time: {event_datetime}
+Location: {event_location}
+
+Please keep an eye out for updates on your application.
+
+We encourage you to apply for future UTESCA events and appreciate your continued interest in our community.
+
+Thank you for understanding.
+
+---
+Questions? Reply to this email.
+
+University of Toronto Engineering Students Consulting Association
+"""
+
+    return (html_body, text_body)
+
+
 def build_custom_email_from_template(
     template_subject: str,
     template_body: str,
@@ -684,7 +759,7 @@ def build_custom_email_from_template(
     event_location: str,
     registration_id: str,
     base_url: str,
-    email_type: Literal["acceptance", "rejection"],
+    email_type: Literal["acceptance", "rejection", "waitlisted"],
 ) -> Tuple[str, str, str]:
     """
     Build email from custom template with variable replacement.
@@ -705,7 +780,7 @@ def build_custom_email_from_template(
         event_location: Event location
         registration_id: Registration ID for RSVP link
         base_url: Base URL for RSVP link
-        email_type: "acceptance" or "rejection" (determines if RSVP link included)
+        email_type: "acceptance", "rejection", or "waitlisted" (determines if RSVP link included)
 
     Returns:
         Tuple of (html_body, text_body, subject)

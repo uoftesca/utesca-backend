@@ -762,7 +762,7 @@ class TestDeclineNotifications:
         ]
 
         # Act
-        with patch("core.email.EmailService") as MockEmailService:
+        with patch("domains.events.registrations.service.EmailService") as MockEmailService:
             mock_email_service = MockEmailService.return_value
             mock_email_service.send_rsvp_decline_notification.return_value = True
 
@@ -794,7 +794,7 @@ class TestDeclineNotifications:
         sample_registration.form_data = {"email": "attendee@example.com"}
 
         # Act
-        with patch("core.email.EmailService") as MockEmailService:
+        with patch("domains.events.registrations.service.EmailService") as MockEmailService:
             mock_email_service = MockEmailService.return_value
 
             registration_service.send_decline_notification_to_subscribed_users(
@@ -814,7 +814,7 @@ class TestDeclineNotifications:
         registration_service.user_repo.get_users_with_notification_enabled.return_value = []
 
         # Act
-        with patch("core.email.EmailService") as MockEmailService:
+        with patch("domains.events.registrations.service.EmailService") as MockEmailService:
             mock_email_service = MockEmailService.return_value
 
             registration_service.send_decline_notification_to_subscribed_users(
@@ -840,7 +840,7 @@ class TestDeclineNotifications:
         registration_service.user_repo.get_users_with_notification_enabled.return_value = [mock_user1]
 
         # Act
-        with patch("core.email.EmailService") as MockEmailService:
+        with patch("domains.events.registrations.service.EmailService") as MockEmailService:
             mock_email_service = MockEmailService.return_value
 
             registration_service.send_decline_notification_to_subscribed_users(

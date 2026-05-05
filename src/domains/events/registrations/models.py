@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed", "not_attending"]
+RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed", "not_attending", "waitlist"]
 
 
 class FileMeta(BaseModel):
@@ -87,7 +87,7 @@ class RegistrationWithFilesResponse(RegistrationResponse):
 class RegistrationStatusUpdate(BaseModel):
     """Portal status update request."""
 
-    status: Literal["accepted", "rejected"]
+    status: Literal["accepted", "rejected", "waitlist"]
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -142,6 +142,7 @@ class RegistrationStatusBreakdown(BaseModel):
     confirmed: int
     not_attending: int
     checked_in: int
+    waitlist: int
 
     model_config = ConfigDict(
         alias_generator=to_camel,
