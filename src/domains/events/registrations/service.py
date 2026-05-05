@@ -542,13 +542,6 @@ class RegistrationService:
             notification_types: List of notification preference types to check
                               (e.g., ["rsvp_changes", "announcements"]). Defaults to ["rsvp_changes"]
         """
-        import logging
-
-        from core.email import EmailService
-        from utils.timezone import format_datetime_toronto
-
-        logger = logging.getLogger(__name__)
-
         # Default to rsvp_changes if not specified
         if notification_types is None:
             notification_types = ["rsvp_changes"]
