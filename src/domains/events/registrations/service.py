@@ -49,8 +49,15 @@ RSVP_CUTOFF_PASSED = "Cannot change RSVP - cutoff is 24 hours before event"
 class RegistrationService:
     """Service layer for handling registration lifecycle."""
 
-    MAX_FILE_SIZE = 2_097_152  # 2MB
-    ALLOWED_TYPES = {"application/pdf"}
+    MAX_FILE_SIZE = 8_388_608  # 8MB
+    ALLOWED_TYPES = {
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+    }
 
     def __init__(self):
         settings = get_settings()
@@ -517,12 +524,13 @@ class RegistrationService:
         registration: RegistrationResponse,
         event,
         previous_status: str,
+        notification_types: list[str] | None = None,
     ) -> None:
         """
         Send notification emails to subscribed users when attendee declines confirmed attendance.
 
         Only sends if previous_status was "confirmed" (not "accepted").
-        Queries users with notification_preferences.rsvp_changes = true.
+        Queries users with notification preferences matching the specified types.
 
         Email sending failures are logged but do not block the decline action.
         This method is called as a background task.
@@ -531,7 +539,20 @@ class RegistrationService:
             registration: The registration record (after status update)
             event: The event object
             previous_status: Status before decline ("confirmed" or "accepted")
+            notification_types: List of notification preference types to check
+                              (e.g., ["rsvp_changes", "announcements"]). Defaults to ["rsvp_changes"]
         """
+        import logging
+
+        from core.email import EmailService
+        from utils.timezone import format_datetime_toronto
+
+        logger = logging.getLogger(__name__)
+
+        # Default to rsvp_changes if not specified
+        if notification_types is None:
+            notification_types = ["rsvp_changes"]
+
         try:
             # Only send notifications if declined from confirmed status
             if previous_status != "confirmed":
@@ -541,8 +562,17 @@ class RegistrationService:
                 )
                 return
 
-            # Query users with rsvp_changes notification enabled
-            subscribed_users = self.user_repo.get_users_with_notification_enabled("rsvp_changes")
+            # Query users with any of the specified notification types enabled
+            subscribed_users_by_type = {}
+            all_subscribed_users = {}
+
+            for notification_type in notification_types:
+                users = self.user_repo.get_users_with_notification_enabled(notification_type)
+                subscribed_users_by_type[notification_type] = users
+                for user in users:
+                    all_subscribed_users[user.id] = user
+
+            subscribed_users = list(all_subscribed_users.values())
 
             if not subscribed_users:
                 logger.info("No users subscribed to RSVP change notifications")
@@ -635,7 +665,9 @@ class RegistrationService:
 
             # Send subscriber notifications if declined from confirmed status
             if previous_status == "confirmed":
-                self.send_decline_notification_to_subscribed_users(registration, event, previous_status)
+                self.send_decline_notification_to_subscribed_users(
+                    registration, event, previous_status, notification_types=["rsvp_changes", "announcements"]
+                )
 
         except Exception as e:
             # Log but don't raise - email failures should not block decline action
@@ -650,12 +682,12 @@ class RegistrationService:
         if payload.file_size > self.MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File too large. Maximum size is 2MB.",
+                detail=f"File too large. Maximum size is {self.MAX_FILE_SIZE // (1024 * 1024)}MB.",
             )
         if payload.mime_type not in self.ALLOWED_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only PDF files are allowed.",
+                detail=f"Unsupported file type. Allowed types: {', '.join(sorted(self.ALLOWED_TYPES))}.",
             )
 
         created = self.files_repo.create_file_record(

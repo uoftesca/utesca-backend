@@ -18,6 +18,7 @@ Domain routers to be added:
 from fastapi import APIRouter
 
 # Domain router imports
+from domains.announcements.api import router as announcements_router
 from domains.auth.api import router as auth_router
 from domains.departments.api import router as departments_router
 from domains.events.api import router as events_router
@@ -37,6 +38,7 @@ api_router.include_router(events_router, prefix="/events", tags=["Events"])
 api_router.include_router(attendance_router, prefix="/events", tags=["Attendance"])
 api_router.include_router(registrations_public_router, tags=["Event Registrations"])
 api_router.include_router(registrations_portal_router, prefix="/portal", tags=["Portal Registrations"])
+api_router.include_router(announcements_router, prefix="/announcements", tags=["Announcements"])
 
 
 # Placeholder endpoint - remove once domain routers are added

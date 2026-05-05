@@ -130,13 +130,13 @@ The public-site types are more specific (enumerated `type`, typed `validation`).
 
 ```json
 {
-  "maxSize": 2097152,
-  "allowedTypes": ["application/pdf"]
+  "maxSize": 8388608,
+  "allowedTypes": ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]
 }
 ```
 
-- `maxSize`: in bytes. The backend hard-caps at 2 MB (`2097152`) regardless of schema value. See `RegistrationService.MAX_FILE_SIZE`.
-- `allowedTypes`: MIME types. The backend hard-caps to `{"application/pdf"}` regardless of schema value. See `RegistrationService.ALLOWED_TYPES`.
+- `maxSize`: in bytes. The backend hard-caps at 8 MB (`8388608`) regardless of schema value. See `RegistrationService.MAX_FILE_SIZE`.
+- `allowedTypes`: MIME types. The backend restricts to `{"application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}` regardless of schema value — types outside this set are rejected even if listed in the schema. See `RegistrationService.ALLOWED_TYPES`.
 
 **`select`, `radio`, `checkbox`:** no `validation` object is used. Option membership is enforced against the `options` array at submission time.
 
