@@ -320,13 +320,8 @@ class AnnouncementService:
         )
 
     def _send_discord_webhook_async(
-        self,
-        announcement_id: UUID,
-        title: str,
-        content: str,
-        priority: str,
-        base_url: str
-    ):
+        self, announcement_id: UUID, title: str, content: str, priority: str, base_url: str
+    ) -> None:
         """
         Send a discord announcement in a background task.
 
@@ -351,23 +346,23 @@ class AnnouncementService:
                 description = f"[URGENT]\n\n{description}"
 
             with httpx.Client() as client:
-                response = client.post(self.settings.DISCORD_WEBHOOK_URL, json={
-                    "username": "UTESCA Announcements",
-                    "embeds": [
-                        {
-                            "title": title,
-                            "color": color,
-                            # TODO: Discord can't render HTML but "content" is HTML, fix this
-                            "description": description,
-                            "footer": {
-                                "text": "UTESCA Portal System",
-                                "icon_url": self.settings.EMAIL_LOGO_URL
+                response = client.post(
+                    self.settings.DISCORD_WEBHOOK_URL,
+                    json={
+                        "username": "UTESCA Announcements",
+                        "embeds": [
+                            {
+                                "title": title,
+                                "color": color,
+                                # TODO: Discord can't render HTML but "content" is HTML, fix this
+                                "description": description,
+                                "footer": {"text": "UTESCA Portal System", "icon_url": self.settings.EMAIL_LOGO_URL},
                             }
-                        }
-                    ]
-                })
+                        ],
+                    },
+                )
 
-                response.raise_for_status() # Raise exception if bad status code
+                response.raise_for_status()  # Raise exception if bad status code
 
         except Exception as e:
             logger.error(
@@ -440,7 +435,7 @@ class AnnouncementService:
                         title=request.title,
                         content=request.content,
                         priority=request.priority,
-                        base_url=self.settings.BASE_URL_PUBLIC
+                        base_url=self.settings.BASE_URL_PUBLIC,
                     )
                     logger.info(f"Queued background discord webhook request for announcement {announcement.id}")
                 except Exception as e:
