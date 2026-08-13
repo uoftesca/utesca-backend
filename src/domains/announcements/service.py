@@ -5,6 +5,7 @@ This module handles creating announcements and sending announcement emails to al
 """
 
 import logging
+import httpx
 from typing import Any, List, Optional, cast
 from uuid import UUID
 
@@ -318,6 +319,60 @@ class AnnouncementService:
             f"out of {len(recipients)} recipients"
         )
 
+    def _send_discord_webhook_async(
+        self,
+        announcement_id: UUID,
+        title: str,
+        content: str,
+        priority: str,
+        base_url: str
+    ):
+        """
+        Send a discord announcement in a background task.
+
+        This is a blocking operation that runs asynchronously via FastAPI BackgroundTasks.
+        It sends an HTTP POST request to the discord webhook URL.
+
+        Args:
+            announcement_id: ID of the announcement
+            title: Announcement title
+            content: Announcement content (HTML)
+            priority: "urgent" or "normal"
+            base_url: Base URL for view links
+        """
+        try:
+            announcement_url = f"{base_url}/announcements/{announcement_id}"
+
+            color = 14431557 if priority == "urgent" else 812004 # Color hex codes in decimal (same colours as used in email format)
+            description = f"{content}\n\n[View Announcement Here]({announcement_url})"
+
+            if priority == "urgent":
+                description = f"[URGENT]\n\n" + description
+
+            with httpx.Client() as client:
+                response = client.post(self.settings.DISCORD_WEBHOOK_URL, json={
+                    "username": "UTESCA Announcements",
+                    "embeds": [
+                        {
+                            "title": title,
+                            "color": color,
+                            "description": description, # TODO: Discord can't render HTML but "content" is HTML, fix this
+                            "footer": {
+                                "text": "UTESCA Portal System",
+                                "icon_url": self.settings.EMAIL_LOGO_URL
+                            }
+                        }
+                    ]
+                })
+
+                response.raise_for_status() # Raise exception if bad status code
+
+        except Exception as e:
+            logger.error(
+                f"Error in discord webhook request for announcement {announcement_id}: {str(e)}",
+                exc_info=True,
+            )
+
     def create_announcement(
         self,
         request: AnnouncementCreate,
@@ -369,6 +424,25 @@ class AnnouncementService:
                     except Exception as e:
                         logger.error(f"Error queuing background email send for announcement {announcement.id}: {e}")
                         # Continue even if queuing fails — announcement is still created
+
+            if not background_tasks:
+                logger.warning(
+                    f"Discord announcement was requested for announcement {announcement.id}, "
+                    "but BackgroundTasks is not available. Discord announcement will not be sent."
+                )
+            else:
+                try:
+                    background_tasks.add_task(
+                        self._send_discord_webhook_async,
+                        announcement_id=announcement.id,
+                        title=request.title,
+                        content=request.content,
+                        priority=request.priority,
+                        base_url=self.settings.BASE_URL_PUBLIC
+                    )
+                    logger.info(f"Queued background discord webhook request for announcement {announcement.id}")
+                except Exception as e:
+                    logger.info(f"Error queuing background discord webhook request for announcement {announcement.id}")
 
             return announcement
 
