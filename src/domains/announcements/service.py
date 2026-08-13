@@ -5,10 +5,10 @@ This module handles creating announcements and sending announcement emails to al
 """
 
 import logging
-import httpx
 from typing import Any, List, Optional, cast
 from uuid import UUID
 
+import httpx
 from fastapi import BackgroundTasks, HTTPException, status
 from supabase import Client, create_client
 
@@ -343,11 +343,12 @@ class AnnouncementService:
         try:
             announcement_url = f"{base_url}/announcements/{announcement_id}"
 
-            color = 14431557 if priority == "urgent" else 812004 # Color hex codes in decimal (same colours as used in email format)
+            # Color hex codes in decimal (same colours as used in email format)
+            color = 14431557 if priority == "urgent" else 812004
             description = f"{content}\n\n[View Announcement Here]({announcement_url})"
 
             if priority == "urgent":
-                description = f"[URGENT]\n\n" + description
+                description = f"[URGENT]\n\n{description}"
 
             with httpx.Client() as client:
                 response = client.post(self.settings.DISCORD_WEBHOOK_URL, json={
@@ -356,7 +357,8 @@ class AnnouncementService:
                         {
                             "title": title,
                             "color": color,
-                            "description": description, # TODO: Discord can't render HTML but "content" is HTML, fix this
+                            # TODO: Discord can't render HTML but "content" is HTML, fix this
+                            "description": description,
                             "footer": {
                                 "text": "UTESCA Portal System",
                                 "icon_url": self.settings.EMAIL_LOGO_URL
@@ -442,7 +444,7 @@ class AnnouncementService:
                     )
                     logger.info(f"Queued background discord webhook request for announcement {announcement.id}")
                 except Exception as e:
-                    logger.info(f"Error queuing background discord webhook request for announcement {announcement.id}")
+                    logger.info(f"Error queuing background discord webhook for announcement {announcement.id}: {e}")
 
             return announcement
 
