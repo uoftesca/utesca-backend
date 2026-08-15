@@ -116,19 +116,24 @@ class TestCreateAnnouncement:
         assert result == sample_announcement
 
     def test_queues_email_when_send_email_is_true(self, announcement_service, mock_repository, sample_announcement):
-        """Should add background task when send_email=True."""
+        """Should add 2 background task when send_email=True and send_discord=True."""
         mock_repository.create_announcement.return_value = sample_announcement
-        request = AnnouncementCreate(title="Test", content="Body", priority="urgent", send_email=True)
+        request = AnnouncementCreate(
+            title="Test", content="Body", priority="urgent", send_email=True, send_discord=True
+        )
         background_tasks = Mock()
 
         announcement_service.create_announcement(request, uuid4(), background_tasks)
 
-        background_tasks.add_task.assert_called_once()
+        # background_tasks.add_task.assert_called_once()
+        assert background_tasks.add_task.call_count == 2
 
     def test_skips_email_when_send_email_is_false(self, announcement_service, mock_repository, sample_announcement):
-        """Should not queue background task when send_email=False."""
+        """Should not queue background task when send_email=False and send_discord=False."""
         mock_repository.create_announcement.return_value = sample_announcement
-        request = AnnouncementCreate(title="Test", content="Body", priority="normal", send_email=False)
+        request = AnnouncementCreate(
+            title="Test", content="Body", priority="normal", send_email=False, send_discord=False
+        )
         background_tasks = Mock()
 
         announcement_service.create_announcement(request, uuid4(), background_tasks)

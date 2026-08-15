@@ -33,7 +33,7 @@ The schema is stored as a JSONB column (`registration_form_schema`) in the `even
 
 ```python
 class RegistrationFormSchema(BaseModel):
-    auto_accept: bool = False                          # serializes as autoAccept
+    auto_accept: bool = False  # serializes as autoAccept
     fields: List[dict] = Field(default_factory=list)
 
     model_config = ConfigDict(

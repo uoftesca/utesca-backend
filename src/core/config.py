@@ -72,6 +72,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
+    # Discord webhook
+    DISCORD_WEBHOOK_URL: str
+
     @field_validator("BASE_URL_PUBLIC", "BASE_URL_PORTAL")
     @classmethod
     def validate_base_url(cls, v: str) -> str:

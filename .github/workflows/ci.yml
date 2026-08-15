@@ -92,6 +92,7 @@ jobs:
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       BASE_URL_PUBLIC: http://localhost:3000
       BASE_URL_PORTAL: http://localhost:3001
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
