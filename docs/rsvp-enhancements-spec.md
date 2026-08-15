@@ -542,6 +542,7 @@ Define new types:
 ```python
 from typing import TypedDict
 
+
 class NotificationPreferences(TypedDict):
     announcements: Literal["all", "urgent_only", "none"]
     rsvp_changes: bool
@@ -558,10 +559,7 @@ Update models:
 Add helper method:
 
 ```python
-def get_users_with_notification_enabled(
-    self,
-    notification_type: str
-) -> List[UserResponse]:
+def get_users_with_notification_enabled(self, notification_type: str) -> List[UserResponse]:
     """
     Fetch all users who have a specific notification type enabled.
     Role-agnostic - queries by preference, not role.
@@ -615,10 +613,13 @@ WHERE notification_preferences->>'rsvp_changes' = 'true';
 #### Python/Supabase Query
 
 ```python
-users = client.schema(schema).table("users") \
-    .select("*") \
-    .filter("notification_preferences->>rsvp_changes", "eq", "true") \
+users = (
+    client.schema(schema)
+    .table("users")
+    .select("*")
+    .filter("notification_preferences->>rsvp_changes", "eq", "true")
     .execute()
+)
 ```
 
 ---
@@ -820,10 +821,7 @@ CHECK (
 #### Internal Error Logging
 
 ```python
-logger.error(
-    f"Failed to send decline notification for registration {registration.id}: {str(e)}",
-    exc_info=True
-)
+logger.error(f"Failed to send decline notification for registration {registration.id}: {str(e)}", exc_info=True)
 ```
 
 ### Email Failure Handling
@@ -853,6 +851,7 @@ def test_cutoff_before_24_hours():
     event_time = datetime.now(timezone.utc) + timedelta(hours=25)
     assert service._is_within_rsvp_cutoff(event_time) == False
 
+
 def test_cutoff_within_24_hours():
     """Test that cutoff returns True when <24 hours before event"""
     service = RegistrationService()
@@ -868,6 +867,7 @@ def test_notification_filters_by_preference():
     # Mock users with different preferences
     # Verify only those with rsvp_changes=true get emails
     pass
+
 
 def test_no_notification_for_accepted_decline():
     """Declining from 'accepted' should NOT notify leadership"""
@@ -894,6 +894,7 @@ def test_end_to_end_cutoff_enforcement():
     3. Verify metadata flags are correct
     """
     pass
+
 
 def test_end_to_end_decline_notification():
     """
