@@ -382,6 +382,9 @@ class AnnouncementService:
         If send_email is true, queues an async background task to send email notifications
         based on priority level (urgent goes to all, normal respects user preferences).
 
+        If send_discord is true, queues an async background task to send a discord announcement
+        in the server.
+
         Args:
             request: Create announcement request data
             current_user_id: ID of the user creating the announcement
@@ -422,24 +425,25 @@ class AnnouncementService:
                         logger.error(f"Error queuing background email send for announcement {announcement.id}: {e}")
                         # Continue even if queuing fails — announcement is still created
 
-            if not background_tasks:
-                logger.warning(
-                    f"Discord announcement was requested for announcement {announcement.id}, "
-                    "but BackgroundTasks is not available. Discord announcement will not be sent."
-                )
-            else:
-                try:
-                    background_tasks.add_task(
-                        self._send_discord_webhook_async,
-                        announcement_id=announcement.id,
-                        title=request.title,
-                        content=request.content,
-                        priority=request.priority,
-                        base_url=self.settings.BASE_URL_PUBLIC,
+            if request.send_discord:
+                if not background_tasks:
+                    logger.warning(
+                        f"Discord announcement was requested for announcement {announcement.id}, "
+                        "but BackgroundTasks is not available. Discord announcement will not be sent."
                     )
-                    logger.info(f"Queued background discord webhook request for announcement {announcement.id}")
-                except Exception as e:
-                    logger.info(f"Error queuing background discord webhook for announcement {announcement.id}: {e}")
+                else:
+                    try:
+                        background_tasks.add_task(
+                            self._send_discord_webhook_async,
+                            announcement_id=announcement.id,
+                            title=request.title,
+                            content=request.content,
+                            priority=request.priority,
+                            base_url=self.settings.BASE_URL_PUBLIC,
+                        )
+                        logger.info(f"Queued background discord webhook request for announcement {announcement.id}")
+                    except Exception as e:
+                        logger.info(f"Error queuing background discord webhook for announcement {announcement.id}: {e}")
 
             return announcement
 

@@ -57,6 +57,7 @@ async def create_announcement(
     - content: Announcement content/message (required)
     - priority: "normal" or "urgent" (optional, defaults to "normal")
     - send_email: If true, sends email notification (optional, defaults to false)
+    - send_discord: If true, sends discord announcement (optional, defaults to false)
 
     **Returns:**
     - Created announcement
