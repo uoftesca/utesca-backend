@@ -70,7 +70,7 @@ class Settings(BaseSettings):
         "https://utesca.ca",  # Production frontend
         "https://www.utesca.ca",
         "http://127.0.0.1:3000",
-        "http://localhost:3001"
+        "http://localhost:3001",
     ]
 
     @field_validator("BASE_URL_PUBLIC", "BASE_URL_PORTAL")
