@@ -44,6 +44,7 @@ class AnnouncementCreate(AnnouncementBase):
     """Request to create an announcement (inherits from AnnouncementBase)."""
 
     send_email: Annotated[bool, Field(description="If true, sends email notification to all users")] = False
+    send_discord: Annotated[bool, Field(description="If true, sends discord announcement to the server")] = False
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
