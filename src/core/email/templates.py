@@ -134,6 +134,51 @@ def _build_cta_button(link: str, text: str) -> str:
 """
 
 
+def build_onboarding_email(first_name: str, onboarding_link: str) -> Tuple[str, str]:
+    """
+    Build HTML and plain text email for an incomplete portal onboarding.
+
+    Args:
+        first_name: Recipient's first name
+        onboarding_link: Link to continue onboarding
+
+    Returns:
+        Tuple of (html_body, text_body)
+    """
+    escaped_name = html.escape(first_name)
+    escaped_link = html.escape(onboarding_link, quote=True)
+
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                Hi {escaped_name},
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                Your UTESCA Portal onboarding is not complete yet. Use the button below to continue setting up your account.
+                            </p>
+
+                            {_build_cta_button(escaped_link, "Continue Onboarding")}
+
+                            <p style="font-size: 14px; color: #666666; margin: 20px 0 0 0;">
+                                This link is for your account only and can be used once.
+                            </p>
+"""
+
+    html_body = _build_email_html("Continue Your Onboarding", body_content)
+    text_body = f"""Hi {first_name},
+
+Your UTESCA Portal onboarding is not complete yet. Continue setting up your account using this link:
+
+{onboarding_link}
+
+This link is for your account only and can be used once.
+
+University of Toronto Engineering Students Consulting Association
+"""
+
+    return html_body, text_body
+
+
 def build_confirmation_email(
     full_name: Optional[str],
     event_title: str,
