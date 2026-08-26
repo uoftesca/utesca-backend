@@ -6,6 +6,7 @@ This module handles user invitation and profile management.
 
 import logging
 from typing import Any, cast
+from urllib.parse import urlencode
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -15,6 +16,7 @@ from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
 from core.config import get_settings
 from core.database import get_schema, get_supabase_client
+from core.email.service import EmailService
 
 from .models import (
     CompleteOnboardingRequest,
@@ -48,6 +50,30 @@ class AuthService:
         """
         return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
 
+    @staticmethod
+    def _auth_user_exists(admin_client: Client, email: str) -> bool:
+        """
+        Check whether an email exists in Supabase Auth.
+
+        Args:
+            admin_client: Supabase client with admin privileges
+            email: Email address to find
+
+        Returns:
+            True if the email exists, False otherwise
+        """
+        normalized_email = email.casefold()
+        page = 1
+        per_page = 100
+
+        while True:
+            users = admin_client.auth.admin.list_users(page=page, per_page=per_page)
+            if any((user.email or "").casefold() == normalized_email for user in users):
+                return True
+            if len(users) < per_page:
+                return False
+            page += 1
+
     def invite_user(self, request: InviteUserRequest, invited_by_user_id: UUID) -> InviteUserResponse:
         """
         Invite a new user to the portal.
@@ -64,6 +90,9 @@ class AuthService:
         """
         try:
             admin_client = self._get_admin_client()
+
+            if self._auth_user_exists(admin_client, str(request.email)):
+                return self._send_onboarding_link(admin_client, str(request.email))
 
             # Use BASE_URL_PORTAL from environment configuration for team member auth redirects
             redirect_to = f"{self.settings.BASE_URL_PORTAL}"
@@ -108,6 +137,77 @@ class AuthService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to invite user: {str(e)}",
             ) from e
+
+    def _send_onboarding_link(self, admin_client: Client, email: str) -> InviteUserResponse:
+        """
+        Send a new onboarding link for an existing, incomplete invitation.
+
+        Args:
+            admin_client: Supabase client with admin privileges
+            email: Email address associated with the invitation
+
+        Returns:
+            InviteUserResponse: Response with invitation status
+
+        Raises:
+            HTTPException: If onboarding is complete or the link cannot be sent
+        """
+        existing_profile = (
+            admin_client.schema(self.schema)
+            .table("users")
+            .select("id")
+            .eq("email", email.casefold())
+            .limit(1)
+            .execute()
+        )
+        if existing_profile.data:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This user has already completed onboarding",
+            )
+
+        link_response = admin_client.auth.admin.generate_link(
+            {
+                "type": "recovery",
+                "email": email,
+            }
+        )
+        if (
+            not link_response
+            or not link_response.properties.hashed_token
+            or link_response.properties.verification_type != "recovery"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to generate onboarding link",
+            )
+
+        metadata = link_response.user.user_metadata or {}
+        required_metadata = ["first_name", "last_name", "role", "display_role"]
+        if any(not metadata.get(field) for field in required_metadata):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This account does not have a valid pending onboarding invitation",
+            )
+
+        query = urlencode(
+            {
+                "token_hash": link_response.properties.hashed_token,
+                "type": "recovery",
+            }
+        )
+        onboarding_link = f"{self.settings.BASE_URL_PORTAL}/accept-invite?{query}"
+        if not EmailService().send_onboarding_link(email, str(metadata["first_name"]), onboarding_link):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send onboarding email",
+            )
+
+        return InviteUserResponse(
+            success=True,
+            message=f"A new onboarding link was sent to {email}",
+            email=email,
+        )
 
     def update_profile(
         self,
@@ -226,6 +326,19 @@ class AuthService:
         """
         try:
             admin_client = self._get_admin_client()
+
+            # A repeated request after a successful insert should return the
+            # existing profile instead of failing on the unique user_id.
+            existing_profile = (
+                admin_client.schema(self.schema)
+                .table("users")
+                .select("*")
+                .eq("user_id", str(auth_user_id))
+                .limit(1)
+                .execute()
+            )
+            if existing_profile.data:
+                return UserResponse(**cast(dict[str, Any], existing_profile.data[0]))
 
             # 1. Update password and preferred_name in Supabase Auth
             logger.info("Updating password for user %s", auth_user_id)

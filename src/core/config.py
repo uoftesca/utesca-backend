@@ -70,6 +70,7 @@ class Settings(BaseSettings):
         "https://utesca.ca",  # Production frontend
         "https://www.utesca.ca",
         "http://127.0.0.1:3000",
+        "http://localhost:3001",
     ]
 
     # Discord webhook

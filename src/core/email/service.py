@@ -23,6 +23,7 @@ from .templates import (
     build_attendance_declined_email,
     build_confirmation_email,
     build_custom_email_from_template,
+    build_onboarding_email,
     build_rsvp_decline_notification,
 )
 
@@ -143,6 +144,26 @@ class EmailService:
         )
 
         return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)
+
+    def send_onboarding_link(self, to: str, first_name: str, onboarding_link: str) -> bool:
+        """
+        Send onboarding link email for an incomplete invitation.
+
+        Args:
+            to: Recipient email
+            first_name: Recipient's first name
+            onboarding_link: Link to continue onboarding
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        html_body, text_body = build_onboarding_email(first_name, onboarding_link)
+        return self.send_email(
+            to=to,
+            subject="Continue your UTESCA Portal onboarding",
+            html_body=html_body,
+            text_body=text_body,
+        )
 
     def send_application_received(
         self,
