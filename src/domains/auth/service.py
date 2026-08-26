@@ -109,24 +109,13 @@ class AuthService:
             }
 
             # Invite user via Supabase Admin API
-            try:
-                result = admin_client.auth.admin.invite_user_by_email(
-                    email=request.email,
-                    options={
-                        "data": user_metadata,
-                        "redirect_to": redirect_to,
-                    },
-                )
-            except AuthApiError as e:
-                # Handle a concurrent invitation by rechecking actual Auth
-                # state instead of depending on error codes or text.
-                if self._auth_user_exists(admin_client, str(request.email)):
-                    return self._send_onboarding_link(admin_client, str(request.email))
-                logger.exception("Supabase error inviting user: %s", e)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to invite user: {str(e)}",
-                ) from e
+            result = admin_client.auth.admin.invite_user_by_email(
+                email=request.email,
+                options={
+                    "data": user_metadata,
+                    "redirect_to": redirect_to,
+                },
+            )
 
             if not result or not result.user:
                 raise HTTPException(
