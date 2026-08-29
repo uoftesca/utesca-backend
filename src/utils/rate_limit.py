@@ -7,13 +7,16 @@ without a shared store. For production scale, replace with Redis/Cloudflare/etc.
 
 import time
 from collections import deque
-from typing import Deque, Dict, Tuple
+from typing import Deque
+from uuid import UUID
 
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status
 from starlette.requests import Request
 
-# key: (ip, bucket) -> deque[timestamps]
-_requests: Dict[Tuple[str, str], Deque[float]] = {}
+from domains.auth.dependencies import get_optional_user_id
+
+# key: bucket -> {key: ip | uid -> deque[timestamps]}
+_requests: dict[str, dict[str | UUID, Deque[float]]] = {}
 
 
 def reset_rate_limits(bucket: str | None = None) -> None:
@@ -21,12 +24,36 @@ def reset_rate_limits(bucket: str | None = None) -> None:
     if bucket is None:
         _requests.clear()
         return
-    to_delete = [key for key in _requests if key[1] == bucket]
-    for key in to_delete:
-        _requests.pop(key, None)
+
+    if bucket in _requests:
+        _requests[bucket].clear()
 
 
-def rate_limit(bucket: str, limit: int, window_seconds: int = 60):
+def _get_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _update_requests(bucket: str, limit: int, window_seconds: int, key: str | UUID) -> None:
+    now = time.time()
+    window_start = now - window_seconds
+
+    d = _requests.setdefault(bucket, {})
+    q = d.setdefault(key, deque())
+
+    # drop old entries
+    while q and q[0] < window_start:
+        q.popleft()
+
+    if len(q) >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please wait and try again.",
+        )
+
+    q.append(now)
+
+
+def rate_limit(bucket: str, limit: int, window_seconds: int = 60, private: bool = False):
     """
     Dependency factory for rate limiting.
 
@@ -35,28 +62,17 @@ def rate_limit(bucket: str, limit: int, window_seconds: int = 60):
         limit: max requests allowed in the window
         window_seconds: rolling window size in seconds
     """
+    if private:
 
-    async def _enforce(request: Request):
-        ip = request.client.host if request.client else "unknown"
-        key = (ip, bucket)
-        now = time.time()
-        window_start = now - window_seconds
+        async def _enforce_private(request: Request, user_id: UUID | None = Depends(get_optional_user_id)):
+            key = str(user_id) if user_id else _get_ip(request)
 
-        q = _requests.get(key)
-        if q is None:
-            q = deque()
-            _requests[key] = q
+            _update_requests(bucket, limit, window_seconds, key)
 
-        # drop old entries
-        while q and q[0] < window_start:
-            q.popleft()
+        return _enforce_private
+    else:
 
-        if len(q) >= limit:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Rate limit exceeded. Please wait and try again.",
-            )
+        async def _enforce(request: Request):
+            _update_requests(bucket, limit, window_seconds, _get_ip(request))
 
-        q.append(now)
-
-    return _enforce
+        return _enforce
