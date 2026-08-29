@@ -65,9 +65,7 @@ def rate_limit(bucket: str, limit: int, window_seconds: int = 60, private: bool 
     if private:
 
         async def _enforce_private(request: Request, user_id: UUID | None = Depends(get_optional_user_id)):
-            key = str(user_id) if user_id else _get_ip(request)
-
-            _update_requests(bucket, limit, window_seconds, key)
+            _update_requests(bucket, limit, window_seconds, user_id or _get_ip(request))
 
         return _enforce_private
     else:
