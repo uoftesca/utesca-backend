@@ -46,19 +46,19 @@ async def get_current_user(
         admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
 
         # Verify JWT token and get user
-        user_response = admin_client.auth.get_user(credentials.credentials)
+        user_response = admin_client.auth.get_claims(credentials.credentials)
 
-        if not user_response or not user_response.user:
+        if user_response is None or "claims" not in user_response or "sub" not in user_response["claims"]:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
             )
 
-        auth_user = user_response.user
+        auth_user_id = user_response["claims"]["sub"]
 
         # Fetch full user data from users table
         repository = UserRepository(admin_client, schema)
-        user = repository.get_by_auth_id(UUID(auth_user.id))
+        user = repository.get_by_auth_id(UUID(auth_user_id))
 
         if not user:
             raise HTTPException(
@@ -205,14 +205,19 @@ async def get_optional_user(
         admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
 
         # Verify JWT token and get user
-        user_response = admin_client.auth.get_user(credentials.credentials)
+        user_response = admin_client.auth.get_claims(credentials.credentials)
 
-        if not user_response or not user_response.user:
-            return None
+        if user_response is None or "claims" not in user_response or "sub" not in user_response["claims"]:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+            )
+
+        auth_user_id = user_response["claims"]["sub"]
 
         # Fetch full user data from users table
         repository = UserRepository(admin_client, schema)
-        user = repository.get_by_auth_id(UUID(user_response.user.id))
+        user = repository.get_by_auth_id(UUID(auth_user_id))
 
         return user if user else None
     except Exception:
