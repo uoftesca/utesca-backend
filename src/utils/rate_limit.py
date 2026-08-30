@@ -53,7 +53,7 @@ def _update_requests(bucket: str, limit: int, window_seconds: int, key: str | UU
     q.append(now)
 
 
-def rate_limit(bucket: str, limit: int, window_seconds: int = 60, private: bool = False):
+def rate_limit(bucket: str, limit: int = 10, window_seconds: int = 60, public: bool = False):
     """
     Dependency factory for rate limiting.
 
@@ -61,16 +61,50 @@ def rate_limit(bucket: str, limit: int, window_seconds: int = 60, private: bool 
         bucket: logical bucket name (e.g., "public_register")
         limit: max requests allowed in the window
         window_seconds: rolling window size in seconds
+        public: whether authentication should NOT be attempted
     """
-    if private:
-
-        async def _enforce_private(request: Request, user_id: UUID | None = Depends(get_optional_user_id)):
-            _update_requests(bucket, limit, window_seconds, user_id or _get_ip(request))
-
-        return _enforce_private
-    else:
+    if public:
 
         async def _enforce(request: Request):
             _update_requests(bucket, limit, window_seconds, _get_ip(request))
 
         return _enforce
+    else:
+
+        async def _enforce_private(request: Request, user_id: UUID | None = Depends(get_optional_user_id)):
+            _update_requests(bucket, limit, window_seconds, user_id or _get_ip(request))
+
+        return _enforce_private
+
+
+def light_rate_limit(bucket: str, public: bool = False):
+    """
+    Dependency factory for light rate limiting.
+
+    Args:
+        bucket: logical bucket name (e.g., "public_register")
+        public: whether authentication should NOT be attempted
+    """
+    return rate_limit(bucket=bucket, limit=60, public=public)
+
+
+def medium_rate_limit(bucket: str, public: bool = False):
+    """
+    Dependency factory for medium rate limiting.
+
+    Args:
+        bucket: logical bucket name (e.g., "public_register")
+        public: whether authentication should NOT be attempted
+    """
+    return rate_limit(bucket=bucket, limit=30, public=public)
+
+
+def strict_rate_limit(bucket: str, public: bool = False):
+    """
+    Dependency factory for strict rate limiting.
+
+    Args:
+        bucket: logical bucket name (e.g., "public_register")
+        public: whether authentication should NOT be attempted
+    """
+    return rate_limit(bucket=bucket, limit=10, public=public)
