@@ -14,6 +14,7 @@ from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
 from domains.auth.models import UserResponse
 from domains.events.analytics.service import AnalyticsService
 from domains.events.registrations.models import RegistrationStatusUpdate
+from utils.rate_limit import medium_rate_limit
 
 from .service import RegistrationService
 
@@ -38,6 +39,7 @@ async def list_registrations(
     page: int = 1,
     limit: int = 20,
     search: Optional[str] = None,
+    _rl: None = Depends(medium_rate_limit("get_event_registrations")),
     current_user: UserResponse = Depends(get_current_user),
     service: RegistrationService = Depends(get_registration_service),
 ):
@@ -62,6 +64,7 @@ async def list_registrations(
 )
 async def get_registration(
     registration_id: UUID,
+    _rl: None = Depends(medium_rate_limit("get_event_registration")),
     current_user: UserResponse = Depends(get_current_user),
     service: RegistrationService = Depends(get_registration_service),
 ):
@@ -86,6 +89,7 @@ async def update_status(
     registration_id: UUID,
     payload: RegistrationStatusUpdate,
     background_tasks: BackgroundTasks,
+    _rl: None = Depends(medium_rate_limit("set_event_registration_status")),
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: RegistrationService = Depends(get_registration_service),
 ):
@@ -154,6 +158,7 @@ async def update_status(
 )
 async def analytics(
     event_id: UUID,
+    _rl: None = Depends(medium_rate_limit("get_event_analytics")),
     current_user: UserResponse = Depends(get_current_user),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ):
@@ -182,6 +187,7 @@ async def analytics(
 async def export_registrations(
     event_id: UUID,
     status: Optional[str] = None,
+    _rl: None = Depends(medium_rate_limit("export_event_registrations")),
     current_user: UserResponse = Depends(get_current_user),
     service: RegistrationService = Depends(get_registration_service),
 ):
@@ -224,6 +230,7 @@ async def export_registrations(
 )
 async def download_registration_files(
     event_id: UUID,
+    _rl: None = Depends(medium_rate_limit("download_event_registration_files")),
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: RegistrationService = Depends(get_registration_service),
 ):

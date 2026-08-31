@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from domains.auth.dependencies import get_current_vp_or_admin, get_optional_user
 from domains.auth.models import UserResponse
+from utils.rate_limit import medium_rate_limit
 
 from .models import (
     EventCreate,
@@ -34,6 +35,7 @@ def get_event_service() -> EventService:
 @router.get("", response_model=EventListResponse)
 async def get_events(
     status: Optional[EventStatus] = Query(None, description="Filter by event status"),
+    _rl: None = Depends(medium_rate_limit("get_events")),
     current_user: Optional[UserResponse] = Depends(get_optional_user),
     service: EventService = Depends(get_event_service),
 ):
@@ -65,6 +67,7 @@ async def get_events(
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event_by_id(
     event_id: UUID,
+    _rl: None = Depends(medium_rate_limit("get_event")),
     current_user: Optional[UserResponse] = Depends(get_optional_user),
     service: EventService = Depends(get_event_service),
 ):
@@ -100,6 +103,7 @@ async def get_event_by_id(
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 async def create_event(
     event_data: EventCreate,
+    _rl: None = Depends(medium_rate_limit("create_event")),
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: EventService = Depends(get_event_service),
 ):
@@ -128,6 +132,7 @@ async def create_event(
 async def update_event(
     event_id: UUID,
     event_data: EventUpdate,
+    _rl: None = Depends(medium_rate_limit("update_event")),
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: EventService = Depends(get_event_service),
 ):
@@ -157,6 +162,7 @@ async def update_event(
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_event(
     event_id: UUID,
+    _rl: None = Depends(medium_rate_limit("delete_event")),
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: EventService = Depends(get_event_service),
 ):

@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
+from utils.rate_limit import light_rate_limit, medium_rate_limit
 
 from .models import DepartmentListResponse, DepartmentResponse, YearsResponse
 from .service import DepartmentService
@@ -36,6 +37,7 @@ async def list_departments(
         None, description="Filter by specific year. Defaults to current academic year if not provided."
     ),
     all: bool = Query(False, description="If true, return departments from all years (overrides year parameter)"),
+    _rl: None = Depends(medium_rate_limit("list_departments")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -72,6 +74,7 @@ async def list_departments(
     description="Get list of unique years that have departments (requires authentication)",
 )
 async def get_available_years(
+    _rl: None = Depends(medium_rate_limit("get_department_years")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -88,7 +91,7 @@ async def get_available_years(
 
 
 @router.get("/status", summary="Departments Status", description="Check departments service status", tags=["Health"])
-async def departments_status():
+async def departments_status(_rl: None = Depends(light_rate_limit("departments_status", public=True))):
     """
     Check departments service status.
 
@@ -122,6 +125,7 @@ async def departments_status():
 )
 async def get_department(
     department_id: UUID,
+    _rl: None = Depends(medium_rate_limit("get_department")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """

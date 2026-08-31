@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
+from utils.rate_limit import light_rate_limit, medium_rate_limit
 
 from .models import (
     ChangePasswordRequest,
@@ -44,6 +45,7 @@ async def list_users(
     search: Optional[str] = Query(None, description="Search in name, email, or role"),
     page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed)"),
     page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page (max 100)"),
+    _rl: None = Depends(light_rate_limit("list_users")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -90,6 +92,7 @@ async def list_users(
 )
 async def change_password(
     request: ChangePasswordRequest,
+    _rl: None = Depends(medium_rate_limit("change_user_password")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -128,7 +131,7 @@ async def change_password(
     description="Check users service status",
     tags=["Health"],
 )
-async def users_status():
+async def users_status(_rl: None = Depends(light_rate_limit("users_status", public=True))):
     """
     Check users service status.
 
@@ -169,6 +172,7 @@ async def users_status():
 )
 async def get_user(
     user_id: UUID,
+    _rl: None = Depends(medium_rate_limit("get_user")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -200,6 +204,7 @@ async def get_user(
 async def update_user(
     user_id: UUID,
     request: UpdateUserRequest,
+    _rl: None = Depends(medium_rate_limit("update_user")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -250,6 +255,7 @@ async def update_user(
 )
 async def delete_user(
     user_id: UUID,
+    _rl: None = Depends(medium_rate_limit("delete_user")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
-from utils.rate_limit import rate_limit
+from utils.rate_limit import harsh_rate_limit, medium_rate_limit, strict_rate_limit
 
 from .models import (
     FileDeleteRequest,
@@ -37,7 +37,7 @@ def get_registration_service() -> RegistrationService:
 async def upload_file(
     slug: str,
     payload: FileUploadRequest,
-    _rl: None = Depends(rate_limit("public_upload_file", limit=10, window_seconds=60)),
+    _rl: None = Depends(strict_rate_limit("event_upload_file", public=True)),
     service: RegistrationService = Depends(get_registration_service),
 ):
     created = service.upload_file(event_slug=slug, payload=payload)
@@ -53,7 +53,7 @@ async def delete_file(
     slug: str,
     file_id: UUID,
     body: FileDeleteRequest,
-    _rl: None = Depends(rate_limit("public_upload_file", limit=10, window_seconds=60)),
+    _rl: None = Depends(strict_rate_limit("event_delete_file", public=True)),
     service: RegistrationService = Depends(get_registration_service),
 ):
     """
@@ -84,7 +84,7 @@ async def register(
     payload: RegistrationCreateRequest,
     background_tasks: BackgroundTasks,
     service: RegistrationService = Depends(get_registration_service),
-    _rl: None = Depends(rate_limit("public_register", limit=5, window_seconds=60)),
+    _rl: None = Depends(harsh_rate_limit("event_register", public=True)),
 ):
     registration = service.submit_registration(
         event_slug=slug,
@@ -124,7 +124,7 @@ async def register(
 )
 async def rsvp_details(
     registration_id: UUID,
-    _rl: None = Depends(rate_limit("public_rsvp_view", limit=20, window_seconds=60)),
+    _rl: None = Depends(medium_rate_limit("get_event_rsvp_details", public=True)),
     service: RegistrationService = Depends(get_registration_service),
 ):
     """
@@ -164,7 +164,7 @@ async def confirm_rsvp(
     registration_id: UUID,
     background_tasks: BackgroundTasks,
     service: RegistrationService = Depends(get_registration_service),
-    _rl: None = Depends(rate_limit("public_rsvp_confirm", limit=10, window_seconds=60)),
+    _rl: None = Depends(strict_rate_limit("confirm_event_rsvp", public=True)),
 ):
     """
     Confirm attendance.
@@ -204,7 +204,7 @@ async def decline_rsvp(
     registration_id: UUID,
     background_tasks: BackgroundTasks,
     service: RegistrationService = Depends(get_registration_service),
-    _rl: None = Depends(rate_limit("public_rsvp_decline", limit=10, window_seconds=60)),
+    _rl: None = Depends(strict_rate_limit("decline_event_rsvp", public=True)),
 ):
     """
     Decline attendance (set status to not_attending).
