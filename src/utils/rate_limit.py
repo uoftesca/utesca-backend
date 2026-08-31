@@ -33,6 +33,10 @@ def _get_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def _get_path(request: Request) -> str:
+    return request.scope.get("path") or "unknown"
+
+
 def _update_requests(bucket: str, limit: int, window_seconds: int, key: str | UUID) -> None:
     now = time.time()
     window_start = now - window_seconds
@@ -53,7 +57,7 @@ def _update_requests(bucket: str, limit: int, window_seconds: int, key: str | UU
     q.append(now)
 
 
-def rate_limit(bucket: str, limit: int = 10, window_seconds: int = 60, public: bool = False):
+def rate_limit(bucket: str | None = None, limit: int = 10, window_seconds: int = 60, public: bool = False):
     """
     Dependency factory for rate limiting.
 
@@ -66,18 +70,24 @@ def rate_limit(bucket: str, limit: int = 10, window_seconds: int = 60, public: b
     if public:
 
         async def _enforce(request: Request):
-            _update_requests(bucket, limit, window_seconds, _get_ip(request))
+            active_bucket = bucket or _get_path(request)
+            key = _get_ip(request)
+
+            _update_requests(active_bucket, limit, window_seconds, key)
 
         return _enforce
     else:
 
         async def _enforce_private(request: Request, user_id: UUID | None = Depends(get_optional_user_id)):
-            _update_requests(bucket, limit, window_seconds, user_id or _get_ip(request))
+            active_bucket = bucket or _get_path(request)
+            key = user_id or _get_ip(request)
+
+            _update_requests(active_bucket, limit, window_seconds, key)
 
         return _enforce_private
 
 
-def light_rate_limit(bucket: str, public: bool = False):
+def light_rate_limit(bucket: str | None = None, public: bool = False):
     """
     Dependency factory for light rate limiting.
 
@@ -88,7 +98,7 @@ def light_rate_limit(bucket: str, public: bool = False):
     return rate_limit(bucket=bucket, limit=60, public=public)
 
 
-def medium_rate_limit(bucket: str, public: bool = False):
+def medium_rate_limit(bucket: str | None = None, public: bool = False):
     """
     Dependency factory for medium rate limiting.
 
@@ -99,7 +109,7 @@ def medium_rate_limit(bucket: str, public: bool = False):
     return rate_limit(bucket=bucket, limit=30, public=public)
 
 
-def strict_rate_limit(bucket: str, public: bool = False):
+def strict_rate_limit(bucket: str | None = None, public: bool = False):
     """
     Dependency factory for strict rate limiting.
 
@@ -108,3 +118,14 @@ def strict_rate_limit(bucket: str, public: bool = False):
         public: whether authentication should NOT be attempted
     """
     return rate_limit(bucket=bucket, limit=10, public=public)
+
+
+def harsh_rate_limit(bucket: str, public: bool = False):
+    """
+    Dependency factory for harsh rate limiting.
+
+    Args:
+        bucket: logical bucket name (e.g., "public_register")
+        public: whether authentication should NOT be attempted
+    """
+    return rate_limit(bucket=bucket, limit=5, public=public)

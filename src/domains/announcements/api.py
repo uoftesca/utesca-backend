@@ -11,6 +11,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
+from utils.rate_limit import light_rate_limit, medium_rate_limit
 
 from .models import (
     AnnouncementCreate,
@@ -43,6 +44,7 @@ security = HTTPBearer()
 async def create_announcement(
     request: AnnouncementCreate,
     background_tasks: BackgroundTasks,
+    _rl: None = Depends(medium_rate_limit("create_announcement")),
     current_user: UserResponse = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
@@ -75,6 +77,7 @@ async def create_announcement(
 async def get_announcements(
     page: int = 1,
     page_size: int = 50,
+    _rl: None = Depends(light_rate_limit("get_announcements")),
     current_user: UserResponse = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
@@ -104,6 +107,7 @@ async def get_announcements(
 )
 async def mark_announcement_as_read(
     announcement_id: UUID,
+    _rl: None = Depends(light_rate_limit("read_announcement")),
     current_user: UserResponse = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
@@ -131,6 +135,7 @@ async def mark_announcement_as_read(
 )
 async def get_announcement(
     announcement_id: UUID,
+    _rl: None = Depends(medium_rate_limit("get_announcement")),
     current_user: UserResponse = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
@@ -156,6 +161,7 @@ async def get_announcement(
 async def update_announcement(
     announcement_id: UUID,
     request: AnnouncementUpdate,
+    _rl: None = Depends(medium_rate_limit("update_announcement")),
     current_user: UserResponse = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
@@ -191,6 +197,7 @@ async def update_announcement(
 )
 async def delete_announcement(
     announcement_id: UUID,
+    _rl: None = Depends(medium_rate_limit("delete_announcement")),
     current_user: UserResponse = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, status
 
 from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
+from utils.rate_limit import medium_rate_limit
 
 from .models import BulkCheckInRequest, BulkCheckInResponse, CheckInResponse
 from .service import AttendanceService
@@ -26,6 +27,7 @@ def get_attendance_service() -> AttendanceService:
 )
 async def check_in_attendee(
     registration_id: UUID,
+    _rl: None = Depends(medium_rate_limit("event_check_in")),
     current_user: UserResponse = Depends(get_current_user),
     service: AttendanceService = Depends(get_attendance_service),
 ):
@@ -39,6 +41,7 @@ async def check_in_attendee(
 )
 async def bulk_check_in(
     payload: BulkCheckInRequest,
+    _rl: None = Depends(medium_rate_limit("event_bulk_check_in")),
     current_user: UserResponse = Depends(get_current_user),
     service: AttendanceService = Depends(get_attendance_service),
 ):
@@ -51,6 +54,7 @@ async def bulk_check_in(
 )
 async def get_check_in_stats(
     event_id: UUID,
+    _rl: None = Depends(medium_rate_limit("event_check_in_stats")),
     current_user: UserResponse = Depends(get_current_user),
     service: AttendanceService = Depends(get_attendance_service),
 ):

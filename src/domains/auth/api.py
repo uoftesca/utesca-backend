@@ -8,6 +8,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
+from utils.rate_limit import light_rate_limit, medium_rate_limit, strict_rate_limit
+
 from .dependencies import get_auth_user_id, get_current_admin, get_current_user
 from .models import (
     CompleteOnboardingRequest,
@@ -36,7 +38,7 @@ router = APIRouter()
     summary="Sign In",
     description="Sign in with email and password",
 )
-async def sign_in(request: SignInRequest):
+async def sign_in(request: SignInRequest, _rl: None = Depends(strict_rate_limit("auth_sign_in", public=True))):
     """
     Sign in with email and password.
 
@@ -61,6 +63,7 @@ async def sign_in(request: SignInRequest):
 )
 async def invite_user(
     request: InviteUserRequest,
+    _rl: None = Depends(medium_rate_limit("auth_invite")),
     current_user: UserResponse = Depends(get_current_admin),
 ):
     """
@@ -90,6 +93,7 @@ async def invite_user(
     description="Get current authenticated user's profile",
 )
 async def get_current_user_profile(
+    _rl: None = Depends(medium_rate_limit("auth_me")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -113,6 +117,7 @@ async def get_current_user_profile(
 )
 async def complete_onboarding(
     request: CompleteOnboardingRequest,
+    _rl: None = Depends(medium_rate_limit("auth_complete_onboarding")),
     auth_user_id: UUID = Depends(get_auth_user_id),
 ):
     """
@@ -142,6 +147,7 @@ async def complete_onboarding(
 )
 async def update_profile(
     request: UpdateProfileRequest,
+    _rl: None = Depends(strict_rate_limit("update_auth_profile")),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
@@ -173,7 +179,7 @@ async def update_profile(
     summary="Auth Status",
     description="Check authentication service status",
 )
-async def auth_status():
+async def auth_status(_rl: None = Depends(light_rate_limit("auth_status", public=True))):
     """
     Check authentication service status.
 
