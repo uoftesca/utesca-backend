@@ -48,7 +48,7 @@ class AuthService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SECRET_KEY)
 
     @staticmethod
     def _auth_user_exists(admin_client: Client, email: str) -> bool:

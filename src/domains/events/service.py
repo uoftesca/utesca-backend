@@ -47,7 +47,7 @@ class EventService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SECRET_KEY)
 
     def _convert_google_drive_url_if_needed(self, url: Optional[str]) -> Optional[str]:
         """

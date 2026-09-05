@@ -41,7 +41,7 @@ async def _get_auth_user_id(
     settings = get_settings()
 
     # Create admin client to verify JWT
-    admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+    admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
 
     # Verify JWT token and get user
     try:
@@ -79,7 +79,7 @@ async def _get_auth_user(
     settings = get_settings()
     schema = get_schema()
 
-    admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+    admin_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
 
     # Fetch full user data from users table
     repository = UserRepository(admin_client, schema)
