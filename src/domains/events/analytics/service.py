@@ -20,7 +20,7 @@ class AnalyticsService:
     def __init__(self):
         settings = get_settings()
         self.schema = get_schema()
-        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.repo = AnalyticsRepository(self.supabase, self.schema)
 

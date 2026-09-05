@@ -52,7 +52,7 @@ class UserService:
             Client: Supabase client with admin privileges
         """
         if self._admin_client is None:
-            self._admin_client = create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
+            self._admin_client = create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SECRET_KEY)
         return self._admin_client
 
     def get_users(
@@ -458,7 +458,7 @@ class UserService:
             HTTPException: If current password is incorrect or verification fails
         """
         try:
-            temp_client = create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_KEY)
+            temp_client = create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_PUB_KEY)
             auth_response = temp_client.auth.sign_in_with_password(
                 {
                     "email": email,

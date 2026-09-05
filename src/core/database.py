@@ -27,7 +27,7 @@ def get_supabase_client() -> Client:
     through RLS policies or by prefixing table names with the schema.
     """
     settings = get_settings()
-    client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+    client = create_client(settings.SUPABASE_URL, settings.SUPABASE_PUB_KEY)
     return client
 
 

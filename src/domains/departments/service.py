@@ -66,7 +66,7 @@ class DepartmentService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SECRET_KEY)
 
     def get_departments(self, year: Optional[int] = None, all_years: bool = False) -> DepartmentListResponse:
         """

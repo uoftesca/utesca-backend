@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     Environment Variables:
     - ENVIRONMENT: 'test' or 'production' (default: 'test')
     - SUPABASE_URL: Database URL
-    - SUPABASE_KEY: Database anon/service key
+    - SUPABASE_PUB_KEY: Database publishable key
+    - SUPABASE_SECRET_KEY: Database privileged secret key
     - API_V1_PREFIX: API version prefix (default: '/api/v1')
     - PROJECT_NAME: Project name (default: 'UTESCA Portal')
     - BASE_URL_PUBLIC: Public site base URL (required, no default)
@@ -46,8 +47,8 @@ class Settings(BaseSettings):
 
     # Supabase credentials (single database with test and prod schemas)
     SUPABASE_URL: str
-    SUPABASE_KEY: str
-    SUPABASE_SERVICE_ROLE_KEY: str
+    SUPABASE_PUB_KEY: str
+    SUPABASE_SECRET_KEY: str
 
     # Base URLs for different application contexts (required)
     BASE_URL_PUBLIC: str  # Public site for RSVP links in emails

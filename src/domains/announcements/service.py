@@ -83,7 +83,7 @@ class AnnouncementService:
         Returns:
             Client: Supabase client with admin privileges
         """
-        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SERVICE_ROLE_KEY)
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SECRET_KEY)
 
     def _get_user_client(self, user_token: str) -> Client:
         """
@@ -98,7 +98,7 @@ class AnnouncementService:
         """
         client = create_client(
             self.settings.SUPABASE_URL,
-            self.settings.SUPABASE_KEY,  # Use anon/public key, not service role
+            self.settings.SUPABASE_PUB_KEY,  # Use anon/public key, not service role
         )
         # Set the auth token for this client so RLS policies apply
         client.postgrest.auth(user_token)
