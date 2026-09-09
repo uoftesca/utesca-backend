@@ -78,6 +78,10 @@ This single-file configuration approach ensures that CI and local development en
 The **Test Job** requires the following secrets to be configured in GitHub:
 
 - `SUPABASE_URL` - Supabase database URL
+- `SUPABASE_PUB_KEY` - Supabase public key
+- `SUPABASE_SECRET_KEY` - Supabase secret key (admin access)
+
+These keys are legacy Supabase API keys and are no longer in use:
 - `SUPABASE_KEY` - Supabase anon/public key
 - `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (admin access)
 
