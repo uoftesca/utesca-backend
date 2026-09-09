@@ -51,7 +51,7 @@ class AuthService:
         return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SECRET_KEY)
 
     @staticmethod
-    def _auth_user_exists(admin_client: Client, email: str) -> bool:
+    def _find_auth_user(admin_client: Client, email: str) -> Any | None:
         """
         Check whether an email exists in Supabase Auth.
 
@@ -60,7 +60,7 @@ class AuthService:
             email: Email address to find
 
         Returns:
-            True if the email exists, False otherwise
+            The matching Auth user if the email exists, otherwise None
         """
         normalized_email = email.casefold()
         page = 1
@@ -68,10 +68,11 @@ class AuthService:
 
         while True:
             users = admin_client.auth.admin.list_users(page=page, per_page=per_page)
-            if any((user.email or "").casefold() == normalized_email for user in users):
-                return True
+            for user in users:
+                if (user.email or "").casefold() == normalized_email:
+                    return user
             if len(users) < per_page:
-                return False
+                return None
             page += 1
 
     def invite_user(self, request: InviteUserRequest, invited_by_user_id: UUID) -> InviteUserResponse:
@@ -91,11 +92,7 @@ class AuthService:
         try:
             admin_client = self._get_admin_client()
 
-            if self._auth_user_exists(admin_client, str(request.email)):
-                return self._send_onboarding_link(admin_client, str(request.email))
-
-            # Use BASE_URL_PORTAL from environment configuration for team member auth redirects
-            redirect_to = f"{self.settings.BASE_URL_PORTAL}"
+            existing_auth_user = self._find_auth_user(admin_client, str(request.email))
 
             # Prepare user metadata to be stored in auth.users
             user_metadata = {
@@ -107,6 +104,21 @@ class AuthService:
                 "schema": self.schema,  # Store which schema to use (test/prod)
                 "invited_by": str(invited_by_user_id),
             }
+
+            if existing_auth_user:
+                # update auth user metadata
+                refreshed_metadata = {
+                    **(existing_auth_user.user_metadata or {}),
+                    **user_metadata,
+                }
+                admin_client.auth.admin.update_user_by_id(
+                    str(existing_auth_user.id),
+                    {"user_metadata": refreshed_metadata},
+                )
+                return self._send_onboarding_link(admin_client, str(request.email))
+
+            # Use BASE_URL_PORTAL from environment configuration for team member auth redirects
+            redirect_to = f"{self.settings.BASE_URL_PORTAL}"
 
             # Invite user via Supabase Admin API
             result = admin_client.auth.admin.invite_user_by_email(

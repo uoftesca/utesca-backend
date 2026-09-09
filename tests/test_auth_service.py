@@ -59,7 +59,14 @@ def test_invite_existing_user_sends_new_onboarding_link():
     service.schema = "test"
     service.settings = SimpleNamespace(BASE_URL_PORTAL="http://localhost:3001")
     admin_client = Mock()
-    admin_client.auth.admin.list_users.return_value = [SimpleNamespace(email="Ada@Example.com")]
+    auth_user_id = uuid4()
+    admin_client.auth.admin.list_users.return_value = [
+        SimpleNamespace(
+            id=auth_user_id,
+            email="Ada@Example.com",
+            user_metadata={"preferred_name": "Countess"},
+        )
+    ]
     service._get_admin_client = Mock(return_value=admin_client)
     service._send_onboarding_link = Mock(
         return_value=InviteUserResponse(
@@ -69,7 +76,25 @@ def test_invite_existing_user_sends_new_onboarding_link():
         )
     )
 
-    result = service.invite_user(make_invite_request(), uuid4())
+    request = make_invite_request()
+    invited_by_user_id = uuid4()
+    result = service.invite_user(request, invited_by_user_id)
+
+    admin_client.auth.admin.update_user_by_id.assert_called_once_with(
+        str(auth_user_id),
+        {
+            "user_metadata": {
+                "preferred_name": "Countess",
+                "first_name": "Ada",
+                "last_name": "Lovelace",
+                "role": "director",
+                "display_role": "Engineering Director",
+                "department_id": str(request.department_id),
+                "schema": "test",
+                "invited_by": str(invited_by_user_id),
+            }
+        },
+    )
 
     service._send_onboarding_link.assert_called_once_with(
         admin_client,
