@@ -11,6 +11,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from postgrest import APIResponse
+from pydantic import EmailStr
 from supabase import Client, create_client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
@@ -20,8 +21,9 @@ from core.email.service import EmailService
 
 from .models import (
     CompleteOnboardingRequest,
-    InviteUserRequest,
-    InviteUserResponse,
+    RegisterUserRequest,
+    InviteMemberRequest,
+    InviteMemberResponse,
     SignInRequest,
     SignInResponse,
     UpdateProfileRequest,
@@ -75,35 +77,11 @@ class AuthService:
                 return None
             page += 1
 
-    def invite_user(self, request: InviteUserRequest, invited_by_user_id: UUID) -> InviteUserResponse:
-        """
-        Invite a new user to the portal.
-
-        Args:
-            request: Invite user request data
-            invited_by_user_id: ID of the user (co-president) sending the invitation
-
-        Returns:
-            InviteUserResponse: Response with invitation status
-
-        Raises:
-            HTTPException: If invitation fails
-        """
+    def _process_registration(self, email: EmailStr, user_metadata: dict) -> InviteMemberResponse:
         try:
             admin_client = self._get_admin_client()
 
-            existing_auth_user = self._find_auth_user(admin_client, str(request.email))
-
-            # Prepare user metadata to be stored in auth.users
-            user_metadata = {
-                "first_name": request.first_name,
-                "last_name": request.last_name,
-                "role": request.role,
-                "display_role": request.display_role,
-                "department_id": str(request.department_id) if request.department_id else None,
-                "schema": self.schema,  # Store which schema to use (test/prod)
-                "invited_by": str(invited_by_user_id),
-            }
+            existing_auth_user = self._find_auth_user(admin_client, str(email))
 
             if existing_auth_user:
                 # update auth user metadata
@@ -115,14 +93,14 @@ class AuthService:
                     str(existing_auth_user.id),
                     {"user_metadata": refreshed_metadata},
                 )
-                return self._send_onboarding_link(admin_client, str(request.email))
+                return self._send_onboarding_link(admin_client, str(email))
 
             # Use BASE_URL_PORTAL from environment configuration for team member auth redirects
             redirect_to = f"{self.settings.BASE_URL_PORTAL}"
 
             # Invite user via Supabase Admin API
             result = admin_client.auth.admin.invite_user_by_email(
-                email=request.email,
+                email=email,
                 options={
                     "data": user_metadata,
                     "redirect_to": redirect_to,
@@ -135,10 +113,10 @@ class AuthService:
                     detail="Failed to send invitation",
                 )
 
-            return InviteUserResponse(
+            return InviteMemberResponse(
                 success=True,
-                message=f"Invitation sent to {request.email}",
-                email=request.email,
+                message=f"Invitation sent to {email}",
+                email=email,
             )
 
         except HTTPException:
@@ -150,7 +128,56 @@ class AuthService:
                 detail=f"Failed to invite user: {str(e)}",
             ) from e
 
-    def _send_onboarding_link(self, admin_client: Client, email: str) -> InviteUserResponse:
+    def register_user(self, request: RegisterUserRequest) -> InviteMemberResponse:
+        """
+        Register a new user.
+
+        Args:
+            request: Register user request data
+
+        Returns:
+            InviteMemberResponse: Response with invitation status
+
+        Raises:
+            HTTPException: If invitation fails
+        """
+        # Prepare user metadata to be stored in auth.users
+        user_metadata = {
+            "first_name": request.first_name,
+            "last_name": request.last_name,
+            "is_member": False,
+            "schema": self.schema,  # Store which schema to use (test/prod)
+        }
+
+        return self._process_registration(request.email, user_metadata)
+
+    def invite_member(self, request: InviteMemberRequest, invited_by_user_id: UUID) -> InviteMemberResponse:
+        """
+        Invite a new user to the portal.
+
+        Args:
+            request: Invite user request data
+            invited_by_user_id: ID of the user (co-president) sending the invitation
+
+        Returns:
+            InviteMemberResponse: Response with invitation status
+
+        Raises:
+            HTTPException: If invitation fails
+        """
+        # Prepare user metadata to be stored in auth.users
+        user_metadata = {
+            "first_name": request.first_name,
+            "last_name": request.last_name,
+            "role": request.role,
+            "department_id": str(request.department_id) if request.department_id else None,
+            "schema": self.schema,  # Store which schema to use (test/prod)
+            "invited_by": str(invited_by_user_id),
+        }
+
+        return self._process_registration(request.email, user_metadata)
+
+    def _send_onboarding_link(self, admin_client: Client, email: str) -> InviteMemberResponse:
         """
         Send a new onboarding link for an existing, incomplete invitation.
 
@@ -159,7 +186,7 @@ class AuthService:
             email: Email address associated with the invitation
 
         Returns:
-            InviteUserResponse: Response with invitation status
+            InviteMemberResponse: Response with invitation status
 
         Raises:
             HTTPException: If onboarding is complete or the link cannot be sent
@@ -215,7 +242,7 @@ class AuthService:
                 detail="Failed to send onboarding email",
             )
 
-        return InviteUserResponse(
+        return InviteMemberResponse(
             success=True,
             message=f"A new onboarding link was sent to {email}",
             email=email,

@@ -169,6 +169,30 @@ async def get_auth_user_id(
         )
 
 
+async def get_current_member(
+    current_user: UserResponse = Depends(get_current_user),
+) -> UserResponse:
+    """
+    Verify that the current user is a club member.
+
+    Args:
+        current_user: Current authenticated user
+
+    Returns:
+        UserResponse: Current user data (if club member)
+
+    Raises:
+        HTTPException: If user is not a club member
+    """
+    if not current_user.is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only club members can perform this action",
+        )
+
+    return current_user
+
+
 async def get_current_vp_or_admin(
     current_user: UserResponse = Depends(get_current_user),
 ) -> UserResponse:

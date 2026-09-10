@@ -36,16 +36,20 @@ class NotificationPreferences(TypedDict):
 # ============================================================================
 
 
-class InviteUserRequest(BaseModel):
-    """Request to invite a new user."""
+class RegisterUserRequest(BaseModel):
+    """Request to create a new user."""
 
     email: EmailStr
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class InviteMemberRequest(RegisterUserRequest):
+    """Request to invite a new member user."""
+
     role: UserRole
-    display_role: str = Field(
-        ..., min_length=1, max_length=255, description="e.g., 'VP of Events', 'Marketing Director'"
-    )
     department_id: Optional[UUID] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -91,8 +95,8 @@ class UserResponse(BaseModel):
     email: str
     first_name: str
     last_name: str
+    is_member: bool
     role: UserRole
-    display_role: str
     department_id: Optional[UUID] = None
     preferred_name: Optional[str] = None
     photo_url: Optional[str] = None
@@ -105,7 +109,15 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
-class InviteUserResponse(BaseModel):
+class RegisterUserResponse(BaseModel):
+    """Response after registering a user."""
+
+    success: bool
+    message: str
+    email: str
+
+
+class InviteMemberResponse(BaseModel):
     """Response after inviting a user."""
 
     success: bool

@@ -8,13 +8,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from utils.rate_limit import light_rate_limit, medium_rate_limit, strict_rate_limit
+from utils.rate_limit import harsh_rate_limit, light_rate_limit, medium_rate_limit, strict_rate_limit
 
 from .dependencies import get_auth_user_id, get_current_admin, get_current_user
 from .models import (
     CompleteOnboardingRequest,
-    InviteUserRequest,
-    InviteUserResponse,
+    RegisterUserRequest,
+    RegisterUserResponse,
+    InviteMemberRequest,
+    InviteMemberResponse,
     SignInRequest,
     SignInResponse,
     UpdateProfileRequest,
@@ -55,17 +57,47 @@ async def sign_in(request: SignInRequest, _rl: None = Depends(strict_rate_limit(
 
 
 @router.post(
-    "/invite",
-    response_model=InviteUserResponse,
+    "/register",
+    response_model=RegisterUserResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Invite User",
-    description="Invite a new user to the portal (admin only)",
+    summary="Register User",
+    description="Register a new auth user.",
 )
-async def invite_user(
-    request: InviteUserRequest,
+async def register_user(
+    request: RegisterUserRequest,
+    _rl: None = Depends(harsh_rate_limit("auth_register")),
+):
+    """
+    Register a new user.
+
+    **Requirements:**
+    - Email must not already be registered
+
+    **Process:**
+    1. Sends invitation email via Supabase Auth
+    2. Stores first_name, last_name in user metadata
+    3. When user accepts, database trigger auto-populates users table
+
+    **Returns:**
+    - Invitation status and user details
+    """
+    service = AuthService()
+    return service.register_user(request)
+
+
+@router.post(
+    "/invite-member",
+    response_model=InviteMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Invite Member",
+    description="Invite a new member to the portal (admin only)",
+)
+async def invite_member(
+    request: InviteMemberRequest,
     _rl: None = Depends(medium_rate_limit("auth_invite")),
     current_user: UserResponse = Depends(get_current_admin),
 ):
+    # TODO: Fix process to handle existing user in users table too (do through Supabase function)
     """
     Invite a new user to the portal.
 
@@ -83,7 +115,7 @@ async def invite_user(
     - Invitation status and user details
     """
     service = AuthService()
-    return service.invite_user(request, current_user.user_id)
+    return service.invite_member(request, current_user.user_id)
 
 
 @router.get(
@@ -198,7 +230,8 @@ async def auth_status(_rl: None = Depends(light_rate_limit("auth_status", public
         "schema": get_schema(),
         "endpoints": {
             "sign_in": "POST /auth/sign-in",
-            "invite": "POST /auth/invite",
+            "register": "POST /auth/register",
+            "invite_member": "POST /auth/invite-member",
             "complete_onboarding": "POST /auth/complete-onboarding",
             "me": "GET /auth/me",
             "update_profile": "PUT /auth/profile",
