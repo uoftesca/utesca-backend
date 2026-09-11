@@ -109,16 +109,8 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
-class RegisterUserResponse(BaseModel):
-    """Response after registering a user."""
-
-    success: bool
-    message: str
-    email: str
-
-
-class InviteMemberResponse(BaseModel):
-    """Response after inviting a user."""
+class ProcessRegistrationResponse(BaseModel):
+    """Response after registering a user or inviting a member."""
 
     success: bool
     message: str

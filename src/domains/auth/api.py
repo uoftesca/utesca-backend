@@ -14,9 +14,8 @@ from .dependencies import get_auth_user_id, get_current_admin, get_current_user
 from .models import (
     CompleteOnboardingRequest,
     RegisterUserRequest,
-    RegisterUserResponse,
     InviteMemberRequest,
-    InviteMemberResponse,
+    ProcessRegistrationResponse,
     SignInRequest,
     SignInResponse,
     UpdateProfileRequest,
@@ -58,7 +57,7 @@ async def sign_in(request: SignInRequest, _rl: None = Depends(strict_rate_limit(
 
 @router.post(
     "/register",
-    response_model=RegisterUserResponse,
+    response_model=ProcessRegistrationResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register User",
     description="Register a new auth user.",
@@ -87,7 +86,7 @@ async def register_user(
 
 @router.post(
     "/invite-member",
-    response_model=InviteMemberResponse,
+    response_model=ProcessRegistrationResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Invite Member",
     description="Invite a new member to the portal (admin only)",
@@ -97,13 +96,11 @@ async def invite_member(
     _rl: None = Depends(medium_rate_limit("auth_invite")),
     current_user: UserResponse = Depends(get_current_admin),
 ):
-    # TODO: Fix process to handle existing user in users table too (do through Supabase function)
     """
-    Invite a new user to the portal.
+    Invite a new member to the portal.
 
     **Requirements:**
     - Caller must be a co-president (admin)
-    - Email must not already be registered
 
     **Process:**
     1. Sends invitation email via Supabase Auth

@@ -23,7 +23,7 @@ from .models import (
     CompleteOnboardingRequest,
     RegisterUserRequest,
     InviteMemberRequest,
-    InviteMemberResponse,
+    ProcessRegistrationResponse,
     SignInRequest,
     SignInResponse,
     UpdateProfileRequest,
@@ -77,43 +77,26 @@ class AuthService:
                 return None
             page += 1
 
-    def _process_registration(self, email: EmailStr, user_metadata: dict) -> InviteMemberResponse:
+    def _process_registration(self, email: EmailStr, user_metadata: dict) -> ProcessRegistrationResponse:
         try:
             admin_client = self._get_admin_client()
 
-            existing_auth_user = self._find_auth_user(admin_client, str(email))
+            # existing_auth_user = self._find_auth_user(admin_client, str(email))
+            #
+            # if existing_auth_user:
+            #     # update auth user metadata
+            #     refreshed_metadata = {
+            #         **(existing_auth_user.user_metadata or {}),
+            #         **user_metadata,
+            #     }
+            #     admin_client.auth.admin.update_user_by_id(
+            #         str(existing_auth_user.id),
+            #         {"user_metadata": refreshed_metadata},
+            #     )
 
-            if existing_auth_user:
-                # update auth user metadata
-                refreshed_metadata = {
-                    **(existing_auth_user.user_metadata or {}),
-                    **user_metadata,
-                }
-                admin_client.auth.admin.update_user_by_id(
-                    str(existing_auth_user.id),
-                    {"user_metadata": refreshed_metadata},
-                )
-                return self._send_onboarding_link(admin_client, str(email))
+            self._send_onboarding_link(admin_client, str(email), user_metadata)
 
-            # Use BASE_URL_PORTAL from environment configuration for team member auth redirects
-            redirect_to = f"{self.settings.BASE_URL_PORTAL}"
-
-            # Invite user via Supabase Admin API
-            result = admin_client.auth.admin.invite_user_by_email(
-                email=email,
-                options={
-                    "data": user_metadata,
-                    "redirect_to": redirect_to,
-                },
-            )
-
-            if not result or not result.user:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to send invitation",
-                )
-
-            return InviteMemberResponse(
+            return ProcessRegistrationResponse(
                 success=True,
                 message=f"Invitation sent to {email}",
                 email=email,
@@ -128,7 +111,7 @@ class AuthService:
                 detail=f"Failed to invite user: {str(e)}",
             ) from e
 
-    def register_user(self, request: RegisterUserRequest) -> InviteMemberResponse:
+    def register_user(self, request: RegisterUserRequest) -> ProcessRegistrationResponse:
         """
         Register a new user.
 
@@ -151,7 +134,8 @@ class AuthService:
 
         return self._process_registration(request.email, user_metadata)
 
-    def invite_member(self, request: InviteMemberRequest, invited_by_user_id: UUID) -> InviteMemberResponse:
+    def invite_member(self, request: InviteMemberRequest, invited_by_user_id: UUID) -> ProcessRegistrationResponse:
+        # TODO: Test if this works for an existing user, if not check for the user in schema.users first
         """
         Invite a new user to the portal.
 
@@ -169,6 +153,7 @@ class AuthService:
         user_metadata = {
             "first_name": request.first_name,
             "last_name": request.last_name,
+            "is_member": True,
             "role": request.role,
             "department_id": str(request.department_id) if request.department_id else None,
             "schema": self.schema,  # Store which schema to use (test/prod)
@@ -177,76 +162,48 @@ class AuthService:
 
         return self._process_registration(request.email, user_metadata)
 
-    def _send_onboarding_link(self, admin_client: Client, email: str) -> InviteMemberResponse:
+    def _send_onboarding_link(self, admin_client: Client, email: str, user_metadata: dict):
         """
         Send a new onboarding link for an existing, incomplete invitation.
 
         Args:
             admin_client: Supabase client with admin privileges
             email: Email address associated with the invitation
-
-        Returns:
-            InviteMemberResponse: Response with invitation status
+            user_metadata: Metadata for the user being invited
 
         Raises:
             HTTPException: If onboarding is complete or the link cannot be sent
         """
-        existing_profile = (
-            admin_client.schema(self.schema)
-            .table("users")
-            .select("id")
-            .eq("email", email.casefold())
-            .limit(1)
-            .execute()
-        )
-        if existing_profile.data:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="This user has already completed onboarding",
-            )
-
-        link_response = admin_client.auth.admin.generate_link(
-            {
-                "type": "recovery",
-                "email": email,
+        link_response = admin_client.auth.admin.generate_link({
+            "type": "magiclink",
+            "email": email,
+            "options": {
+                "data": user_metadata
             }
-        )
+        })
+
         if (
             not link_response
             or not link_response.properties.hashed_token
-            or link_response.properties.verification_type != "recovery"
+            or link_response.properties.verification_type != "magiclink"
         ):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to generate onboarding link",
             )
 
-        metadata = link_response.user.user_metadata or {}
-        required_metadata = ["first_name", "last_name", "role", "display_role"]
-        if any(not metadata.get(field) for field in required_metadata):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="This account does not have a valid pending onboarding invitation",
-            )
+        query = urlencode({
+            "token_hash": link_response.properties.hashed_token,
+            "type": "magiclink",
+        })
 
-        query = urlencode(
-            {
-                "token_hash": link_response.properties.hashed_token,
-                "type": "recovery",
-            }
-        )
         onboarding_link = f"{self.settings.BASE_URL_PORTAL}/accept-invite?{query}"
-        if not EmailService().send_onboarding_link(email, str(metadata["first_name"]), onboarding_link):
+
+        if not EmailService().send_onboarding_link(email, user_metadata["first_name"], onboarding_link):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to send onboarding email",
             )
-
-        return InviteMemberResponse(
-            success=True,
-            message=f"A new onboarding link was sent to {email}",
-            email=email,
-        )
 
     def update_profile(
         self,
