@@ -9,7 +9,17 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed", "not_attending", "waitlist"]
+RegistrationStatus = Literal[
+    "pending_verification",
+    "submitted",
+    "withdrawn",
+    "accepted",
+    "rejected",
+    "confirmed",
+    "not_attending",
+    "checked_in",
+    "waitlist",
+]
 
 
 class FileMeta(BaseModel):
@@ -41,6 +51,7 @@ class RegistrationBase(BaseModel):
 
     id: UUID
     event_id: UUID
+    email: Optional[str] = None
     form_data: Dict[str, Any]
     status: RegistrationStatus
     submitted_at: datetime
@@ -70,6 +81,47 @@ class RegistrationCreateRequest(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True,
     )
+
+
+class RegistrationVerificationRequest(BaseModel):
+    """Raw verification token submitted from the email link."""
+
+    token: str = Field(min_length=1)
+
+
+class ManagementTokenRequest(BaseModel):
+    """Raw management token exchanged for a registration session."""
+
+    token: str = Field(min_length=1)
+
+
+class ManagementActionResponse(BaseModel):
+    """Response after a registration management action."""
+
+    success: bool
+    status: RegistrationStatus
+    message: str
+
+
+class TicketCheckInRequest(BaseModel):
+    """Ticket token submitted by the staff check-in scanner."""
+
+    ticket_token: str = Field(min_length=1)
+
+
+class TicketCheckInResponse(BaseModel):
+    """Response after consuming a ticket token."""
+
+    id: UUID
+    checked_in: bool
+    checked_in_at: datetime
+    checked_in_by: UUID
+
+
+class RsvpTokenRequest(BaseModel):
+    """Raw one-time RSVP token submitted from the acceptance link."""
+
+    token: str = Field(min_length=1)
 
 
 class RegistrationResponse(RegistrationBase):
@@ -274,6 +326,7 @@ class RsvpDeclineResponse(BaseModel):
     """Response after declining RSVP."""
 
     success: bool
+    status: RegistrationStatus
     message: str
     final: bool  # Indicates this change is final
 

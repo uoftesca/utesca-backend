@@ -254,6 +254,7 @@ def build_application_received_email(
     event_title: str,
     event_datetime: str,
     event_location: str,
+    management_url: Optional[str] = None,
 ) -> Tuple[str, str]:
     """
     Build HTML and plain text email for application received notification (manual review).
@@ -268,6 +269,23 @@ def build_application_received_email(
         Tuple of (html_body, text_body)
     """
     greeting = f"Hi {full_name}," if full_name else "Thank you for applying!"
+
+    manage_html = ""
+    manage_text = ""
+    if management_url:
+        escaped_management_url = html.escape(management_url, quote=True)
+        manage_html = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0;">
+                                You can view or withdraw your application using the link below.
+                            </p>
+
+                            {_build_cta_button(escaped_management_url, "Manage Application")}
+"""
+        manage_text = f"""
+MANAGE YOUR APPLICATION
+View or withdraw your application:
+{management_url}
+"""
 
     # Build HTML body content
     body_content = f"""
@@ -284,6 +302,8 @@ def build_application_received_email(
                             <p style="font-size: 16px; color: #333333; margin: 20px 0;">
                                 We'll notify you via email once your application has been reviewed. If accepted, you'll receive a confirmation link to RSVP for the event.
                             </p>
+
+                            {manage_html}
 
                             <p style="font-size: 16px; color: #333333; margin: 20px 0;">
                                 Thank you for your interest in UTESCA!
@@ -305,6 +325,7 @@ Location: {event_location}
 
 NEXT STEPS
 We'll notify you via email once your application has been reviewed. If accepted, you'll receive a confirmation link to RSVP for the event.
+{manage_text}
 
 Thank you for your interest in UTESCA!
 
@@ -315,6 +336,120 @@ University of Toronto Engineering Students Consulting Association
 """
 
     return (html_body, text_body)
+
+
+def build_identity_verification_email(
+    full_name: Optional[str],
+    event_title: str,
+    verification_url: str,
+    verification_deadline: str,
+) -> Tuple[str, str]:
+    """Build the identity-verification email sent after registration submission."""
+    greeting = f"Hi {html.escape(full_name)}," if full_name else "Hello!"
+    escaped_title = html.escape(event_title)
+    escaped_url = html.escape(verification_url, quote=True)
+    escaped_deadline = html.escape(verification_deadline)
+
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                Please verify your email address to continue your registration for <strong>{escaped_title}</strong>.
+                            </p>
+
+                            {_build_cta_button(escaped_url, "Verify Email")}
+
+                            <p style="font-size: 14px; color: #666666; margin: 20px 0 0 0;">
+                                This link can be used once and expires on <strong>{escaped_deadline}</strong>.
+                            </p>
+"""
+
+    html_body = _build_email_html("Verify Your Email", body_content)
+    text_name = f"Hi {full_name}," if full_name else "Hello!"
+    text_body = f"""{text_name}
+
+Please verify your email address to continue your registration for {event_title}:
+
+{verification_url}
+
+This link can be used once and expires on {verification_deadline}.
+
+---
+Questions? Reply to this email.
+
+University of Toronto Engineering Students Consulting Association
+"""
+    return html_body, text_body
+
+
+def build_e_ticket_email(
+    full_name: Optional[str],
+    event_title: str,
+    event_datetime: str,
+    event_location: str,
+    management_url: str,
+    qr_code_src: str = "cid:ticket-qr",
+) -> Tuple[str, str]:
+    """Build the e-ticket email; the QR image is supplied as an inline attachment."""
+    greeting = f"Hi {html.escape(full_name)}," if full_name else "Hello!"
+    escaped_title = html.escape(event_title)
+    escaped_datetime = html.escape(event_datetime)
+    escaped_location = html.escape(event_location)
+    escaped_management_url = html.escape(management_url, quote=True)
+    escaped_qr_src = html.escape(qr_code_src, quote=True)
+
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                You're confirmed for <strong>{escaped_title}</strong>. Present this QR code when you arrive.
+                            </p>
+
+                            {_build_event_details_box(escaped_title, escaped_datetime, escaped_location)}
+
+                            <p style="text-align: center; margin: 30px 0;">
+                                <img src="{escaped_qr_src}" alt="Event ticket QR code" width="240" height="240" style="display: inline-block; width: 240px; height: 240px;">
+                            </p>
+
+                            <p style="font-size: 14px; color: #666666; margin: 20px 0; text-align: center;">
+                                This ticket can be checked in once. Do not share it.
+                            </p>
+
+                            <p style="font-size: 16px; color: #333333; margin: 20px 0;">
+                                Use the link below to view your registration or cancel your attendance.
+                            </p>
+
+                            {_build_cta_button(escaped_management_url, "Manage Registration")}
+"""
+
+    html_body = _build_email_html(f"Your E-Ticket for {escaped_title}", body_content)
+    text_name = f"Hi {full_name}," if full_name else "Hello!"
+    text_body = f"""{text_name}
+
+You're confirmed for {event_title}. Your e-ticket QR code is included with this email.
+
+EVENT DETAILS
+-------------
+Event: {event_title}
+Date & Time: {event_datetime}
+Location: {event_location}
+
+Present the QR code when you arrive. This ticket can be checked in once; do not share it.
+
+MANAGE YOUR REGISTRATION
+View your registration or cancel your attendance:
+{management_url}
+
+---
+Questions? Reply to this email.
+
+University of Toronto Engineering Students Consulting Association
+"""
+    return html_body, text_body
 
 
 def build_attendance_confirmed_email(
@@ -585,6 +720,8 @@ def build_application_accepted_email(
     event_location: str,
     registration_id: str,
     base_url: str,
+    rsvp_url: Optional[str] = None,
+    rsvp_deadline: Optional[str] = None,
 ) -> Tuple[str, str]:
     """
     Build HTML and plain text email for application acceptance.
@@ -603,8 +740,17 @@ def build_application_accepted_email(
     Returns:
         Tuple of (html_body, text_body)
     """
-    rsvp_link = f"{base_url}/rsvp/{registration_id}"
+    rsvp_link = rsvp_url or f"{base_url}/rsvp/{registration_id}"
     greeting = f"Hi {full_name}," if full_name else "Hello!"
+    deadline_html = ""
+    deadline_text = ""
+    if rsvp_deadline:
+        deadline_html = f"""
+                            <p style="font-size: 14px; color: #666666; margin: 20px 0 0 0;">
+                                Please respond by <strong>{html.escape(rsvp_deadline)}</strong>. This link can be used once.
+                            </p>
+"""
+        deadline_text = f"\nPlease respond by {rsvp_deadline}. This link can be used once.\n"
 
     # HTML version
     body_content = f"""
@@ -623,6 +769,8 @@ def build_application_accepted_email(
                             </p>
 
                             {_build_cta_button(rsvp_link, "Confirm Attendance")}
+
+                            {deadline_html}
 """
 
     html_body = _build_email_html("Application Accepted!", body_content)
@@ -641,6 +789,7 @@ Location: {event_location}
 CONFIRM YOUR ATTENDANCE
 Please confirm your attendance by visiting this link:
 {rsvp_link}
+{deadline_text}
 
 ---
 Questions? Reply to this email.
@@ -805,6 +954,8 @@ def build_custom_email_from_template(
     registration_id: str,
     base_url: str,
     email_type: Literal["acceptance", "rejection", "waitlisted"],
+    rsvp_url: Optional[str] = None,
+    rsvp_deadline: Optional[str] = None,
 ) -> Tuple[str, str, str]:
     """
     Build email from custom template with variable replacement.
@@ -830,7 +981,7 @@ def build_custom_email_from_template(
     Returns:
         Tuple of (html_body, text_body, subject)
     """
-    rsvp_link = f"{base_url}/rsvp/{registration_id}"
+    rsvp_link = rsvp_url or f"{base_url}/rsvp/{registration_id}"
 
     # Build variable replacement dictionary
     variables = {
@@ -843,6 +994,7 @@ def build_custom_email_from_template(
     # Add RSVP link only for acceptance emails
     if email_type == "acceptance":
         variables["rsvp_link"] = rsvp_link
+        variables["rsvp_deadline"] = rsvp_deadline or ""
 
     # Replace variables in subject and body
     subject = _replace_template_variables(template_subject, variables)

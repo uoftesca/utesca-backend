@@ -10,7 +10,7 @@ environment in production (e.g., Vercel).
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     # Base URLs for different application contexts (required)
     BASE_URL_PUBLIC: str  # Public site for RSVP links in emails
     BASE_URL_PORTAL: str  # Portal for team member auth redirects
+
+    # Short-lived JWT sessions created after a registration management token
+    # has been verified. Required when registration session endpoints are used.
+    REGISTRATION_SESSION_SECRET: Optional[str] = None
+    REGISTRATION_SESSION_TTL_MINUTES: int = 15
+    REGISTRATION_VERIFICATION_TOKEN_TTL_HOURS: int = 24
+    REGISTRATION_MANAGEMENT_TOKEN_BEFORE_EVENT_HOURS: int = 24
+    REGISTRATION_TICKET_TOKEN_AFTER_EVENT_HOURS: int = 24
 
     # Email configuration (Resend)
     RESEND_API_KEY: str

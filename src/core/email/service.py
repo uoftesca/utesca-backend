@@ -2,6 +2,7 @@
 Email service for sending transactional emails via Resend.
 """
 
+import base64
 import logging
 import threading
 import time
@@ -23,6 +24,8 @@ from .templates import (
     build_attendance_declined_email,
     build_confirmation_email,
     build_custom_email_from_template,
+    build_e_ticket_email,
+    build_identity_verification_email,
     build_onboarding_email,
     build_rsvp_decline_notification,
 )
@@ -52,6 +55,7 @@ class EmailService:
         subject: str,
         html_body: str,
         text_body: Optional[str] = None,
+        attachments: Optional[List[resend.Attachment | resend.RemoteAttachment]] = None,
     ) -> bool:
         """
         Send an email using Resend with global rate limiting.
@@ -65,6 +69,7 @@ class EmailService:
             subject: Email subject line
             html_body: HTML email content
             text_body: Plain text fallback (optional)
+            attachments: Inline or downloadable attachments (optional)
 
         Returns:
             True if sent successfully, False otherwise
@@ -99,6 +104,8 @@ class EmailService:
 
             if text_body:
                 params["text"] = text_body
+            if attachments:
+                params["attachments"] = attachments
 
             response = resend.Emails.send(params)
             logger.info(f"Email sent successfully to {to}. ID: {response.get('id')}")
@@ -172,6 +179,7 @@ class EmailService:
         event_title: str,
         event_datetime: str,
         event_location: str,
+        management_url: Optional[str] = None,
     ) -> bool:
         """
         Send application received email for manual review registrations.
@@ -182,6 +190,7 @@ class EmailService:
             event_title: Event title
             event_datetime: Formatted datetime string (Toronto time)
             event_location: Event location
+            management_url: Link that exchanges the management token for a session
 
         Returns:
             True if sent successfully, False otherwise
@@ -192,9 +201,64 @@ class EmailService:
             event_title=event_title,
             event_datetime=event_datetime,
             event_location=event_location,
+            management_url=management_url,
         )
 
         return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)
+
+    def send_identity_verification(
+        self,
+        to: str,
+        full_name: Optional[str],
+        event_title: str,
+        verification_url: str,
+        verification_deadline: str,
+    ) -> bool:
+        """Send the one-time email identity verification link."""
+        html_body, text_body = build_identity_verification_email(
+            full_name=full_name,
+            event_title=event_title,
+            verification_url=verification_url,
+            verification_deadline=verification_deadline,
+        )
+        return self.send_email(
+            to=to,
+            subject=f"[ACTION REQUIRED] Verify Your Email: {event_title}",
+            html_body=html_body,
+            text_body=text_body,
+        )
+
+    def send_e_ticket(
+        self,
+        to: str,
+        full_name: Optional[str],
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+        management_url: str,
+        qr_code_png: bytes,
+    ) -> bool:
+        """Send an e-ticket with an inline QR image and management link."""
+        html_body, text_body = build_e_ticket_email(
+            full_name=full_name,
+            event_title=event_title,
+            event_datetime=event_datetime,
+            event_location=event_location,
+            management_url=management_url,
+        )
+        attachment: resend.Attachment = {
+            "content": base64.b64encode(qr_code_png).decode("ascii"),
+            "filename": "event-ticket.png",
+            "content_type": "image/png",
+            "content_id": "ticket-qr",
+        }
+        return self.send_email(
+            to=to,
+            subject=f"Your E-Ticket: {event_title}",
+            html_body=html_body,
+            text_body=text_body,
+            attachments=[attachment],
+        )
 
     def send_attendance_confirmed(
         self,
@@ -336,6 +400,8 @@ class EmailService:
         registration_id: str,
         base_url: str,
         custom_template: Optional[EmailTemplate] = None,
+        rsvp_url: Optional[str] = None,
+        rsvp_deadline: Optional[str] = None,
     ) -> bool:
         """
         Send application acceptance email (manual review).
@@ -368,6 +434,8 @@ class EmailService:
                     registration_id=registration_id,
                     base_url=base_url,
                     email_type="acceptance",
+                    rsvp_url=rsvp_url,
+                    rsvp_deadline=rsvp_deadline,
                 )
             else:
                 # Use system default
@@ -379,6 +447,8 @@ class EmailService:
                     event_location=event_location,
                     registration_id=registration_id,
                     base_url=base_url,
+                    rsvp_url=rsvp_url,
+                    rsvp_deadline=rsvp_deadline,
                 )
         except Exception as e:
             logger.error(f"Failed to build acceptance email template: {e}", exc_info=True)
