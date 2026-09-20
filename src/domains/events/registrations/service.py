@@ -1119,9 +1119,7 @@ class RegistrationService:
 
     def rsvp_decline(self, registration_id: UUID) -> Tuple[RegistrationResponse, str, EventResponse]:
         try:
-            registration, event, previous_status = self.reg_repo.decline_rsvp(
-                registration_id
-            )
+            registration, event, previous_status = self.reg_repo.decline_rsvp(registration_id)
         except APIError as exc:
             if exc.code != "P0001":
                 raise

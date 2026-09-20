@@ -34,14 +34,7 @@ class TokenRepository:
         return TokenRecord.model_validate(result.data[0])
 
     def get_by_id(self, token_id: UUID) -> Optional[TokenRecord]:
-        result = (
-            self.client.schema(self.schema)
-            .table("tokens")
-            .select("*")
-            .eq("id", str(token_id))
-            .limit(1)
-            .execute()
-        )
+        result = self.client.schema(self.schema).table("tokens").select("*").eq("id", str(token_id)).limit(1).execute()
         if not result.data:
             return None
         return TokenRecord.model_validate(result.data[0])
