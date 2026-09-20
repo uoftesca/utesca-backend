@@ -4,15 +4,17 @@ Public-facing registration endpoints.
 
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 
-from utils.rate_limit import harsh_rate_limit, medium_rate_limit, strict_rate_limit
+from utils.rate_limit import medium_rate_limit, strict_rate_limit
 
 from .models import (
     FileDeleteRequest,
     FileDeleteResponse,
     FileUploadRequest,
     FileUploadResponse,
+    ManagementActionResponse,
+    ManagementTokenRequest,
     RegistrationCreateRequest,
     RegistrationVerificationRequest,
     RsvpConfirmResponse,
@@ -20,8 +22,15 @@ from .models import (
     RsvpDetailsByIdResponse,
     RsvpEventDetails,
     RsvpRegistrationDetails,
+    RsvpTokenRequest,
 )
 from .service import RegistrationService
+from .session import (
+    RegistrationSession,
+    RegistrationSessionService,
+    get_registration_session_service,
+    require_registration_session,
+)
 
 router = APIRouter()
 
@@ -85,7 +94,7 @@ async def register(
     payload: RegistrationCreateRequest,
     background_tasks: BackgroundTasks,
     service: RegistrationService = Depends(get_registration_service),
-    _rl: None = Depends(harsh_rate_limit("event_register", public=True)),
+    _rl: None = Depends(strict_rate_limit("event_register", public=True)),
 ):
     registration, verification = service.submit_registration(
         event_slug=slug,
@@ -117,15 +126,69 @@ async def register(
 async def verify_registration(
     registration_id: UUID,
     payload: RegistrationVerificationRequest,
+    background_tasks: BackgroundTasks,
     service: RegistrationService = Depends(get_registration_service),
     _rl: None = Depends(strict_rate_limit("verify_event_registration", public=True)),
 ):
-    registration = service.verify_registration(registration_id, payload.token)
+    registration, event, management_token, ticket_token = service.verify_registration(registration_id, payload.token)
+    background_tasks.add_task(
+        service.send_post_verification_email,
+        registration=registration,
+        event=event,
+        management_token=management_token,
+        ticket_token=ticket_token,
+    )
     return {
         "success": True,
         "status": registration.status,
         "message": "Email verified successfully.",
     }
+
+
+@router.post(
+    "/registrations/{registration_id}/management-session",
+    status_code=status.HTTP_200_OK,
+)
+async def create_management_session(
+    registration_id: UUID,
+    payload: ManagementTokenRequest,
+    response: Response,
+    service: RegistrationService = Depends(get_registration_service),
+    session_service: RegistrationSessionService = Depends(get_registration_session_service),
+    _rl: None = Depends(strict_rate_limit("create_registration_management_session", public=True)),
+):
+    """Exchange a reusable management token for a short-lived session cookie."""
+    management_token, registration = service.verify_management_token(registration_id, payload.token)
+    session_service.set_cookie(
+        response,
+        session_service.create(registration_id, expires_at=management_token.expires_at),
+    )
+    return {"success": True, "registration": registration.model_dump(mode="json", by_alias=True)}
+
+
+@router.post(
+    "/registrations/{registration_id}/withdraw",
+    status_code=status.HTTP_200_OK,
+    response_model=ManagementActionResponse,
+)
+async def withdraw_registration(
+    registration_id: UUID,
+    response: Response,
+    registration_session: RegistrationSession = Depends(require_registration_session),
+    session_service: RegistrationSessionService = Depends(get_registration_session_service),
+    service: RegistrationService = Depends(get_registration_service),
+    _rl: None = Depends(strict_rate_limit("withdraw_event_registration", public=True)),
+):
+    if registration_session.registration_id != registration_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration session does not match")
+
+    registration = service.withdraw_registration(registration_id)
+    session_service.clear_cookie(response)
+    return ManagementActionResponse(
+        success=True,
+        status=registration.status,
+        message="Application withdrawn.",
+    )
 
 
 @router.get(
@@ -173,6 +236,7 @@ async def rsvp_details(
 )
 async def confirm_rsvp(
     registration_id: UUID,
+    payload: RsvpTokenRequest,
     background_tasks: BackgroundTasks,
     service: RegistrationService = Depends(get_registration_service),
     _rl: None = Depends(strict_rate_limit("confirm_event_rsvp", public=True)),
@@ -180,28 +244,30 @@ async def confirm_rsvp(
     """
     Confirm attendance.
 
-    Validates that registration is in 'accepted' status and event hasn't passed.
-    Sends confirmation email as background task.
+    Consumes the one-time RSVP token, rotates management access, and creates
+    the ticket token atomically. Sends the e-ticket as a background task.
     """
-    registration = service.rsvp_confirm(registration_id)
-    event = service.events_repo.get_by_id(UUID(str(registration.event_id)))
+    registration, event, management_token, ticket_token = service.rsvp_confirm(
+        registration_id,
+        payload.token,
+    )
 
-    # Queue confirmation email
-    if event and registration.form_data.get("email"):
-        background_tasks.add_task(
-            service.send_attendance_confirmed_email,
-            registration=registration,
-            event=event,
-        )
+    background_tasks.add_task(
+        service.send_post_verification_email,
+        registration=registration,
+        event=event,
+        management_token=management_token,
+        ticket_token=ticket_token,
+    )
 
     return RsvpConfirmResponse(
         success=True,
         message="Attendance confirmed! We look forward to seeing you.",
         event=RsvpEventDetails(
-            title=event.title if event else "",
-            date_time=event.date_time if event else None,
-            location=event.location if event else None,
-            description=event.description if event else None,
+            title=event.title,
+            date_time=event.date_time,
+            location=event.location,
+            description=event.description,
         ),
     )
 
@@ -214,17 +280,22 @@ async def confirm_rsvp(
 async def decline_rsvp(
     registration_id: UUID,
     background_tasks: BackgroundTasks,
+    response: Response,
+    registration_session: RegistrationSession = Depends(require_registration_session),
+    session_service: RegistrationSessionService = Depends(get_registration_session_service),
     service: RegistrationService = Depends(get_registration_service),
     _rl: None = Depends(strict_rate_limit("decline_event_rsvp", public=True)),
 ):
     """
     Decline attendance (set status to not_attending).
 
-    This is a TERMINAL operation - cannot be reversed.
-    Validates that registration is in 'accepted' or 'confirmed' status and event hasn't passed.
-    Sends decline confirmation email and notifications to subscribed users as background task.
+    This is a terminal operation authorized by the registration management session.
     """
+    if registration_session.registration_id != registration_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration session does not match")
+
     registration, previous_status, event = service.rsvp_decline(registration_id)
+    session_service.clear_cookie(response)
 
     # Queue unified notification handler (handles all email logic)
     background_tasks.add_task(
@@ -235,6 +306,7 @@ async def decline_rsvp(
 
     return RsvpDeclineResponse(
         success=True,
+        status=registration.status,
         message=(
             f"You are no longer attending {event.title if event else 'this event'}. "
             "We have received your RSVP response. This change is final."

@@ -18,16 +18,18 @@ from postgrest.exceptions import APIError
 from supabase import Client, create_client
 
 from core.config import get_settings
-from core.database import get_schema
+from core.database import get_schema, get_supabase_client
 from core.email import EmailService
-from domains.tokens.models import IssuedToken
+from domains.tokens.models import IssuedToken, TokenRecord
+from domains.tokens.repository import TokenRepository
+from domains.tokens.service import TokenService, TokenValidationError
 from utils.file_utils import deduplicate_filename, generate_zip_filename
 from utils.timezone import format_datetime_toronto
 from utils.tokens import generate_token, hash_token
 
 from ..models import EventResponse, RegistrationFormSchema
 from ..repository import EventRepository
-from .access import build_verification_url
+from .access import build_management_url, build_rsvp_url, build_verification_url, generate_ticket_qr_png
 from .files_repository import RegistrationFilesRepository
 from .models import (
     FileMeta,
@@ -62,10 +64,10 @@ class RegistrationService:
         "image/heif",
     }
 
-    def __init__(self):
-        settings = get_settings()
+    def __init__(self, *, admin: bool = False):
+        self.settings = get_settings()
         self.schema = get_schema()
-        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
+        self.supabase = self._get_admin_client() if admin else get_supabase_client()
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.reg_repo = RegistrationsRepository(self.supabase, self.schema)
         self.files_repo = RegistrationFilesRepository(self.supabase, self.schema)
@@ -73,6 +75,18 @@ class RegistrationService:
         from domains.users.repository import UserRepository
 
         self.user_repo = UserRepository(self.supabase, self.schema)
+
+    def _get_admin_client(self) -> Client:
+        """Get a service-role client for privileged registration operations."""
+        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SECRET_KEY)
+
+    def _get_admin_registration_repository(self) -> RegistrationsRepository:
+        return RegistrationsRepository(self._get_admin_client(), self.schema)
+
+    def _get_admin_user_repository(self):
+        from domains.users.repository import UserRepository
+
+        return UserRepository(self._get_admin_client(), self.schema)
 
     # -------------------------------------------------------------------------
     # RSVP link helpers
@@ -278,10 +292,8 @@ class RegistrationService:
 
         settings = get_settings()
         raw_token = generate_token()
-        expires_at = datetime.now(timezone.utc) + timedelta(
-            hours=settings.REGISTRATION_VERIFICATION_TOKEN_TTL_HOURS
-        )
-        registration, token_record = self.reg_repo.create_pending_registration(
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.REGISTRATION_VERIFICATION_TOKEN_TTL_HOURS)
+        registration, token_record = self._get_admin_registration_repository().create_pending_registration(
             event_id=event.id,
             form_data=form_data,
             email=email.strip(),
@@ -293,17 +305,6 @@ class RegistrationService:
         # self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
 
         return registration, IssuedToken(value=raw_token, record=token_record)
-
-    def verify_registration(self, registration_id: UUID, raw_token: str) -> RegistrationResponse:
-        try:
-            return self.reg_repo.verify_registration(registration_id, hash_token(raw_token))
-        except APIError as exc:
-            if exc.code != "P0001":
-                raise
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired verification link.",
-            ) from exc
 
     def send_verification_email(
         self,
@@ -329,6 +330,107 @@ class RegistrationService:
             verification_url=verification_url,
             verification_deadline=format_datetime_toronto(expires_at),
         )
+
+    def verify_registration(
+        self,
+        registration_id: UUID,
+        raw_token: str,
+    ) -> Tuple[RegistrationResponse, EventResponse, str, Optional[str]]:
+        management_token = generate_token()
+        ticket_token = generate_token()
+        settings = get_settings()
+        try:
+            registration, event = self._get_admin_registration_repository().verify_registration(
+                registration_id,
+                hash_token(raw_token),
+                hash_token(management_token),
+                hash_token(ticket_token),
+                settings.REGISTRATION_MANAGEMENT_TOKEN_BEFORE_EVENT_HOURS,
+                settings.REGISTRATION_TICKET_TOKEN_AFTER_EVENT_HOURS,
+            )
+        except APIError as exc:
+            if exc.code != "P0001":
+                raise
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification link.",
+            ) from exc
+        return (
+            registration,
+            event,
+            management_token,
+            ticket_token if registration.status == "confirmed" else None,
+        )
+
+    def verify_management_token(
+        self, registration_id: UUID, raw_token: str
+    ) -> Tuple[TokenRecord, RegistrationResponse]:
+        admin_client = self._get_admin_client()
+        registration_repo = RegistrationsRepository(admin_client, self.schema)
+        token_id = registration_repo.get_management_token_id(registration_id)
+        if not token_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid management link")
+
+        try:
+            token = TokenService(TokenRepository(admin_client, self.schema)).verify(
+                token_id,
+                raw_token,
+                "management",
+                consume=False,
+            )
+            registration = registration_repo.get_registration_by_id(registration_id)
+            if not registration:
+                raise TokenValidationError("Invalid management link")
+            return token, registration
+        except TokenValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid management link") from exc
+
+    def send_post_verification_email(
+        self,
+        registration: RegistrationResponse,
+        event: EventResponse,
+        management_token: Optional[str],
+        ticket_token: Optional[str],
+    ) -> None:
+        if not registration.email:
+            logger.warning(f"Cannot send post-verification email for registration {registration.id}.")
+            return
+
+        email_service = EmailService()
+        email_args: Dict[str, Any] = {
+            "to": registration.email,
+            "full_name": self._extract_name(registration.form_data),
+            "event_title": event.title,
+            "event_datetime": format_datetime_toronto(event.date_time),
+            "event_location": event.location or "TBA",
+        }
+
+        if registration.status == "waitlist":
+            email_service.send_application_waitlisted(
+                **email_args,
+                custom_template=event.waitlisted_email_template,
+            )
+        elif registration.status == "confirmed" and management_token and ticket_token:
+            email_service.send_e_ticket(
+                **email_args,
+                management_url=build_management_url(
+                    get_settings().BASE_URL_PUBLIC,
+                    registration.id,
+                    management_token,
+                ),
+                qr_code_png=generate_ticket_qr_png(registration.id, ticket_token),
+            )
+        elif registration.status == "submitted" and management_token:
+            email_service.send_application_received(
+                **email_args,
+                management_url=build_management_url(
+                    get_settings().BASE_URL_PUBLIC,
+                    registration.id,
+                    management_token,
+                ),
+            )
+        else:
+            logger.warning(f"Unexpected verified registration status: {registration.status}")
 
     def _extract_name(self, form_data: Dict[str, Any]) -> Optional[str]:
         """
@@ -599,9 +701,10 @@ class RegistrationService:
             # Query users with any of the specified notification types enabled
             subscribed_users_by_type = {}
             all_subscribed_users = {}
+            user_repo = self._get_admin_user_repository()
 
             for notification_type in notification_types:
-                users = self.user_repo.get_users_with_notification_enabled(notification_type)
+                users = user_repo.get_users_with_notification_enabled(notification_type)
                 subscribed_users_by_type[notification_type] = users
                 for user in users:
                     all_subscribed_users[user.id] = user
@@ -683,7 +786,7 @@ class RegistrationService:
 
         try:
             # Fetch registration and event
-            registration = self.reg_repo.get_registration_public(registration_id)
+            registration = self._get_admin_registration_repository().get_registration_public(registration_id)
             if not registration:
                 logger.warning(f"Registration {registration_id} not found for notification")
                 return
@@ -754,6 +857,8 @@ class RegistrationService:
         self,
         registration: RegistrationResponse,
         event: EventResponse,
+        raw_token: str,
+        expires_at: datetime,
     ) -> None:
         """
         Send acceptance email after VP/Admin accepts application.
@@ -774,6 +879,12 @@ class RegistrationService:
             extra_kwargs={
                 "registration_id": str(registration.id),
                 "base_url": get_settings().BASE_URL_PUBLIC,
+                "rsvp_url": build_rsvp_url(
+                    get_settings().BASE_URL_PUBLIC,
+                    registration.id,
+                    raw_token,
+                ),
+                "rsvp_deadline": format_datetime_toronto(expires_at),
             },
         )
 
@@ -800,11 +911,9 @@ class RegistrationService:
         extra_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         try:
-            email = registration.form_data.get("email")
+            email = registration.email
             if not email:
-                logger.warning(
-                    f"No email found in form_data for registration {registration.id}. Skipping {action_name} email."
-                )
+                logger.warning(f"No email found for registration {registration.id}. Skipping {action_name} email.")
                 return
 
             full_name = self._extract_name(registration.form_data)
@@ -836,29 +945,26 @@ class RegistrationService:
                 exc_info=True,
             )
 
-    def accept_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
-        registration = self.reg_repo.get_registration_by_id(registration_id)
-        if not registration:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REGISTRATION_NOT_FOUND)
-        if registration.status != "submitted" and registration.status != "waitlist":
+    def accept_application(
+        self,
+        registration_id: UUID,
+        reviewer_id: UUID,
+    ) -> Tuple[RegistrationResponse, EventResponse, IssuedToken]:
+        raw_token = generate_token()
+        try:
+            registration, event, token_record = self.reg_repo.accept_registration(
+                registration_id,
+                reviewer_id,
+                hash_token(raw_token),
+            )
+        except APIError as exc:
+            if exc.code != "P0001":
+                raise
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only submitted or waitlisted registrations can be accepted",
-            )
-
-        updated = self.reg_repo.update_status(
-            registration_id=registration_id,
-            status="accepted",
-            reviewer_id=reviewer_id,
-            reviewed_at=datetime.now(timezone.utc),
-        )
-        if not updated:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update status")
-
-        # Add RSVP link to accepted registration
-        self._add_rsvp_link(updated)
-
-        return updated
+                detail="Registration cannot be accepted or its RSVP deadline has passed.",
+            ) from exc
+        return registration, event, IssuedToken(value=raw_token, record=token_record)
 
     def reject_application(self, registration_id: UUID, reviewer_id: UUID) -> RegistrationResponse:
         registration = self.reg_repo.get_registration_by_id(registration_id)
@@ -956,7 +1062,7 @@ class RegistrationService:
         Raises:
             HTTPException: If registration not found or not accessible
         """
-        registration = self.reg_repo.get_registration_public(registration_id)
+        registration = self._get_admin_registration_repository().get_registration_public(registration_id)
         if not registration:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1000,143 +1106,73 @@ class RegistrationService:
 
         return registration, event, metadata
 
-    def rsvp_confirm(self, registration_id: UUID) -> RegistrationResponse:
-        """
-        Confirm attendance.
-
-        Validates that:
-        - Registration exists and is accessible
-        - Current status is 'accepted'
-        - Event has not passed
-
-        Args:
-            registration_id: The registration ID
-
-        Returns:
-            Updated registration
-
-        Raises:
-            HTTPException: If validation fails
-        """
-        registration = self.reg_repo.get_registration_public(registration_id)
-        if not registration:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=REGISTRATION_NOT_ACCESSIBLE,
+    def rsvp_confirm(
+        self,
+        registration_id: UUID,
+        raw_token: str,
+    ) -> Tuple[RegistrationResponse, EventResponse, str, str]:
+        management_token = generate_token()
+        ticket_token = generate_token()
+        settings = get_settings()
+        try:
+            registration, event = self._get_admin_registration_repository().confirm_rsvp(
+                registration_id,
+                hash_token(raw_token),
+                hash_token(management_token),
+                hash_token(ticket_token),
+                settings.REGISTRATION_MANAGEMENT_TOKEN_BEFORE_EVENT_HOURS,
+                settings.REGISTRATION_TICKET_TOKEN_AFTER_EVENT_HOURS,
             )
-
-        # Get event to check if it has passed
-        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
-        if not event:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=EVENT_NOT_FOUND,
-            )
-
-        # Check if event has passed
-        if self._has_event_passed(event.date_time):
+        except APIError as exc:
+            if exc.code != "P0001":
+                raise
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=EVENT_PASSED,
-            )
-
-        # Check if within 24-hour RSVP cutoff
-        if self._is_within_rsvp_cutoff(event.date_time):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=RSVP_CUTOFF_PASSED,
-            )
-
-        # Allow idempotent confirmation
-        if registration.status == "confirmed":
-            return registration
-
-        # Only accept 'accepted' status for confirmation
-        if registration.status != "accepted":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=NOT_ELIGIBLE_FOR_CONFIRMATION,
-            )
-
-        updated = self.reg_repo.confirm_registration(registration_id, confirmed_at=datetime.now(timezone.utc))
-        if not updated:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to confirm attendance",
-            )
-
-        return updated
+                detail="Invalid or expired RSVP link.",
+            ) from exc
+        return registration, event, management_token, ticket_token
 
     def rsvp_decline(self, registration_id: UUID) -> Tuple[RegistrationResponse, str, EventResponse]:
-        """
-        Decline attendance (set status to not_attending).
-
-        This is a TERMINAL operation - cannot be reversed.
-        Validates that:
-        - Registration exists and is accessible
-        - Current status is 'accepted' or 'confirmed'
-        - Event has not passed
-
-        Args:
-            registration_id: The registration ID
-
-        Returns:
-            Tuple of (updated_registration, previous_status, event)
-
-        Raises:
-            HTTPException: If validation fails
-        """
-        registration = self.reg_repo.get_registration_public(registration_id)
-        if not registration:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=REGISTRATION_NOT_ACCESSIBLE,
+        try:
+            registration, event, previous_status = self._get_admin_registration_repository().decline_rsvp(
+                registration_id
             )
-
-        # Capture previous status before any changes
-        previous_status = registration.status
-
-        # Get event to check if it has passed
-        event = self.events_repo.get_by_id(UUID(str(registration.event_id)))
-        if not event:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=EVENT_NOT_FOUND,
-            )
-
-        # Check if event has passed
-        if self._has_event_passed(event.date_time):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot decline attendance - event has already passed",
-            )
-
-        # Check if within 24-hour RSVP cutoff
-        if self._is_within_rsvp_cutoff(event.date_time):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=RSVP_CUTOFF_PASSED,
-            )
-
-        # Allow idempotent decline
-        if registration.status == "not_attending":
-            return registration, previous_status, event
-
-        # Only allow decline from 'accepted' or 'confirmed'
-        if registration.status not in ("accepted", "confirmed"):
+        except APIError as exc:
+            if exc.code != "P0001":
+                raise
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Registration is not eligible for declining",
-            )
+            ) from exc
+        return registration, previous_status, event
 
-        updated = self.reg_repo.set_not_attending(registration_id, declined_at=datetime.now(timezone.utc))
-        if not updated:
+    def withdraw_registration(self, registration_id: UUID) -> RegistrationResponse:
+        try:
+            return self._get_admin_registration_repository().withdraw_registration(registration_id)
+        except APIError as exc:
+            if exc.code != "P0001":
+                raise
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to decline attendance",
-            )
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration is not eligible for withdrawal",
+            ) from exc
 
-        return updated, previous_status, event
+    def check_in_registration(
+        self,
+        registration_id: UUID,
+        ticket_token: str,
+        checked_in_by: UUID,
+    ) -> RegistrationResponse:
+        try:
+            return self._get_admin_registration_repository().check_in_ticket(
+                registration_id,
+                hash_token(ticket_token),
+                checked_in_by,
+            )
+        except APIError as exc:
+            if exc.code != "P0001":
+                raise
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired ticket.") from exc
 
     def list_registrations(
         self,

@@ -20,34 +20,6 @@ def get_attendance_service() -> AttendanceService:
     return AttendanceService()
 
 
-@router.post(
-    "/registrations/{registration_id}/check-in",
-    response_model=CheckInResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def check_in_attendee(
-    registration_id: UUID,
-    _rl: None = Depends(medium_rate_limit("event_check_in")),
-    current_user: UserResponse = Depends(get_current_user),
-    service: AttendanceService = Depends(get_attendance_service),
-):
-    return service.check_in_attendee(registration_id, current_user.id)
-
-
-@router.post(
-    "/registrations/bulk-check-in",
-    response_model=BulkCheckInResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def bulk_check_in(
-    payload: BulkCheckInRequest,
-    _rl: None = Depends(medium_rate_limit("event_bulk_check_in")),
-    current_user: UserResponse = Depends(get_current_user),
-    service: AttendanceService = Depends(get_attendance_service),
-):
-    return service.bulk_check_in(payload.registration_ids, current_user.id)
-
-
 @router.get(
     "/events/{event_id}/check-in-stats",
     status_code=status.HTTP_200_OK,

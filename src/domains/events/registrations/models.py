@@ -89,6 +89,41 @@ class RegistrationVerificationRequest(BaseModel):
     token: str = Field(min_length=1)
 
 
+class ManagementTokenRequest(BaseModel):
+    """Raw management token exchanged for a registration session."""
+
+    token: str = Field(min_length=1)
+
+
+class ManagementActionResponse(BaseModel):
+    """Response after a registration management action."""
+
+    success: bool
+    status: RegistrationStatus
+    message: str
+
+
+class TicketCheckInRequest(BaseModel):
+    """Ticket token submitted by the staff check-in scanner."""
+
+    ticket_token: str = Field(min_length=1)
+
+
+class TicketCheckInResponse(BaseModel):
+    """Response after consuming a ticket token."""
+
+    id: UUID
+    checked_in: bool
+    checked_in_at: datetime
+    checked_in_by: UUID
+
+
+class RsvpTokenRequest(BaseModel):
+    """Raw one-time RSVP token submitted from the acceptance link."""
+
+    token: str = Field(min_length=1)
+
+
 class RegistrationResponse(RegistrationBase):
     """Registration response without file details."""
 
@@ -291,6 +326,7 @@ class RsvpDeclineResponse(BaseModel):
     """Response after declining RSVP."""
 
     success: bool
+    status: RegistrationStatus
     message: str
     final: bool  # Indicates this change is final
 

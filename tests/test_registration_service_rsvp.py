@@ -15,7 +15,7 @@ Run tests with:
 """
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -23,11 +23,10 @@ from fastapi import HTTPException
 
 from domains.events.registrations.service import (
     EVENT_NOT_FOUND,
-    NOT_ELIGIBLE_FOR_CONFIRMATION,
     REGISTRATION_NOT_ACCESSIBLE,
-    RSVP_CUTOFF_PASSED,
     RegistrationService,
 )
+from utils.tokens import hash_token
 
 # ============================================================================
 # Test Fixtures
@@ -39,7 +38,7 @@ def mock_registration_repo():
     """Mock registration repository."""
     repo = Mock()
     repo.get_registration_public = Mock()
-    repo.confirm_registration = Mock()
+    repo.confirm_rsvp = Mock()
     repo.set_not_attending = Mock()
     return repo
 
@@ -71,9 +70,11 @@ def registration_service(mock_registration_repo, mock_events_repo, mock_files_re
     """Create a RegistrationService instance with mocked dependencies."""
     service = RegistrationService.__new__(RegistrationService)
     service.reg_repo = mock_registration_repo
+    service._get_admin_registration_repository = MagicMock(return_value=mock_registration_repo)
     service.events_repo = mock_events_repo
     service.files_repo = mock_files_repo
     service.user_repo = mock_user_repo
+    service._get_admin_user_repository = MagicMock(return_value=mock_user_repo)
     service.schema = "public"
     return service
 
@@ -409,145 +410,36 @@ class TestRsvpDetails:
 class TestRsvpConfirm:
     """Test suite for rsvp_confirm method."""
 
-    def test_successfully_confirms_accepted_registration(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
+    def test_confirms_with_rsvp_token_and_returns_new_access_tokens(
+        self, registration_service, sample_registration, sample_event
     ):
-        """Should successfully confirm an accepted registration."""
-        # Arrange
-        sample_event.date_time = fixed_datetime + timedelta(days=2)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        confirmed_registration = Mock()
-        confirmed_registration.status = "confirmed"
-        registration_service.reg_repo.confirm_registration.return_value = confirmed_registration
-
-        # Act
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            result = registration_service.rsvp_confirm(sample_registration.id)
-
-        # Assert
-        assert result == confirmed_registration
-        registration_service.reg_repo.confirm_registration.assert_called_once()
-
-    def test_raises_404_when_registration_not_found(self, registration_service):
-        """Should raise 404 when registration doesn't exist."""
-        # Arrange
-        registration_service.reg_repo.get_registration_public.return_value = None
-
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            registration_service.rsvp_confirm(uuid4())
-
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == REGISTRATION_NOT_ACCESSIBLE
-
-    def test_raises_404_when_event_not_found(self, registration_service, sample_registration):
-        """Should raise 404 when event doesn't exist."""
-        # Arrange
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = None
-
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            registration_service.rsvp_confirm(sample_registration.id)
-
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == EVENT_NOT_FOUND
-
-    def test_raises_400_when_event_has_passed(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should raise 400 when event has already passed."""
-        # Arrange
-        sample_event.date_time = fixed_datetime - timedelta(hours=1)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_confirm(sample_registration.id)
-
-        assert exc_info.value.status_code == 400
-        assert "event has already passed" in exc_info.value.detail
-
-    def test_raises_400_when_within_rsvp_cutoff(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should raise 400 when within 24-hour RSVP cutoff."""
-        # Arrange
-        sample_event.date_time = fixed_datetime + timedelta(hours=23)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_confirm(sample_registration.id)
-
-        assert exc_info.value.status_code == 400
-        assert exc_info.value.detail == RSVP_CUTOFF_PASSED
-
-    def test_idempotent_for_already_confirmed(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should return registration without error if already confirmed."""
-        # Arrange
         sample_registration.status = "confirmed"
-        sample_event.date_time = fixed_datetime + timedelta(days=2)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
+        registration_service.reg_repo.confirm_rsvp.return_value = (sample_registration, sample_event)
 
-        # Act
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            result = registration_service.rsvp_confirm(sample_registration.id)
+        with (
+            patch(
+                "domains.events.registrations.service.generate_token",
+                side_effect=["management-token", "ticket-token"],
+            ),
+            patch(
+                "domains.events.registrations.service.get_settings",
+                return_value=Mock(
+                    REGISTRATION_MANAGEMENT_TOKEN_BEFORE_EVENT_HOURS=24,
+                    REGISTRATION_TICKET_TOKEN_AFTER_EVENT_HOURS=24,
+                ),
+            ),
+        ):
+            result = registration_service.rsvp_confirm(sample_registration.id, "rsvp-token")
 
-        # Assert
-        assert result == sample_registration
-        registration_service.reg_repo.confirm_registration.assert_not_called()
-
-    def test_raises_400_for_non_accepted_status(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should raise 400 when registration status is not 'accepted'."""
-        # Arrange
-        sample_registration.status = "pending"
-        sample_event.date_time = fixed_datetime + timedelta(days=2)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_confirm(sample_registration.id)
-
-        assert exc_info.value.status_code == 400
-        assert exc_info.value.detail == NOT_ELIGIBLE_FOR_CONFIRMATION
-
-    def test_raises_500_when_update_fails(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should raise 500 when database update fails."""
-        # Arrange
-        sample_event.date_time = fixed_datetime + timedelta(days=2)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-        registration_service.reg_repo.confirm_registration.return_value = None
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_confirm(sample_registration.id)
-
-        assert exc_info.value.status_code == 500
-        assert "Failed to confirm attendance" in exc_info.value.detail
+        assert result == (sample_registration, sample_event, "management-token", "ticket-token")
+        registration_service.reg_repo.confirm_rsvp.assert_called_once_with(
+            sample_registration.id,
+            hash_token("rsvp-token"),
+            hash_token("management-token"),
+            hash_token("ticket-token"),
+            24,
+            24,
+        )
 
 
 # ============================================================================
@@ -556,176 +448,18 @@ class TestRsvpConfirm:
 
 
 class TestRsvpDecline:
-    """Test suite for rsvp_decline method."""
+    def test_delegates_decline_to_atomic_rpc(self, registration_service, sample_registration, sample_event):
+        declined_registration = Mock(status="not_attending")
+        registration_service.reg_repo.decline_rsvp.return_value = (
+            declined_registration,
+            sample_event,
+            "confirmed",
+        )
 
-    def test_successfully_declines_accepted_registration(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should successfully decline an accepted registration and return 3-tuple."""
-        # Arrange
-        sample_event.date_time = fixed_datetime + timedelta(days=2)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
+        result = registration_service.rsvp_decline(sample_registration.id)
 
-        declined_registration = Mock()
-        declined_registration.status = "not_attending"
-        registration_service.reg_repo.set_not_attending.return_value = declined_registration
-
-        # Act
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            registration, previous_status, event = registration_service.rsvp_decline(sample_registration.id)
-
-        # Assert
-        assert registration == declined_registration
-        assert previous_status == "accepted"
-        assert event == sample_event
-        registration_service.reg_repo.set_not_attending.assert_called_once()
-
-    def test_successfully_declines_confirmed_registration(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should successfully decline a confirmed registration and capture previous status."""
-        # Arrange
-        sample_registration.status = "confirmed"
-        sample_event.date_time = fixed_datetime + timedelta(days=2)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        declined_registration = Mock()
-        declined_registration.status = "not_attending"
-        registration_service.reg_repo.set_not_attending.return_value = declined_registration
-
-        # Act
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            registration, previous_status, event = registration_service.rsvp_decline(sample_registration.id)
-
-        # Assert
-        assert registration == declined_registration
-        assert previous_status == "confirmed"  # This is key for notification logic
-        assert event == sample_event
-        registration_service.reg_repo.set_not_attending.assert_called_once()
-
-    def test_raises_404_when_registration_not_found(self, registration_service):
-        """Should raise 404 when registration doesn't exist."""
-        # Arrange
-        registration_service.reg_repo.get_registration_public.return_value = None
-
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            registration_service.rsvp_decline(uuid4())
-
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == REGISTRATION_NOT_ACCESSIBLE
-
-    def test_raises_404_when_event_not_found(self, registration_service, sample_registration):
-        """Should raise 404 when event doesn't exist."""
-        # Arrange
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = None
-
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            registration_service.rsvp_decline(sample_registration.id)
-
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == EVENT_NOT_FOUND
-
-    def test_raises_400_when_event_has_passed(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should raise 400 when event has already passed."""
-        # Arrange
-        sample_event.date_time = fixed_datetime - timedelta(hours=1)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_decline(sample_registration.id)
-
-        assert exc_info.value.status_code == 400
-        assert "event has already passed" in exc_info.value.detail
-
-    def test_raises_400_when_within_rsvp_cutoff(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should raise 400 when within 24-hour RSVP cutoff."""
-        # Arrange
-        sample_event.date_time = fixed_datetime + timedelta(hours=23)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_decline(sample_registration.id)
-
-        assert exc_info.value.status_code == 400
-        assert exc_info.value.detail == RSVP_CUTOFF_PASSED
-
-    def test_idempotent_for_already_not_attending(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should return 3-tuple without error if already not_attending."""
-        # Arrange
-        sample_registration.status = "not_attending"
-        sample_event.date_time = fixed_datetime + timedelta(days=2)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        # Act
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            registration, previous_status, event = registration_service.rsvp_decline(sample_registration.id)
-
-        # Assert
-        assert registration == sample_registration
-        assert previous_status == "not_attending"
-        assert event == sample_event
-        registration_service.reg_repo.set_not_attending.assert_not_called()
-
-    def test_raises_400_for_invalid_status(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should raise 400 when registration status is not accepted or confirmed."""
-        # Arrange
-        sample_registration.status = "pending"
-        sample_event.date_time = fixed_datetime + timedelta(days=2)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_decline(sample_registration.id)
-
-        assert exc_info.value.status_code == 400
-        assert "not eligible for declining" in exc_info.value.detail
-
-    def test_raises_500_when_update_fails(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should raise 500 when database update fails."""
-        # Arrange
-        sample_event.date_time = fixed_datetime + timedelta(days=2)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-        registration_service.reg_repo.set_not_attending.return_value = None
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_decline(sample_registration.id)
-
-        assert exc_info.value.status_code == 500
-        assert "Failed to decline attendance" in exc_info.value.detail
+        assert result == (declined_registration, "confirmed", sample_event)
+        registration_service.reg_repo.decline_rsvp.assert_called_once_with(sample_registration.id)
 
 
 # ============================================================================
@@ -1114,68 +848,3 @@ class TestEmailService:
         # Assert
         assert result is False
         email_service.send_email.assert_not_called()
-
-
-# ============================================================================
-# Edge Case and Integration Tests
-# ============================================================================
-
-
-class TestEdgeCases:
-    """Test suite for edge cases and boundary conditions."""
-
-    def test_cutoff_boundary_exactly_24_hours(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should block RSVP changes at exactly 24 hours before event."""
-        # Arrange
-        sample_event.date_time = fixed_datetime + timedelta(hours=24, minutes=0, seconds=0)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_confirm(sample_registration.id)
-
-        assert exc_info.value.detail == RSVP_CUTOFF_PASSED
-
-    def test_cutoff_boundary_just_after_24_hours(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should allow RSVP changes just after 24-hour cutoff (24h + 1s)."""
-        # Arrange
-        sample_event.date_time = fixed_datetime + timedelta(hours=24, seconds=1)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        confirmed_registration = Mock()
-        confirmed_registration.status = "confirmed"
-        registration_service.reg_repo.confirm_registration.return_value = confirmed_registration
-
-        # Act
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            result = registration_service.rsvp_confirm(sample_registration.id)
-
-        # Assert
-        assert result == confirmed_registration
-
-    def test_event_passed_takes_precedence_over_cutoff(
-        self, registration_service, sample_registration, sample_event, fixed_datetime
-    ):
-        """Should show 'event passed' error instead of cutoff error when event is in past."""
-        # Arrange
-        sample_event.date_time = fixed_datetime - timedelta(hours=1)
-        registration_service.reg_repo.get_registration_public.return_value = sample_registration
-        registration_service.events_repo.get_by_id.return_value = sample_event
-
-        # Act & Assert
-        with patch("domains.events.registrations.service.datetime") as mock_datetime:
-            mock_datetime.now.return_value = fixed_datetime
-            with pytest.raises(HTTPException) as exc_info:
-                registration_service.rsvp_confirm(sample_registration.id)
-
-        assert "event has already passed" in exc_info.value.detail
-        assert exc_info.value.detail != RSVP_CUTOFF_PASSED

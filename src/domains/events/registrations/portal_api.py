@@ -13,7 +13,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
 from domains.auth.models import UserResponse
 from domains.events.analytics.service import AnalyticsService
-from domains.events.registrations.models import RegistrationStatusUpdate
+from domains.events.registrations.models import (
+    RegistrationStatusUpdate,
+    TicketCheckInRequest,
+    TicketCheckInResponse,
+)
 from utils.rate_limit import medium_rate_limit
 
 from .service import RegistrationService
@@ -22,11 +26,37 @@ router = APIRouter()
 
 
 def get_registration_service() -> RegistrationService:
-    return RegistrationService()
+    return RegistrationService(admin=True)
 
 
 def get_analytics_service() -> AnalyticsService:
     return AnalyticsService()
+
+
+@router.post(
+    "/registrations/{registration_id}/check-in",
+    status_code=status.HTTP_200_OK,
+    response_model=TicketCheckInResponse,
+)
+async def check_in_registration(
+    registration_id: UUID,
+    payload: TicketCheckInRequest,
+    _rl: None = Depends(medium_rate_limit("check_in_event_registration")),
+    current_user: UserResponse = Depends(get_current_user),
+    service: RegistrationService = Depends(get_registration_service),
+):
+    """Consume a ticket QR token and check in the confirmed registration."""
+    registration = service.check_in_registration(
+        registration_id=registration_id,
+        ticket_token=payload.ticket_token,
+        checked_in_by=current_user.id,
+    )
+    return TicketCheckInResponse(
+        id=registration.id,
+        checked_in=registration.checked_in,
+        checked_in_at=registration.checked_in_at,
+        checked_in_by=registration.checked_in_by,
+    )
 
 
 @router.get(
@@ -118,27 +148,27 @@ async def update_status(
         HTTPException: 404 if registration not found
     """
     if payload.status == "accepted":
-        updated = service.accept_application(registration_id, current_user.id)
+        updated, event, rsvp_token = service.accept_application(registration_id, current_user.id)
 
         # Queue acceptance email
-        event = service.events_repo.get_by_id(updated.event_id)
-        if event:
-            background_tasks.add_task(
-                service.send_acceptance_email,
-                registration=updated,
-                event=event,
-            )
+        background_tasks.add_task(
+            service.send_acceptance_email,
+            registration=updated,
+            event=event,
+            raw_token=rsvp_token.value,
+            expires_at=rsvp_token.record.expires_at,
+        )
 
     elif payload.status == "rejected":
         updated = service.reject_application(registration_id, current_user.id)
 
         # Queue rejection email
-        event = service.events_repo.get_by_id(updated.event_id)
-        if event:
+        rejection_event = service.events_repo.get_by_id(updated.event_id)
+        if rejection_event:
             background_tasks.add_task(
                 service.send_rejection_email,
                 registration=updated,
-                event=event,
+                event=rejection_event,
             )
 
     elif payload.status == "waitlist":

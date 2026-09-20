@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import jwt
-from fastapi import Response
+from fastapi import Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 
 from core.config import get_settings
@@ -23,6 +23,19 @@ def get_registration_session_service() -> "RegistrationSessionService":
         ttl_minutes=settings.REGISTRATION_SESSION_TTL_MINUTES,
         secure_cookie=settings.is_production,
     )
+
+
+def require_registration_session(
+    encoded_session: str | None = Cookie(default=None, alias=COOKIE_NAME),
+    service: "RegistrationSessionService" = Depends(get_registration_session_service),
+) -> "RegistrationSession":
+    """Require a valid registration-management session cookie."""
+    if not encoded_session:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Registration session required")
+    try:
+        return service.verify(encoded_session)
+    except RegistrationSessionError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid registration session") from exc
 
 
 class RegistrationSessionError(ValueError):
@@ -49,11 +62,14 @@ class RegistrationSessionService:
         self.ttl = timedelta(minutes=ttl_minutes)
         self.secure_cookie = secure_cookie
 
-    def create(self, registration_id: UUID) -> str:
+    def create(self, registration_id: UUID, expires_at: datetime | None = None) -> str:
         now = datetime.now(timezone.utc)
+        session_expires_at = now + self.ttl
+        if expires_at is not None:
+            session_expires_at = min(session_expires_at, expires_at)
         payload = {
             "sub": str(registration_id),
-            "exp": now + self.ttl,
+            "exp": session_expires_at,
         }
         return jwt.encode(payload, self.secret, algorithm=ALGORITHM)
 
