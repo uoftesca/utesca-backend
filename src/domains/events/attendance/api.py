@@ -10,7 +10,6 @@ from domains.auth.dependencies import get_current_user
 from domains.auth.models import UserResponse
 from utils.rate_limit import medium_rate_limit
 
-from .models import BulkCheckInRequest, BulkCheckInResponse, CheckInResponse
 from .service import AttendanceService
 
 router = APIRouter()
