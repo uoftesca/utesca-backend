@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     # has been verified. Required when registration session endpoints are used.
     REGISTRATION_SESSION_SECRET: Optional[str] = None
     REGISTRATION_SESSION_TTL_MINUTES: int = 15
+    REGISTRATION_VERIFICATION_TOKEN_TTL_HOURS: int = 24
 
     # Email configuration (Resend)
     RESEND_API_KEY: str

@@ -9,7 +9,17 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-RegistrationStatus = Literal["submitted", "accepted", "rejected", "confirmed", "not_attending", "waitlist"]
+RegistrationStatus = Literal[
+    "pending_verification",
+    "submitted",
+    "withdrawn",
+    "accepted",
+    "rejected",
+    "confirmed",
+    "not_attending",
+    "checked_in",
+    "waitlist",
+]
 
 
 class FileMeta(BaseModel):
@@ -41,6 +51,7 @@ class RegistrationBase(BaseModel):
 
     id: UUID
     event_id: UUID
+    email: Optional[str] = None
     form_data: Dict[str, Any]
     status: RegistrationStatus
     submitted_at: datetime
@@ -70,6 +81,12 @@ class RegistrationCreateRequest(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True,
     )
+
+
+class RegistrationVerificationRequest(BaseModel):
+    """Raw verification token submitted from the email link."""
+
+    token: str = Field(min_length=1)
 
 
 class RegistrationResponse(RegistrationBase):

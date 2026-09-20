@@ -14,6 +14,7 @@ from .models import (
     FileUploadRequest,
     FileUploadResponse,
     RegistrationCreateRequest,
+    RegistrationVerificationRequest,
     RsvpConfirmResponse,
     RsvpDeclineResponse,
     RsvpDetailsByIdResponse,
@@ -86,7 +87,7 @@ async def register(
     service: RegistrationService = Depends(get_registration_service),
     _rl: None = Depends(harsh_rate_limit("event_register", public=True)),
 ):
-    registration = service.submit_registration(
+    registration, verification = service.submit_registration(
         event_slug=slug,
         form_data=payload.form_data,
         upload_session_id=payload.upload_session_id,
@@ -95,25 +96,35 @@ async def register(
     # Queue email to send after response
     event = service._get_event_or_404(slug)
     background_tasks.add_task(
-        service.send_confirmation_email,
+        service.send_verification_email,
         registration=registration,
         event=event,
-    )
-
-    # Determine response message based on registration status
-    message = (
-        "Registration confirmed! Check your email for next steps to confirm your attendance."
-        if registration.status == "accepted"
-        else (
-            "Registration submitted! Check your email for confirmation and updates. "
-            "We'll review your application and be in touch soon."
-        )
+        raw_token=verification.value,
+        expires_at=verification.record.expires_at,
     )
 
     return {
         "success": True,
         "registration_id": str(registration.id),
-        "message": message,
+        "message": "Registration submitted. Check your email to verify your identity.",
+    }
+
+
+@router.post(
+    "/registrations/{registration_id}/verify",
+    status_code=status.HTTP_200_OK,
+)
+async def verify_registration(
+    registration_id: UUID,
+    payload: RegistrationVerificationRequest,
+    service: RegistrationService = Depends(get_registration_service),
+    _rl: None = Depends(strict_rate_limit("verify_event_registration", public=True)),
+):
+    registration = service.verify_registration(registration_id, payload.token)
+    return {
+        "success": True,
+        "status": registration.status,
+        "message": "Email verified successfully.",
     }
 
 

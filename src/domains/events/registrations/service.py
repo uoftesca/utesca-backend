@@ -8,22 +8,26 @@ import logging
 import re
 import zipfile
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import UUID
 
 import httpx
 from fastapi import HTTPException, status
+from postgrest.exceptions import APIError
 from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
 from core.email import EmailService
+from domains.tokens.models import IssuedToken
 from utils.file_utils import deduplicate_filename, generate_zip_filename
 from utils.timezone import format_datetime_toronto
+from utils.tokens import generate_token, hash_token
 
 from ..models import EventResponse, RegistrationFormSchema
 from ..repository import EventRepository
+from .access import build_verification_url
 from .files_repository import RegistrationFilesRepository
 from .models import (
     FileMeta,
@@ -31,7 +35,6 @@ from .models import (
     RegistrationListPagination,
     RegistrationListResponse,
     RegistrationResponse,
-    RegistrationStatus,
     RegistrationWithFilesResponse,
 )
 from .repository import RegistrationsRepository
@@ -248,7 +251,7 @@ class RegistrationService:
 
     def submit_registration(
         self, event_slug: str, form_data: Dict[str, Any], upload_session_id: str
-    ) -> RegistrationResponse:
+    ) -> Tuple[RegistrationResponse, IssuedToken]:
         event = self._get_event_or_404(event_slug)
         self._enforce_deadline(event)
 
@@ -266,28 +269,66 @@ class RegistrationService:
                 detail={"error": "Validation failed", "details": errors},
             )
 
-        auto_accept = bool(form_schema.get("auto_accept"))
-        status_value: RegistrationStatus = "accepted" if auto_accept else "submitted"
-        attendee_count = self.reg_repo.count_accepted_and_confirmed(event.id)
-        if event.max_capacity is not None and attendee_count >= event.max_capacity and auto_accept:
-            status_value = "waitlist"
+        email = form_data.get("email")
+        if not isinstance(email, str) or not email.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email is required to verify the registration.",
+            )
 
-        registration = self.reg_repo.create_registration(
+        settings = get_settings()
+        raw_token = generate_token()
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            hours=settings.REGISTRATION_VERIFICATION_TOKEN_TTL_HOURS
+        )
+        registration, token_record = self.reg_repo.create_pending_registration(
             event_id=event.id,
             form_data=form_data,
-            status=status_value,
-        )
-
-        # Link files after successful creation
-        self.files_repo.link_files_to_registration(
+            email=email.strip(),
             upload_session_id=upload_session_id,
-            registration_id=registration.id,
-            event_date=event.date_time,
+            token_hash=hash_token(raw_token),
+            token_expires_at=expires_at,
         )
 
         # self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
 
-        return registration
+        return registration, IssuedToken(value=raw_token, record=token_record)
+
+    def verify_registration(self, registration_id: UUID, raw_token: str) -> RegistrationResponse:
+        try:
+            return self.reg_repo.verify_registration(registration_id, hash_token(raw_token))
+        except APIError as exc:
+            if exc.code != "P0001":
+                raise
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification link.",
+            ) from exc
+
+    def send_verification_email(
+        self,
+        registration: RegistrationResponse,
+        event,
+        raw_token: str,
+        expires_at: datetime,
+    ) -> None:
+        email = registration.email
+        if not email:
+            logger.warning(f"No email found for registration {registration.id}. Skipping verification email.")
+            return
+
+        verification_url = build_verification_url(
+            get_settings().BASE_URL_PUBLIC,
+            registration.id,
+            raw_token,
+        )
+        EmailService().send_identity_verification(
+            to=str(email),
+            full_name=self._extract_name(registration.form_data),
+            event_title=event.title,
+            verification_url=verification_url,
+            verification_deadline=format_datetime_toronto(expires_at),
+        )
 
     def _extract_name(self, form_data: Dict[str, Any]) -> Optional[str]:
         """

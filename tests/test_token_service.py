@@ -58,11 +58,11 @@ def test_verify_consumes_one_time_token():
     repository = Mock()
     token = make_token()
     consumed = token.model_copy(update={"used_at": datetime.now(timezone.utc)})
-    repository.get_by_hash.return_value = token
+    repository.get_by_id.return_value = token
     repository.consume.return_value = consumed
     service = TokenService(repository)
 
-    result = service.verify("raw-token", "verification", consume=True)
+    result = service.verify(token.id, "raw-token", "verification", consume=True)
 
     assert result.used_at is not None
     repository.consume.assert_called_once()
@@ -73,11 +73,11 @@ def test_verify_records_reusable_token_usage():
     repository = Mock()
     token = make_token(type="management")
     verified = token.model_copy(update={"verification_count": 1})
-    repository.get_by_hash.return_value = token
+    repository.get_by_id.return_value = token
     repository.record_verification.return_value = verified
     service = TokenService(repository)
 
-    result = service.verify("raw-token", "management", consume=False)
+    result = service.verify(token.id, "raw-token", "management", consume=False)
 
     assert result.verification_count == 1
     repository.record_verification.assert_called_once()
@@ -88,6 +88,7 @@ def test_verify_records_reusable_token_usage():
     "token",
     [
         None,
+        make_token(token_hash=hash_token("wrong-token")),
         make_token(type="ticket"),
         make_token(revoked_at=datetime.now(timezone.utc)),
         make_token(used_at=datetime.now(timezone.utc)),
@@ -96,11 +97,11 @@ def test_verify_records_reusable_token_usage():
 )
 def test_verify_rejects_invalid_tokens(token):
     repository = Mock()
-    repository.get_by_hash.return_value = token
+    repository.get_by_id.return_value = token
     service = TokenService(repository)
 
     with pytest.raises(TokenValidationError, match="Invalid token"):
-        service.verify("raw-token", "verification", consume=True)
+        service.verify(uuid4(), "raw-token", "verification", consume=True)
 
     repository.consume.assert_not_called()
     repository.record_verification.assert_not_called()

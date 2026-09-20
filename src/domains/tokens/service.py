@@ -1,5 +1,6 @@
 """Business logic for issuing and validating opaque tokens."""
 
+import hmac
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
@@ -38,6 +39,7 @@ class TokenService:
 
     def verify(
         self,
+        token_id: UUID,
         raw_token: str,
         expected_type: str,
         *,
@@ -45,9 +47,11 @@ class TokenService:
         now: Optional[datetime] = None,
     ) -> TokenRecord:
         checked_at = now or datetime.now(timezone.utc)
-        token = self.repository.get_by_hash(hash_token(raw_token))
+        token = self.repository.get_by_id(token_id)
 
-        if not token or token.type != expected_type:
+        if not token or not hmac.compare_digest(token.token_hash, hash_token(raw_token)):
+            raise TokenValidationError("Invalid token")
+        if token.type != expected_type:
             raise TokenValidationError("Invalid token")
         if token.revoked_at is not None or token.used_at is not None:
             raise TokenValidationError("Invalid token")

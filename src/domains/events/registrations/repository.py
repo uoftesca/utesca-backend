@@ -3,12 +3,13 @@ Repository for event registrations data access.
 """
 
 from datetime import datetime
-from typing import List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 from uuid import UUID
 
 from postgrest import CountMethod, ReturnMethod
-from postgrest.types import JSON
 from supabase import Client
+
+from domains.tokens.models import TokenRecord
 
 from .models import RegistrationResponse, RegistrationStatus
 
@@ -20,29 +21,51 @@ class RegistrationsRepository:
         self.client = client
         self.schema = schema
 
-    def create_registration(
+    def create_pending_registration(
         self,
         event_id: UUID,
         form_data: dict,
-        status: RegistrationStatus,
-    ) -> RegistrationResponse:
-        insert_data = {
-            "event_id": str(event_id),
-            "form_data": form_data,
-            "status": status,
+        email: str,
+        upload_session_id: str,
+        token_hash: str,
+        token_expires_at: datetime,
+    ) -> Tuple[RegistrationResponse, TokenRecord]:
+        params: Dict[str, Any] = {
+            "p_event_id": str(event_id),
+            "p_form_data": form_data,
+            "p_email": email,
+            "p_upload_session_id": upload_session_id,
+            "p_token_hash": token_hash,
+            "p_token_expires_at": token_expires_at.isoformat(),
         }
-
         result = (
             self.client.schema(self.schema)
-            .table("event_registrations")
-            .insert(cast(JSON, insert_data), returning=ReturnMethod.representation)
+            .rpc("create_pending_event_registration", params)
             .execute()
         )
-
         if not result.data:
-            raise ValueError("Failed to create registration")
+            raise ValueError("Failed to create pending registration")
+        payload = cast(dict, result.data)
+        return (
+            RegistrationResponse.model_validate(payload["registration"]),
+            TokenRecord.model_validate(payload["token"]),
+        )
 
-        return RegistrationResponse.model_validate(result.data[0])
+    def verify_registration(self, registration_id: UUID, token_hash: str) -> RegistrationResponse:
+        result = (
+            self.client.schema(self.schema)
+            .rpc(
+                "verify_event_registration",
+                {
+                    "p_registration_id": str(registration_id),
+                    "p_token_hash": token_hash,
+                },
+            )
+            .execute()
+        )
+        if not result.data:
+            raise ValueError("Failed to verify registration")
+        return RegistrationResponse.model_validate(result.data)
 
     def get_registration_by_id(self, registration_id: UUID) -> Optional[RegistrationResponse]:
         result = (
