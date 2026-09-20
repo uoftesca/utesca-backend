@@ -7,12 +7,15 @@
 -- TEST SCHEMA
 
 DROP FUNCTION IF EXISTS test.verify_event_registration(uuid, text);
+DROP FUNCTION IF EXISTS test.verify_event_registration(uuid, text, text, text);
 
 CREATE OR REPLACE FUNCTION test.verify_event_registration(
     p_registration_id uuid,
     p_token_hash text,
     p_management_token_hash text,
-    p_ticket_token_hash text
+    p_ticket_token_hash text,
+    p_management_before_hours integer,
+    p_ticket_after_hours integer
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -89,12 +92,12 @@ BEGIN
     END IF;
 
     INSERT INTO test.tokens (type, token_hash, expires_at)
-    VALUES ('management', p_management_token_hash, v_event.date_time)
+    VALUES ('management', p_management_token_hash, v_event.date_time - make_interval(hours => p_management_before_hours))
     RETURNING * INTO v_management_token;
 
     IF v_auto_accept AND v_has_capacity THEN
         INSERT INTO test.tokens (type, token_hash, expires_at)
-        VALUES ('ticket', p_ticket_token_hash, v_event.date_time)
+        VALUES ('ticket', p_ticket_token_hash, v_event.date_time + make_interval(hours => p_ticket_after_hours))
         RETURNING * INTO v_ticket_token;
     END IF;
 
@@ -122,20 +125,23 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION test.verify_event_registration(uuid, text, text, text)
+REVOKE ALL ON FUNCTION test.verify_event_registration(uuid, text, text, text, integer, integer)
 FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION test.verify_event_registration(uuid, text, text, text)
+GRANT EXECUTE ON FUNCTION test.verify_event_registration(uuid, text, text, text, integer, integer)
 TO service_role;
 
 -- PROD SCHEMA
 
 DROP FUNCTION IF EXISTS prod.verify_event_registration(uuid, text);
+DROP FUNCTION IF EXISTS prod.verify_event_registration(uuid, text, text, text);
 
 CREATE OR REPLACE FUNCTION prod.verify_event_registration(
     p_registration_id uuid,
     p_token_hash text,
     p_management_token_hash text,
-    p_ticket_token_hash text
+    p_ticket_token_hash text,
+    p_management_before_hours integer,
+    p_ticket_after_hours integer
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -212,12 +218,12 @@ BEGIN
     END IF;
 
     INSERT INTO prod.tokens (type, token_hash, expires_at)
-    VALUES ('management', p_management_token_hash, v_event.date_time)
+    VALUES ('management', p_management_token_hash, v_event.date_time - make_interval(hours => p_management_before_hours))
     RETURNING * INTO v_management_token;
 
     IF v_auto_accept AND v_has_capacity THEN
         INSERT INTO prod.tokens (type, token_hash, expires_at)
-        VALUES ('ticket', p_ticket_token_hash, v_event.date_time)
+        VALUES ('ticket', p_ticket_token_hash, v_event.date_time + make_interval(hours => p_ticket_after_hours))
         RETURNING * INTO v_ticket_token;
     END IF;
 
@@ -245,8 +251,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION prod.verify_event_registration(uuid, text, text, text)
+REVOKE ALL ON FUNCTION prod.verify_event_registration(uuid, text, text, text, integer, integer)
 FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION prod.verify_event_registration(uuid, text, text, text)
+GRANT EXECUTE ON FUNCTION prod.verify_event_registration(uuid, text, text, text, integer, integer)
 TO service_role;
-

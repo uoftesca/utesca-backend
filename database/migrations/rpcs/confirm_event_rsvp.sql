@@ -10,7 +10,9 @@ CREATE OR REPLACE FUNCTION test.confirm_event_rsvp(
     p_registration_id uuid,
     p_rsvp_token_hash text,
     p_management_token_hash text,
-    p_ticket_token_hash text
+    p_ticket_token_hash text,
+    p_management_before_hours integer,
+    p_ticket_after_hours integer
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -84,11 +86,11 @@ BEGIN
     WHERE id = v_rsvp_token.id;
 
     INSERT INTO test.tokens (type, token_hash, expires_at)
-    VALUES ('management', p_management_token_hash, v_event.date_time)
+    VALUES ('management', p_management_token_hash, v_event.date_time - make_interval(hours => p_management_before_hours))
     RETURNING * INTO v_new_management_token;
 
     INSERT INTO test.tokens (type, token_hash, expires_at)
-    VALUES ('ticket', p_ticket_token_hash, v_event.date_time)
+    VALUES ('ticket', p_ticket_token_hash, v_event.date_time + make_interval(hours => p_ticket_after_hours))
     RETURNING * INTO v_ticket_token;
 
     UPDATE test.tokens
@@ -112,9 +114,9 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION test.confirm_event_rsvp(uuid, text, text, text)
+REVOKE ALL ON FUNCTION test.confirm_event_rsvp(uuid, text, text, text, integer, integer)
 FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION test.confirm_event_rsvp(uuid, text, text, text)
+GRANT EXECUTE ON FUNCTION test.confirm_event_rsvp(uuid, text, text, text, integer, integer)
 TO service_role;
 
 -- PROD SCHEMA
@@ -123,7 +125,9 @@ CREATE OR REPLACE FUNCTION prod.confirm_event_rsvp(
     p_registration_id uuid,
     p_rsvp_token_hash text,
     p_management_token_hash text,
-    p_ticket_token_hash text
+    p_ticket_token_hash text,
+    p_management_before_hours integer,
+    p_ticket_after_hours integer
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -197,11 +201,11 @@ BEGIN
     WHERE id = v_rsvp_token.id;
 
     INSERT INTO prod.tokens (type, token_hash, expires_at)
-    VALUES ('management', p_management_token_hash, v_event.date_time)
+    VALUES ('management', p_management_token_hash, v_event.date_time - make_interval(hours => p_management_before_hours))
     RETURNING * INTO v_new_management_token;
 
     INSERT INTO prod.tokens (type, token_hash, expires_at)
-    VALUES ('ticket', p_ticket_token_hash, v_event.date_time)
+    VALUES ('ticket', p_ticket_token_hash, v_event.date_time + make_interval(hours => p_ticket_after_hours))
     RETURNING * INTO v_ticket_token;
 
     UPDATE prod.tokens
@@ -225,8 +229,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION prod.confirm_event_rsvp(uuid, text, text, text)
+REVOKE ALL ON FUNCTION prod.confirm_event_rsvp(uuid, text, text, text, integer, integer)
 FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION prod.confirm_event_rsvp(uuid, text, text, text)
+GRANT EXECUTE ON FUNCTION prod.confirm_event_rsvp(uuid, text, text, text, integer, integer)
 TO service_role;
-
