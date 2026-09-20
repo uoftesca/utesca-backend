@@ -15,10 +15,10 @@ from uuid import UUID
 import httpx
 from fastapi import HTTPException, status
 from postgrest.exceptions import APIError
-from supabase import Client, create_client
+from supabase import create_client
 
 from core.config import get_settings
-from core.database import get_schema, get_supabase_client
+from core.database import get_schema
 from core.email import EmailService
 from domains.tokens.models import IssuedToken, TokenRecord
 from domains.tokens.repository import TokenRepository
@@ -64,10 +64,10 @@ class RegistrationService:
         "image/heif",
     }
 
-    def __init__(self, *, admin: bool = False):
+    def __init__(self):
         self.settings = get_settings()
         self.schema = get_schema()
-        self.supabase = self._get_admin_client() if admin else get_supabase_client()
+        self.supabase = create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SECRET_KEY)
         self.events_repo = EventRepository(self.supabase, self.schema)
         self.reg_repo = RegistrationsRepository(self.supabase, self.schema)
         self.files_repo = RegistrationFilesRepository(self.supabase, self.schema)
@@ -75,18 +75,6 @@ class RegistrationService:
         from domains.users.repository import UserRepository
 
         self.user_repo = UserRepository(self.supabase, self.schema)
-
-    def _get_admin_client(self) -> Client:
-        """Get a service-role client for privileged registration operations."""
-        return create_client(self.settings.SUPABASE_URL, self.settings.SUPABASE_SECRET_KEY)
-
-    def _get_admin_registration_repository(self) -> RegistrationsRepository:
-        return RegistrationsRepository(self._get_admin_client(), self.schema)
-
-    def _get_admin_user_repository(self):
-        from domains.users.repository import UserRepository
-
-        return UserRepository(self._get_admin_client(), self.schema)
 
     # -------------------------------------------------------------------------
     # RSVP link helpers
@@ -293,7 +281,7 @@ class RegistrationService:
         settings = get_settings()
         raw_token = generate_token()
         expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.REGISTRATION_VERIFICATION_TOKEN_TTL_HOURS)
-        registration, token_record = self._get_admin_registration_repository().create_pending_registration(
+        registration, token_record = self.reg_repo.create_pending_registration(
             event_id=event.id,
             form_data=form_data,
             email=email.strip(),
@@ -301,8 +289,6 @@ class RegistrationService:
             token_hash=hash_token(raw_token),
             token_expires_at=expires_at,
         )
-
-        # self._disable_auto_accept_if_capacity_reached(event, form_schema_model)
 
         return registration, IssuedToken(value=raw_token, record=token_record)
 
@@ -340,7 +326,7 @@ class RegistrationService:
         ticket_token = generate_token()
         settings = get_settings()
         try:
-            registration, event = self._get_admin_registration_repository().verify_registration(
+            registration, event = self.reg_repo.verify_registration(
                 registration_id,
                 hash_token(raw_token),
                 hash_token(management_token),
@@ -365,14 +351,13 @@ class RegistrationService:
     def verify_management_token(
         self, registration_id: UUID, raw_token: str
     ) -> Tuple[TokenRecord, RegistrationResponse]:
-        admin_client = self._get_admin_client()
-        registration_repo = RegistrationsRepository(admin_client, self.schema)
+        registration_repo = self.reg_repo
         token_id = registration_repo.get_management_token_id(registration_id)
         if not token_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid management link")
 
         try:
-            token = TokenService(TokenRepository(admin_client, self.schema)).verify(
+            token = TokenService(TokenRepository(self.supabase, self.schema)).verify(
                 token_id,
                 raw_token,
                 "management",
@@ -701,7 +686,7 @@ class RegistrationService:
             # Query users with any of the specified notification types enabled
             subscribed_users_by_type = {}
             all_subscribed_users = {}
-            user_repo = self._get_admin_user_repository()
+            user_repo = self.user_repo
 
             for notification_type in notification_types:
                 users = user_repo.get_users_with_notification_enabled(notification_type)
@@ -786,7 +771,7 @@ class RegistrationService:
 
         try:
             # Fetch registration and event
-            registration = self._get_admin_registration_repository().get_registration_public(registration_id)
+            registration = self.reg_repo.get_registration_public(registration_id)
             if not registration:
                 logger.warning(f"Registration {registration_id} not found for notification")
                 return
@@ -1062,7 +1047,7 @@ class RegistrationService:
         Raises:
             HTTPException: If registration not found or not accessible
         """
-        registration = self._get_admin_registration_repository().get_registration_public(registration_id)
+        registration = self.reg_repo.get_registration_public(registration_id)
         if not registration:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1115,7 +1100,7 @@ class RegistrationService:
         ticket_token = generate_token()
         settings = get_settings()
         try:
-            registration, event = self._get_admin_registration_repository().confirm_rsvp(
+            registration, event = self.reg_repo.confirm_rsvp(
                 registration_id,
                 hash_token(raw_token),
                 hash_token(management_token),
@@ -1134,7 +1119,7 @@ class RegistrationService:
 
     def rsvp_decline(self, registration_id: UUID) -> Tuple[RegistrationResponse, str, EventResponse]:
         try:
-            registration, event, previous_status = self._get_admin_registration_repository().decline_rsvp(
+            registration, event, previous_status = self.reg_repo.decline_rsvp(
                 registration_id
             )
         except APIError as exc:
@@ -1148,7 +1133,7 @@ class RegistrationService:
 
     def withdraw_registration(self, registration_id: UUID) -> RegistrationResponse:
         try:
-            return self._get_admin_registration_repository().withdraw_registration(registration_id)
+            return self.reg_repo.withdraw_registration(registration_id)
         except APIError as exc:
             if exc.code != "P0001":
                 raise
@@ -1164,7 +1149,7 @@ class RegistrationService:
         checked_in_by: UUID,
     ) -> RegistrationResponse:
         try:
-            return self._get_admin_registration_repository().check_in_ticket(
+            return self.reg_repo.check_in_ticket(
                 registration_id,
                 hash_token(ticket_token),
                 checked_in_by,

@@ -105,6 +105,7 @@ class EventRepository:
         Returns:
             EventResponse if found, None otherwise
         """
+        print(slug)
         result = self.client.schema(self.schema).table("events").select("*").eq("slug", slug).execute()
 
         if not result.data:

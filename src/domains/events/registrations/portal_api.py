@@ -26,7 +26,7 @@ router = APIRouter()
 
 
 def get_registration_service() -> RegistrationService:
-    return RegistrationService(admin=True)
+    return RegistrationService()
 
 
 def get_analytics_service() -> AnalyticsService:
