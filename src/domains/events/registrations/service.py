@@ -1177,6 +1177,43 @@ class RegistrationService:
         pagination = RegistrationListPagination(total=total, page=page, limit=limit, total_pages=total_pages)
         return RegistrationListResponse(registrations=registrations, pagination=pagination)
 
+    def prepare_event_reminder(self, event_id: UUID) -> Tuple[EventResponse, List[str]]:
+        """Load an event and its unique confirmed-registration recipients."""
+        event = self.events_repo.get_by_id(event_id)
+        if not event:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=EVENT_NOT_FOUND)
+
+        recipients: List[str] = []
+        seen: set[str] = set()
+        for value in self.reg_repo.list_emails_by_status(event_id, "confirmed"):
+            if not isinstance(value, str) or not value.strip():
+                continue
+            email = value.strip()
+            normalized = email.casefold()
+            if normalized not in seen:
+                seen.add(normalized)
+                recipients.append(email)
+
+        if not recipients:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No confirmed registrants with email addresses found",
+            )
+        return event, recipients
+
+    def send_event_reminders(self, event: EventResponse, recipients: List[str]) -> None:
+        """Send the prepared reminder to each recipient through the email service."""
+        email_service = EmailService()
+        event_datetime = format_datetime_toronto(event.date_time)
+        event_location = event.location or "TBA"
+        for recipient in recipients:
+            email_service.send_event_reminder(
+                to=recipient,
+                event_title=event.title,
+                event_datetime=event_datetime,
+                event_location=event_location,
+            )
+
     @staticmethod
     def _camel_to_title(name: str) -> str:
         segments = name.split(".")

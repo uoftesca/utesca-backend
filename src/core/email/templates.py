@@ -105,6 +105,28 @@ def _build_event_details_box(event_title: str, event_datetime: str, event_locati
 """
 
 
+def build_event_reminder_email(
+    event_title: str,
+    event_datetime: str,
+    event_location: str,
+) -> Tuple[str, str]:
+    """Build the reminder sent to confirmed event registrants."""
+    safe_title = html.escape(event_title)
+    safe_datetime = html.escape(event_datetime)
+    safe_location = html.escape(event_location)
+    html_body = _build_email_html(
+        "Reminder",
+        _build_event_details_box(safe_title, safe_datetime, safe_location),
+    )
+    text_body = f"""Reminder
+
+**Event:** {event_title}
+**Date & Time:** {event_datetime}
+**Location:** {event_location}
+"""
+    return html_body, text_body
+
+
 def _build_cta_button(link: str, text: str) -> str:
     """
     Build CTA button HTML.
