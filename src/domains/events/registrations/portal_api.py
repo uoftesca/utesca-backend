@@ -291,3 +291,20 @@ async def download_registration_files(
         headers["X-Download-Errors"] = str(error_count)
 
     return Response(content=zip_bytes, media_type="application/zip", headers=headers)
+
+
+@router.post(
+    "/events/{event_id}/registrations/notify",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def notify_confirmed_registrants(
+    event_id: UUID,
+    background_tasks: BackgroundTasks,
+    _rl: None = Depends(medium_rate_limit("notify_event_registrants")),
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: RegistrationService = Depends(get_registration_service),
+):
+    """Queue a reminder for every unique confirmed registrant email."""
+    event, recipients = service.prepare_event_reminder(event_id)
+    background_tasks.add_task(service.send_event_reminders, event, recipients)
+    return {"success": True, "queued": len(recipients)}

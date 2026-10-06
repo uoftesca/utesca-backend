@@ -25,6 +25,7 @@ from .templates import (
     build_confirmation_email,
     build_custom_email_from_template,
     build_e_ticket_email,
+    build_event_reminder_email,
     build_identity_verification_email,
     build_onboarding_email,
     build_rsvp_decline_notification,
@@ -114,6 +115,26 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to send email to {to}: {str(e)}", exc_info=True)
             return False
+
+    def send_event_reminder(
+        self,
+        to: str,
+        event_title: str,
+        event_datetime: str,
+        event_location: str,
+    ) -> bool:
+        """Send an event reminder to one confirmed registrant."""
+        html_body, text_body = build_event_reminder_email(
+            event_title=event_title,
+            event_datetime=event_datetime,
+            event_location=event_location,
+        )
+        return self.send_email(
+            to=to,
+            subject="Reminder",
+            html_body=html_body,
+            text_body=text_body,
+        )
 
     def send_registration_confirmation(
         self,

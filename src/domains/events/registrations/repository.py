@@ -236,6 +236,34 @@ class RegistrationsRepository:
         registrations = [RegistrationResponse.model_validate(item) for item in result.data or []]
         return registrations, total
 
+    def list_emails_by_status(self, event_id: UUID, status: RegistrationStatus) -> List[Optional[str]]:
+        """Return every registration email for an event/status, across Supabase pages."""
+        page_size = 1000
+        offset = 0
+        emails: List[Optional[str]] = []
+
+        while True:
+            result = (
+                self.client.schema(self.schema)
+                .table("event_registrations")
+                .select("email")
+                .eq("event_id", str(event_id))
+                .eq("status", status)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            rows = result.data or []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                email = row.get("email")
+                emails.append(email if isinstance(email, str) else None)
+            if len(rows) < page_size:
+                break
+            offset += page_size
+
+        return emails
+
     def count_by_event(self, event_id: UUID) -> int:
         """
         Return the total number of registrations for an event.
