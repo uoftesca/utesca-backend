@@ -253,7 +253,11 @@ class RegistrationsRepository:
                 .execute()
             )
             rows = result.data or []
-            emails.extend(row.get("email") for row in rows)
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                email = row.get("email")
+                emails.append(email if isinstance(email, str) else None)
             if len(rows) < page_size:
                 break
             offset += page_size
