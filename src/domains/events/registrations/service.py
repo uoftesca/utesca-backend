@@ -1149,9 +1149,7 @@ class RegistrationService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=EVENT_NOT_FOUND)
         return registration, event
 
-    def update_application(
-        self, registration_id: UUID, form_data: Dict[str, Any]
-    ) -> RegistrationResponse:
+    def update_application(self, registration_id: UUID, form_data: Dict[str, Any]) -> RegistrationResponse:
         updated = self.reg_repo.update_form_data(registration_id, form_data)
         if not updated:
             raise HTTPException(
