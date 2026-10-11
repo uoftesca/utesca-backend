@@ -1140,6 +1140,24 @@ class RegistrationService:
                 detail="Registration is not eligible for withdrawal",
             ) from exc
 
+    def get_editable_application(self, registration_id: UUID) -> Tuple[RegistrationResponse, EventResponse]:
+        registration = self.reg_repo.get_registration_by_id(registration_id)
+        if not registration:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REGISTRATION_NOT_FOUND)
+        event = self.events_repo.get_by_id(registration.event_id)
+        if not event:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=EVENT_NOT_FOUND)
+        return registration, event
+
+    def update_application(self, registration_id: UUID, form_data: Dict[str, Any]) -> RegistrationResponse:
+        updated = self.reg_repo.update_form_data(registration_id, form_data)
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update application",
+            )
+        return updated
+
     def check_in_registration(
         self,
         registration_id: UUID,

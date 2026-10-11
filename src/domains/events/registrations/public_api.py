@@ -16,6 +16,7 @@ from .models import (
     ManagementActionResponse,
     ManagementTokenRequest,
     RegistrationCreateRequest,
+    RegistrationUpdateRequest,
     RegistrationVerificationRequest,
     RsvpConfirmResponse,
     RsvpDeclineResponse,
@@ -166,6 +167,46 @@ async def create_management_session(
     return {"success": True, "registration": registration.model_dump(mode="json", by_alias=True)}
 
 
+def _require_matching_session(registration_id: UUID, registration_session: RegistrationSession) -> None:
+    if registration_session.registration_id != registration_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration session does not match")
+
+
+@router.get("/registrations/{registration_id}/application")
+async def get_application(
+    registration_id: UUID,
+    registration_session: RegistrationSession = Depends(require_registration_session),
+    service: RegistrationService = Depends(get_registration_service),
+    _rl: None = Depends(medium_rate_limit("get_event_registration_application", public=True)),
+):
+    _require_matching_session(registration_id, registration_session)
+    registration, event = service.get_editable_application(registration_id)
+    return {
+        "registration": registration.model_dump(mode="json", by_alias=True),
+        "event": event.model_dump(mode="json", by_alias=True),
+    }
+
+
+@router.put(
+    "/registrations/{registration_id}/application",
+    response_model=ManagementActionResponse,
+)
+async def update_application(
+    registration_id: UUID,
+    payload: RegistrationUpdateRequest,
+    registration_session: RegistrationSession = Depends(require_registration_session),
+    service: RegistrationService = Depends(get_registration_service),
+    _rl: None = Depends(medium_rate_limit("update_event_registration_application", public=True)),
+):
+    _require_matching_session(registration_id, registration_session)
+    registration = service.update_application(registration_id, payload.form_data)
+    return ManagementActionResponse(
+        success=True,
+        status=registration.status,
+        message="Application updated successfully.",
+    )
+
+
 @router.post(
     "/registrations/{registration_id}/withdraw",
     status_code=status.HTTP_200_OK,
@@ -179,8 +220,7 @@ async def withdraw_registration(
     service: RegistrationService = Depends(get_registration_service),
     _rl: None = Depends(strict_rate_limit("withdraw_event_registration", public=True)),
 ):
-    if registration_session.registration_id != registration_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration session does not match")
+    _require_matching_session(registration_id, registration_session)
 
     registration = service.withdraw_registration(registration_id)
     session_service.clear_cookie(response)
