@@ -83,6 +83,17 @@ class RegistrationCreateRequest(BaseModel):
     )
 
 
+class RegistrationUpdateRequest(BaseModel):
+    """Editable registration form values."""
+
+    form_data: Dict[str, Any]
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
 class RegistrationVerificationRequest(BaseModel):
     """Raw verification token submitted from the email link."""
 

@@ -205,6 +205,18 @@ class RegistrationsRepository:
             return None
         return RegistrationResponse.model_validate(result.data[0])
 
+    def update_form_data(self, registration_id: UUID, form_data: Dict[str, Any]) -> Optional[RegistrationResponse]:
+        result = (
+            self.client.schema(self.schema)
+            .table("event_registrations")
+            .update({"form_data": form_data}, returning=ReturnMethod.representation)
+            .eq("id", str(registration_id))
+            .execute()
+        )
+        if not result.data:
+            return None
+        return RegistrationResponse.model_validate(result.data[0])
+
     def list_registrations(
         self,
         event_id: UUID,
