@@ -1390,7 +1390,7 @@ class RegistrationService:
         slug = event.slug or str(event_id)
 
         registrations, _ = self.reg_repo.list_registrations(
-            event_id=event_id, statuses=["accepted", "confirmed"], page=1, limit=10_000, search=None
+            event_id=event_id, statuses=["accepted", "confirmed", "checked_in"], page=1, limit=10_000, search=None
         )
         if not registrations:
             raise HTTPException(
