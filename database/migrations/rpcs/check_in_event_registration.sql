@@ -50,8 +50,7 @@ BEGIN
     UPDATE test.tokens SET used_at = v_now WHERE id = v_ticket_token.id;
 
     UPDATE test.event_registrations
-    SET status = 'checked_in'::public.registration_status,
-        checked_in = true,
+    SET checked_in = true,
         checked_in_at = v_now,
         checked_in_by = p_checked_in_by,
         updated_at = v_now
@@ -113,8 +112,7 @@ BEGIN
     UPDATE prod.tokens SET used_at = v_now WHERE id = v_ticket_token.id;
 
     UPDATE prod.event_registrations
-    SET status = 'checked_in'::public.registration_status,
-        checked_in = true,
+    SET checked_in = true,
         checked_in_at = v_now,
         checked_in_by = p_checked_in_by,
         updated_at = v_now
