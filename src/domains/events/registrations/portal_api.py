@@ -5,7 +5,7 @@ Portal-facing registration endpoints (authenticated).
 import csv
 import io
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status

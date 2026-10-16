@@ -1306,7 +1306,9 @@ class RegistrationService:
 
         return columns
 
-    def export_registrations(self, event_id: UUID, statuses: Optional[List[str]], checked_in: Optional[bool]) -> Tuple[str, List[Dict[str, str]]]:
+    def export_registrations(
+        self, event_id: UUID, statuses: Optional[List[str]], checked_in: Optional[bool]
+    ) -> Tuple[str, List[Dict[str, str]]]:
         event = self.events_repo.get_by_id(event_id)
         if not event:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=EVENT_NOT_FOUND)
@@ -1374,7 +1376,9 @@ class RegistrationService:
     # -------------------------------------------------------------------------
     # ZIP bulk file download
     # -------------------------------------------------------------------------
-    def download_files_as_zip(self, event_id: UUID, statuses: Optional[List[str]], checked_in: Optional[bool]) -> Tuple[str, bytes, int]:
+    def download_files_as_zip(
+        self, event_id: UUID, statuses: Optional[List[str]] = None, checked_in: Optional[bool] = None
+    ) -> Tuple[str, bytes, int]:
         """Download all files from accepted/confirmed registrations as a ZIP archive.
 
         Returns:
