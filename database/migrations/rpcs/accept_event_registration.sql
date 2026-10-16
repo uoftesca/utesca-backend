@@ -56,7 +56,7 @@ BEGIN
         SELECT count(*) INTO v_attendee_count
         FROM test.event_registrations
         WHERE event_id = v_event.id
-          AND status::text IN ('accepted', 'confirmed', 'checked_in');
+          AND status::text IN ('accepted', 'confirmed');
 
         IF v_attendee_count >= v_event.max_capacity THEN
             RAISE EXCEPTION 'registration cannot be accepted' USING ERRCODE = 'P0001';
@@ -141,7 +141,7 @@ BEGIN
         SELECT count(*) INTO v_attendee_count
         FROM prod.event_registrations
         WHERE event_id = v_event.id
-          AND status::text IN ('accepted', 'confirmed', 'checked_in');
+          AND status::text IN ('accepted', 'confirmed');
 
         IF v_attendee_count >= v_event.max_capacity THEN
             RAISE EXCEPTION 'registration cannot be accepted' USING ERRCODE = 'P0001';

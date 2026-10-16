@@ -17,7 +17,6 @@ RegistrationStatus = Literal[
     "rejected",
     "confirmed",
     "not_attending",
-    "checked_in",
     "waitlist",
 ]
 

@@ -86,7 +86,7 @@ BEGIN
         SELECT count(*) INTO v_attendee_count
         FROM test.event_registrations
         WHERE event_id = v_event.id
-          AND status::text IN ('accepted', 'confirmed', 'checked_in');
+          AND status::text IN ('accepted', 'confirmed');
 
         v_has_capacity := v_attendee_count < v_event.max_capacity;
     END IF;
@@ -212,7 +212,7 @@ BEGIN
         SELECT count(*) INTO v_attendee_count
         FROM prod.event_registrations
         WHERE event_id = v_event.id
-          AND status::text IN ('accepted', 'confirmed', 'checked_in');
+          AND status::text IN ('accepted', 'confirmed');
 
         v_has_capacity := v_attendee_count < v_event.max_capacity;
     END IF;
