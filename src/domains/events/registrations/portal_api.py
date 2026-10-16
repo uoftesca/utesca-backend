@@ -237,8 +237,9 @@ async def export_registrations(
     Raises:
         HTTPException: 404 if event not found
     """
-    statuses: Optional[List[str]] = [s.strip() for s in status.split(",")] if status else None
-    slug, rows = service.export_registrations(event_id, statuses, checked_in)
+    slug, rows = service.export_registrations(
+        event_id, [s.strip() for s in status.split(",")] if status else None, checked_in
+    )
 
     fieldnames = list(rows[0].keys()) if rows else ["Registration ID"]
     buf = io.StringIO()
@@ -263,6 +264,8 @@ async def export_registrations(
 )
 async def download_registration_files(
     event_id: UUID,
+    status: Optional[str] = None,
+    checked_in: Optional[bool] = None,
     _rl: None = Depends(medium_rate_limit("download_event_registration_files")),
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: RegistrationService = Depends(get_registration_service),
@@ -281,7 +284,9 @@ async def download_registration_files(
     Raises:
         HTTPException: 404 if event not found or no files are available.
     """
-    slug, zip_bytes, error_count = service.download_files_as_zip(event_id)
+    slug, zip_bytes, error_count = service.download_files_as_zip(
+        event_id, [s.strip() for s in status.split(",")] if status else None, checked_in
+    )
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"{slug}-files-{timestamp}.zip"
