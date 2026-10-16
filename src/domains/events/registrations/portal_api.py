@@ -66,6 +66,7 @@ async def check_in_registration(
 async def list_registrations(
     event_id: UUID,
     status: Optional[str] = None,
+    checked_in: Optional[bool] = None,
     page: int = 1,
     limit: int = 20,
     search: Optional[str] = None,
@@ -82,6 +83,7 @@ async def list_registrations(
     return service.list_registrations(
         event_id=event_id,
         status=status,
+        checked_in=checked_in,
         page=page,
         limit=limit,
         search=search,
@@ -217,6 +219,7 @@ async def analytics(
 async def export_registrations(
     event_id: UUID,
     status: Optional[str] = None,
+    checked_in: Optional[bool] = None,
     _rl: None = Depends(medium_rate_limit("export_event_registrations")),
     current_user: UserResponse = Depends(get_current_user),
     service: RegistrationService = Depends(get_registration_service),
@@ -235,7 +238,7 @@ async def export_registrations(
         HTTPException: 404 if event not found
     """
     statuses: Optional[List[str]] = [s.strip() for s in status.split(",")] if status else None
-    slug, rows = service.export_registrations(event_id, statuses)
+    slug, rows = service.export_registrations(event_id, statuses, checked_in)
 
     fieldnames = list(rows[0].keys()) if rows else ["Registration ID"]
     buf = io.StringIO()
