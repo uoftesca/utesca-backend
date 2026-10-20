@@ -30,11 +30,46 @@ class EmailTemplate(BaseModel):
     )
 
 
+FormFieldType = Literal["text", "select", "checkbox", "radio", "file"]
+FieldValidationPattern = Literal["full_name", "uoft_email", "utorid", "email", "can_phone_number"]
+
+
+class FieldValidationSchema(BaseModel):
+    """Validation for a form field."""
+
+    pattern: Optional[FieldValidationPattern] = None
+    max_size: Optional[int] = None
+    allowed_types: Optional[list[str]] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class FormFieldSchema(BaseModel):
+    """Form field for a form."""
+
+    id: str = Field(..., min_length=1, max_length=50)
+    type: FormFieldType
+    label: str = Field(..., min_length=1, max_length=50)
+    placeholder: str | None = Field(..., min_length=1, max_length=100)
+    options: Optional[list[str]] = None
+    validation: Optional[FieldValidationSchema] = None
+    required: bool = False
+    editable: bool = False
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
 class RegistrationFormSchema(BaseModel):
     """Schema definition for dynamic registration form."""
 
     auto_accept: bool = False
-    fields: List[dict] = Field(default_factory=list)
+    fields: List[FormFieldSchema] = Field(default_factory=list)
     not_editable: Optional[List[str]] = None
 
     model_config = ConfigDict(
