@@ -22,13 +22,15 @@ from .models import (
     EventResponse,
     EventStatus,
     EventUpdate,
+    RegistrationFormSchema,
+    FormFieldSchema,
+    FieldValidationSchema,
 )
 from .registrations.repository import RegistrationsRepository
 from .repository import EventRepository
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
-
 
 class EventService:
     """Service class for event management operations."""
@@ -257,3 +259,47 @@ class EventService:
         confirmed_count = reg_repo.count_by_status(event.id, "confirmed")
 
         return (accepted_count + confirmed_count) >= event.max_capacity
+
+    def get_default_registration_form(self) -> RegistrationFormSchema:
+        """
+        Return the default registration form schema for a new event.
+        """
+        return RegistrationFormSchema(
+            auto_accept=True,
+            fields=[
+                FormFieldSchema(
+                    id="full_name",
+                    type="text",
+                    label="Name",
+                    placeholder="John Doe",
+                    required=True,
+                ),
+                FormFieldSchema(
+                    id="email",
+                    type="text",
+                    label="U of T Email",
+                    placeholder="johndoe@mail.utoronto.ca",
+                    validation=FieldValidationSchema(
+                        pattern="uoft_email",
+                    ),
+                    required=True,
+                ),
+                FormFieldSchema(
+                    id="utorid",
+                    type="text",
+                    label="UTORid",
+                    placeholder="johndo47",
+                    validation=FieldValidationSchema(
+                        pattern="utorid"
+                    ),
+                    required=True,
+                ),
+                FormFieldSchema(
+                    id="discipline_year",
+                    type="text",
+                    label="Discipline & Year",
+                    placeholder="e.g. ECE 2T7",
+                    required=True,
+                ),
+            ]
+        )
