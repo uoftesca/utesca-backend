@@ -1,3 +1,6 @@
+from unittest.mock import Mock
+from uuid import UUID
+
 from domains.events.registrations.models import FileMeta
 from domains.events.registrations.service import RegistrationService
 
@@ -107,6 +110,21 @@ def test_passes_valid_payload():
         form_data={"full_name": "Jane Doe"}, form_schema=form_schema, files_by_field=files_by_field
     )
     assert errors == []
+
+
+def test_update_application_updates_form_data_and_email():
+    service = ValidationOnlyService()
+    registration_id = UUID("00000000-0000-0000-0000-000000000010")
+    form_data = {"email": " new@example.com ", "name": "New Name"}
+    updated = Mock()
+    service.reg_repo = Mock()
+    service.reg_repo.update_form_data.return_value = updated
+
+    result = service.update_application(registration_id, form_data)
+
+    assert result is updated
+    assert service.reg_repo.update_form_data.call_args.args[1] == form_data
+    assert service.reg_repo.update_form_data.call_args.kwargs["email"] == "new@example.com"
 
 
 def test_required_text_field_camelcase():

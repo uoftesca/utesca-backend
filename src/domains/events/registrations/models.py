@@ -86,6 +86,7 @@ class RegistrationUpdateRequest(BaseModel):
     """Editable registration form values."""
 
     form_data: Dict[str, Any]
+    notify_applicant: bool = False
 
     model_config = ConfigDict(
         alias_generator=to_camel,
