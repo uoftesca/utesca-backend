@@ -9,7 +9,7 @@ import re
 import zipfile
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, get_args
 from uuid import UUID
 
 import httpx
@@ -27,7 +27,7 @@ from utils.file_utils import deduplicate_filename, generate_zip_filename
 from utils.timezone import format_datetime_toronto
 from utils.tokens import generate_token, hash_token
 
-from ..models import EventResponse, RegistrationFormSchema
+from ..models import AllowedFileType, EventResponse, FieldValidationPattern, FormFieldSchema, FormFieldType, RegistrationFormSchema
 from ..repository import EventRepository
 from .access import build_management_url, build_rsvp_url, build_verification_url, generate_ticket_qr_png
 from .files_repository import RegistrationFilesRepository
@@ -55,13 +55,14 @@ class RegistrationService:
     """Service layer for handling registration lifecycle."""
 
     MAX_FILE_SIZE = 8_388_608  # 8MB
-    ALLOWED_TYPES = {
-        "application/pdf",
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/heic",
-        "image/heif",
+
+    VALIDATION_PATTERN_REGEX: dict[FieldValidationPattern, str] = {
+        "name": r"^[A-Za-zÀ-ÿ\s'\-\.]+$",
+        "full_name": r"^\S+\s+\S.*$",
+        "email": r"^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+        "uoft_email": r"^[\w.-]+@(mail\.)?utoronto\.ca$",
+        "utorid": r"^[a-z][a-z0-9]{2,15}$",
+        "phone_number": r"^\+?1?\s*\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}$"
     }
 
     def __init__(self):
@@ -98,82 +99,81 @@ class RegistrationService:
     # -------------------------------------------------------------------------
     # Validation helpers
     # -------------------------------------------------------------------------
-    def _validate_text(self, field: dict, value: Any, errors: List[dict]):
-        label = field.get("label", field.get("id"))
-        validation = field.get("validation", {}) or {}
+    def _validate_pattern(self, target: str, pattern: FieldValidationPattern):
+        return re.match(self.VALIDATION_PATTERN_REGEX[pattern], target);
+
+    def _validate_text(self, field: FormFieldSchema, value: Any, errors: List[dict]):
         if not isinstance(value, str):
-            errors.append({"field": field.get("id"), "message": f"{label} must be a string"})
+            errors.append({"field": field.id, "message": f"{field.label} must be a string"})
             return
-        min_len = validation.get("minLength")
-        max_len = validation.get("maxLength")
-        pattern = validation.get("pattern")
+
+        validation = field.validation
+        min_len = validation.min_length if validation is not None else None
+        max_len = validation.max_length if validation is not None else None
+        pattern = validation.pattern if validation is not None else None
 
         if min_len is not None and len(value) < min_len:
-            errors.append({"field": field.get("id"), "message": f"{label} must be at least {min_len} characters"})
+            errors.append({"field": field.id, "message": f"{field.label} must be at least {min_len} characters"})
         if max_len is not None and len(value) > max_len:
-            errors.append({"field": field.get("id"), "message": f"{label} must be at most {max_len} characters"})
-        if pattern and not re.match(pattern, value):
-            errors.append({"field": field.get("id"), "message": f"{label} is in an invalid format"})
+            errors.append({"field": field.id, "message": f"{field.label} must be at most {max_len} characters"})
+        if pattern and not self._validate_pattern(value, pattern):
+            errors.append({"field": field.id, "message": f"{field.label} is in an invalid format"})
 
-    def _validate_choice(self, field: dict, value: Any, errors: List[dict]):
-        label = field.get("label", field.get("id"))
-        options = field.get("options") or []
+    def _validate_choice(self, field: FormFieldSchema, value: Any, errors: List[dict]):
         if not isinstance(value, str):
-            errors.append({"field": field.get("id"), "message": f"{label} must be a string"})
+            errors.append({"field": field.id, "message": f"{field.label} must be a string"})
             return
-        if value not in options:
-            errors.append({"field": field.get("id"), "message": f"{label} must be one of the allowed options"})
 
-    def _validate_checkboxes(self, field: dict, value: Any, errors: List[dict]):
-        label = field.get("label", field.get("id"))
-        options = field.get("options") or []
+        if not field.options or value not in field.options:
+            errors.append({"field": field.id, "message": f"{field.label} must be one of the allowed options"})
+
+    def _validate_checkboxes(self, field: FormFieldSchema, value: Any, errors: List[dict]):
         if not isinstance(value, list):
-            errors.append({"field": field.get("id"), "message": f"{label} must be an array"})
+            errors.append({"field": field.id, "message": f"{field.label} must be an array"})
             return
-        invalid = [v for v in value if not isinstance(v, str) or v not in options]
-        if invalid:
-            errors.append({"field": field.get("id"), "message": f"{label} has invalid selections"})
 
-    def _validate_files(self, field: dict, files: List[FileMeta], errors: List[dict]):
-        label = field.get("label", field.get("id"))
-        validation = field.get("validation", {}) or {}
-        max_size = validation.get("maxSize")
-        allowed_types = validation.get("allowedTypes")
+        invalid = not field.options or [v for v in value if not isinstance(v, str) or v not in field.options]
+        if invalid:
+            errors.append({"field": field.id, "message": f"{field.label} has invalid selections"})
+
+    def _validate_files(self, field: FormFieldSchema, files: List[FileMeta], errors: List[dict]):
+        validation = field.validation
+        max_size = validation.max_size if validation is not None else None
+        allowed_types = validation.allowed_types if validation is not None else None
 
         for file_meta in files:
             if max_size is not None and file_meta.file_size > max_size:
                 errors.append(
                     {
-                        "field": field.get("id"),
-                        "message": f"{label} must be <= {max_size} bytes",
+                        "field": field.id,
+                        "message": f"{field.label} must be <= {max_size} bytes",
                     }
                 )
             if allowed_types and file_meta.mime_type not in allowed_types:
                 errors.append(
                     {
-                        "field": field.get("id"),
-                        "message": f"{label} must be one of: {', '.join(allowed_types)}",
+                        "field": field.id,
+                        "message": f"{field.label} must be one of: {', '.join(allowed_types)}",
                     }
                 )
 
-    def _is_missing_required(self, field_type: str, required: bool, value: Any, files: List[FileMeta]) -> bool:
-        if not required:
+    def _is_missing_required(self, field: FormFieldSchema, value: Any, files: List[FileMeta]) -> bool:
+        if not field.required:
             return False
-        if field_type == "file":
+        if field.type == "file":
             return not files
-        return value is None or value == "" or (field_type == "checkbox" and not value)
+        return value is None or value == "" or (field.type == "checkbox" and not value)
 
     def validate_form_data(
         self,
         form_data: Dict[str, Any],
-        form_schema: Dict[str, Any],
+        form_schema: RegistrationFormSchema,
         files_by_field: Dict[str, List[FileMeta]],
     ) -> List[dict]:
         """Validate form_data against registration_form_schema."""
         errors: List[dict] = []
-        fields = form_schema.get("fields", []) if form_schema else []
 
-        validators = {
+        validators: dict[FormFieldType, Any] = {
             "text": self._validate_text,
             "textarea": self._validate_text,
             "select": self._validate_choice,
@@ -182,23 +182,20 @@ class RegistrationService:
             "file": self._validate_files,
         }
 
-        for field in fields:
-            field_id = field.get("id")
-            field_type = field.get("type")
-            required = field.get("required", False)
-            value = form_data.get(field_id)
-            files = files_by_field.get(field_id, [])
+        for field in form_schema.fields:
+            value = form_data.get(field.id)
+            files = files_by_field.get(field.id, [])
 
-            if self._is_missing_required(field_type, required, value, files):
-                errors.append({"field": field_id, "message": "This field is required"})
+            if self._is_missing_required(field, value, files):
+                errors.append({"field": field.id, "message": "This field is required"})
                 continue
 
             if value is None and not files:
                 continue
 
-            validator = validators.get(field_type)
+            validator = validators[field.type]
             if validator:
-                if field_type == "file":
+                if field.type == "file":
                     validator(field, files, errors)
                 else:
                     validator(field, value, errors)  # type: ignore[arg-type]
@@ -257,8 +254,13 @@ class RegistrationService:
         event = self._get_event_or_404(event_slug)
         self._enforce_deadline(event)
 
-        form_schema_model: RegistrationFormSchema = event.registration_form_schema or RegistrationFormSchema()
-        form_schema = form_schema_model.model_dump()
+        if not event.registration_form_schema:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "No form schema", "details": "This event has no form schema"},
+            )
+
+        form_schema: RegistrationFormSchema = event.registration_form_schema or RegistrationFormSchema()
         files = self.files_repo.get_files_by_upload_session(upload_session_id)
         files_by_field: Dict[str, List[FileMeta]] = defaultdict(list)
         for file_meta in files:
@@ -806,10 +808,10 @@ class RegistrationService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"File too large. Maximum size is {self.MAX_FILE_SIZE // (1024 * 1024)}MB.",
             )
-        if payload.mime_type not in self.ALLOWED_TYPES:
+        if payload.mime_type not in get_args(AllowedFileType):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported file type. Allowed types: {', '.join(sorted(self.ALLOWED_TYPES))}.",
+                detail=f"Unsupported file type. Allowed types: {', '.join(sorted(get_args(AllowedFileType)))}.",
             )
 
         created = self.files_repo.create_file_record(
