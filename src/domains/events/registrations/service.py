@@ -886,6 +886,26 @@ class RegistrationService:
             send_fn=EmailService().send_application_rejection,
         )
 
+    def send_application_updated_email(
+        self,
+        registration: RegistrationResponse,
+        event: EventResponse,
+        changed_fields: List[str],
+        editor_name: str,
+        editor_role: str,
+    ) -> None:
+        if not registration.email:
+            logger.warning(f"No email found for registration {registration.id}. Skipping application update email.")
+            return
+        EmailService().send_application_updated(
+            to=registration.email,
+            full_name=self._extract_name(registration.form_data),
+            event_title=event.title,
+            changed_fields=changed_fields,
+            editor_name=editor_name,
+            editor_role=editor_role,
+        )
+
     def _send_status_email(
         self,
         registration: RegistrationResponse,
@@ -1150,7 +1170,9 @@ class RegistrationService:
         return registration, event
 
     def update_application(self, registration_id: UUID, form_data: Dict[str, Any]) -> RegistrationResponse:
-        updated = self.reg_repo.update_form_data(registration_id, form_data)
+        email = form_data.get("email")
+        normalized_email = email.strip() if isinstance(email, str) and email.strip() else None
+        updated = self.reg_repo.update_form_data(registration_id, form_data, email=normalized_email)
         if not updated:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

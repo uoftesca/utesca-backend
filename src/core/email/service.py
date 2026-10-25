@@ -19,6 +19,7 @@ from .templates import (
     build_application_accepted_email,
     build_application_received_email,
     build_application_rejected_email,
+    build_application_updated_email,
     build_application_waitlisted_email,
     build_attendance_confirmed_email,
     build_attendance_declined_email,
@@ -226,6 +227,30 @@ class EmailService:
         )
 
         return self.send_email(to=to, subject=subject, html_body=html_body, text_body=text_body)
+
+    def send_application_updated(
+        self,
+        to: str,
+        full_name: Optional[str],
+        event_title: str,
+        changed_fields: List[str],
+        editor_name: str,
+        editor_role: str,
+    ) -> bool:
+        """Notify an applicant that an executive updated their application."""
+        html_body, text_body = build_application_updated_email(
+            full_name=full_name,
+            event_title=event_title,
+            changed_fields=changed_fields,
+            editor_name=editor_name,
+            editor_role=editor_role,
+        )
+        return self.send_email(
+            to=to,
+            subject=f"Application Updated: {event_title}",
+            html_body=html_body,
+            text_body=text_body,
+        )
 
     def send_identity_verification(
         self,

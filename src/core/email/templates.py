@@ -4,7 +4,7 @@ Returns both HTML and plain text versions for better email client compatibility.
 """
 
 import html
-from typing import Dict, Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 
 from core.config import get_settings
 
@@ -358,6 +358,54 @@ University of Toronto Engineering Students Consulting Association
 """
 
     return (html_body, text_body)
+
+
+def build_application_updated_email(
+    full_name: Optional[str],
+    event_title: str,
+    changed_fields: List[str],
+    editor_name: str,
+    editor_role: str,
+) -> Tuple[str, str]:
+    """Build the notification sent after an executive edits an application."""
+    greeting = f"Hi {html.escape(full_name)}," if full_name else "Hello,"
+    safe_title = html.escape(event_title)
+    safe_editor = html.escape(editor_name)
+    safe_role = html.escape(editor_role)
+    field_items = "".join(f"<li>{html.escape(field)}</li>" for field in changed_fields)
+    body_content = f"""
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                {greeting}
+                            </p>
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">
+                                Your application for <strong>{safe_title}</strong> was updated by
+                                <strong>{safe_editor}</strong> ({safe_role}).
+                            </p>
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 8px 0;">
+                                The following fields were changed:
+                            </p>
+                            <ul style="font-size: 16px; color: #333333; margin: 0 0 20px 0; padding-left: 24px;">
+                                {field_items}
+                            </ul>
+                            <p style="font-size: 14px; color: #666666; margin: 0;">
+                                If you have questions about these changes, reply to this email.
+                            </p>
+"""
+    html_body = _build_email_html("Application Updated", body_content)
+    text_fields = "\n".join(f"- {field}" for field in changed_fields)
+    text_greeting = f"Hi {full_name}," if full_name else "Hello,"
+    text_body = f"""Application Updated
+
+{text_greeting}
+
+Your application for {event_title} was updated by {editor_name} ({editor_role}).
+
+The following fields were changed:
+{text_fields}
+
+If you have questions about these changes, reply to this email.
+"""
+    return html_body, text_body
 
 
 def build_identity_verification_email(

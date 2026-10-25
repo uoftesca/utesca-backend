@@ -14,7 +14,9 @@ from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
 from domains.auth.models import UserResponse
 from domains.events.analytics.service import AnalyticsService
 from domains.events.registrations.models import (
+    ManagementActionResponse,
     RegistrationStatusUpdate,
+    RegistrationUpdateRequest,
     TicketCheckInRequest,
     TicketCheckInResponse,
 )
@@ -31,6 +33,16 @@ def get_registration_service() -> RegistrationService:
 
 def get_analytics_service() -> AnalyticsService:
     return AnalyticsService()
+
+
+def _get_changed_field_labels(form_schema, previous: dict, updated: dict) -> list[str]:
+    if not form_schema:
+        return []
+    return [
+        field.get("label", field["id"])
+        for field in form_schema.fields
+        if previous.get(field["id"]) != updated.get(field["id"])
+    ]
 
 
 @router.post(
@@ -111,6 +123,45 @@ async def get_registration(
     """
     registration = service.get_registration_detail(registration_id)
     return {"registration": registration}
+
+
+@router.put(
+    "/registrations/{registration_id}/application",
+    response_model=ManagementActionResponse,
+)
+async def update_application(
+    registration_id: UUID,
+    payload: RegistrationUpdateRequest,
+    background_tasks: BackgroundTasks,
+    _rl: None = Depends(medium_rate_limit("update_event_registration_application_portal")),
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: RegistrationService = Depends(get_registration_service),
+):
+    application = service.get_editable_application(registration_id) if payload.notify_applicant else None
+    registration = service.update_application(registration_id, payload.form_data)
+    if application:
+        previous, event = application
+        changed_fields = _get_changed_field_labels(
+            event.registration_form_schema,
+            previous.form_data,
+            payload.form_data,
+        )
+        editor_name = current_user.preferred_name or current_user.first_name
+        editor_name = f"{editor_name} {current_user.last_name}".strip()
+        if changed_fields:
+            background_tasks.add_task(
+                service.send_application_updated_email,
+                registration=registration,
+                event=event,
+                changed_fields=changed_fields,
+                editor_name=editor_name,
+                editor_role=current_user.display_role,
+            )
+    return ManagementActionResponse(
+        success=True,
+        status=registration.status,
+        message="Application updated successfully.",
+    )
 
 
 @router.patch(
