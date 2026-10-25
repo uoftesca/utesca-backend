@@ -252,6 +252,7 @@ async def rsvp_details(
         event=RsvpEventDetails(
             title=event.title,
             date_time=event.date_time,
+            end_date_time=event.end_date_time,
             location=event.location,
             description=event.description,
         ),
@@ -306,6 +307,7 @@ async def confirm_rsvp(
         event=RsvpEventDetails(
             title=event.title,
             date_time=event.date_time,
+            end_date_time=event.end_date_time,
             location=event.location,
             description=event.description,
         ),

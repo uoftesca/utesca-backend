@@ -55,6 +55,7 @@ class EventCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     date_time: datetime
+    end_date_time: Optional[datetime] = None
     location: Optional[str] = Field(None, max_length=255)
     registration_deadline: Optional[datetime] = None
     status: EventStatus = Field(default="draft")
@@ -79,6 +80,7 @@ class EventUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     date_time: Optional[datetime] = None
+    end_date_time: Optional[datetime] = None
     location: Optional[str] = Field(None, max_length=255)
     registration_deadline: Optional[datetime] = None
     status: Optional[EventStatus] = None
@@ -109,6 +111,7 @@ class EventResponse(BaseModel):
     title: str
     description: Optional[str] = None
     date_time: datetime
+    end_date_time: Optional[datetime] = None
     location: Optional[str] = None
     registration_deadline: Optional[datetime] = None
     status: EventStatus
