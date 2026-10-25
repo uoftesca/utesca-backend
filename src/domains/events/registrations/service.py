@@ -1201,13 +1201,14 @@ class RegistrationService:
         self,
         event_id: UUID,
         status: Optional[str],
+        checked_in: Optional[bool],
         page: int,
         limit: int,
         search: Optional[str],
     ) -> RegistrationListResponse:
         statuses = [status] if status else None
         registrations, total = self.reg_repo.list_registrations(
-            event_id=event_id, statuses=statuses, page=page, limit=limit, search=search
+            event_id=event_id, statuses=statuses, checked_in=checked_in, page=page, limit=limit, search=search
         )
 
         # Add RSVP links to all registrations
@@ -1327,14 +1328,16 @@ class RegistrationService:
 
         return columns
 
-    def export_registrations(self, event_id: UUID, statuses: Optional[List[str]]) -> Tuple[str, List[Dict[str, str]]]:
+    def export_registrations(
+        self, event_id: UUID, statuses: Optional[List[str]], checked_in: Optional[bool]
+    ) -> Tuple[str, List[Dict[str, str]]]:
         event = self.events_repo.get_by_id(event_id)
         if not event:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=EVENT_NOT_FOUND)
         slug = event.slug or str(event_id)
 
         registrations, _ = self.reg_repo.list_registrations(
-            event_id=event_id, statuses=statuses, page=1, limit=10_000, search=None
+            event_id=event_id, statuses=statuses, checked_in=checked_in, page=1, limit=10_000, search=None
         )
         if not registrations:
             return slug, []
@@ -1395,7 +1398,9 @@ class RegistrationService:
     # -------------------------------------------------------------------------
     # ZIP bulk file download
     # -------------------------------------------------------------------------
-    def download_files_as_zip(self, event_id: UUID) -> Tuple[str, bytes, int]:
+    def download_files_as_zip(
+        self, event_id: UUID, statuses: Optional[List[str]] = None, checked_in: Optional[bool] = None
+    ) -> Tuple[str, bytes, int]:
         """Download all files from accepted/confirmed registrations as a ZIP archive.
 
         Returns:
@@ -1412,7 +1417,7 @@ class RegistrationService:
         slug = event.slug or str(event_id)
 
         registrations, _ = self.reg_repo.list_registrations(
-            event_id=event_id, statuses=["accepted", "confirmed", "checked_in"], page=1, limit=10_000, search=None
+            event_id=event_id, statuses=statuses, checked_in=checked_in, page=1, limit=10_000, search=None
         )
         if not registrations:
             raise HTTPException(

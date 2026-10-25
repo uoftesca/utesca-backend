@@ -230,6 +230,7 @@ class RegistrationsRepository:
         self,
         event_id: UUID,
         statuses: Optional[List[str]],
+        checked_in: Optional[bool],
         page: int,
         limit: int,
         search: Optional[str],
@@ -244,6 +245,9 @@ class RegistrationsRepository:
 
         if statuses:
             query = query.in_("status", statuses)
+
+        if checked_in is not None:
+            query = query.eq("checked_in", checked_in)
 
         if search:
             term = f"%{search}%"

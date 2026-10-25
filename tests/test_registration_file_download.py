@@ -62,11 +62,13 @@ def _make_event(event_id=None, slug="test-event"):
     return event
 
 
-def _make_registration(reg_id=None, event_id=None, form_data=None):
+def _make_registration(reg_id=None, event_id=None, form_data=None, status=None, checked_in=None):
     reg = Mock()
     reg.id = reg_id or uuid4()
     reg.event_id = event_id or uuid4()
     reg.form_data = form_data or {"firstName": "Jane", "lastName": "Doe"}
+    reg.status = status
+    reg.checked_in = checked_in
     return reg
 
 
