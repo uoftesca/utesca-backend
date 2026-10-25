@@ -10,10 +10,10 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
+from supabase import Client, create_client
 from utils.google_drive_service import generate_direct_link
 
 from .models import (

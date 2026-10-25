@@ -298,6 +298,7 @@ class RsvpEventDetails(BaseModel):
 
     title: str
     date_time: datetime | None
+    end_date_time: datetime | None = None
     location: str | None
     description: str | None
 

@@ -8,9 +8,9 @@ from typing import List, Optional, Tuple, cast
 from uuid import UUID
 
 from postgrest import CountMethod
-from supabase import Client
 
 from domains.auth.models import UserResponse
+from supabase import Client
 
 
 class UserRepository:

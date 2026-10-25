@@ -8,10 +8,10 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
+from supabase import Client, create_client
 
 from .models import DepartmentListResponse, DepartmentResponse, YearsResponse
 from .repository import DepartmentRepository

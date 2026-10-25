@@ -4,10 +4,9 @@ Analytics service for events.
 
 from uuid import UUID
 
-from supabase import Client, create_client
-
 from core.config import get_settings
 from core.database import get_schema
+from supabase import Client, create_client
 
 from ..repository import EventRepository
 from .models import AnalyticsResponse
