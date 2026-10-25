@@ -30,16 +30,19 @@ class EmailTemplate(BaseModel):
     )
 
 
-FormFieldType = Literal["text", "select", "checkbox", "radio", "file"]
-FieldValidationPattern = Literal["full_name", "uoft_email", "utorid", "email", "can_phone_number"]
+FormFieldType = Literal["text", "textarea", "select", "radio", "checkbox", "file"]
+FieldValidationPattern = Literal["name", "fullName", "email", "uoftEmail", "utorid", "phoneNumber"]
+AllowedFileType = Literal["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]
 
 
 class FieldValidationSchema(BaseModel):
     """Validation for a form field."""
 
+    min_length: Optional[int] = None
+    max_length: Optional[int] = None
     pattern: Optional[FieldValidationPattern] = None
+    allowed_types: Optional[list[AllowedFileType]] = None
     max_size: Optional[int] = None
-    allowed_types: Optional[list[str]] = None
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -52,8 +55,8 @@ class FormFieldSchema(BaseModel):
 
     id: str = Field(..., min_length=1, max_length=50)
     type: FormFieldType
-    label: str = Field(..., min_length=1, max_length=50)
-    placeholder: str | None = Field(..., min_length=1, max_length=100)
+    label: str = Field(..., min_length=1, max_length=200)
+    placeholder: Optional[str] = Field(None, min_length=1, max_length=100)
     options: Optional[list[str]] = None
     validation: Optional[FieldValidationSchema] = None
     required: bool = False
