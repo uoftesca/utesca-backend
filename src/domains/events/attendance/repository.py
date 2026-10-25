@@ -6,9 +6,8 @@ from datetime import datetime
 from typing import Any, List, Optional, cast
 from uuid import UUID
 
-from supabase import Client
-
 from domains.events.registrations.models import RegistrationResponse
+from supabase import Client
 
 
 class AttendanceRepository:

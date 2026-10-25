@@ -15,7 +15,6 @@ from uuid import UUID
 import httpx
 from fastapi import HTTPException, status
 from postgrest.exceptions import APIError
-from supabase import create_client
 
 from core.config import get_settings
 from core.database import get_schema
@@ -23,6 +22,7 @@ from core.email import EmailService
 from domains.tokens.models import IssuedToken, TokenRecord
 from domains.tokens.repository import TokenRepository
 from domains.tokens.service import TokenService, TokenValidationError
+from supabase import create_client
 from utils.file_utils import deduplicate_filename, generate_zip_filename
 from utils.timezone import format_datetime_toronto
 from utils.tokens import generate_token, hash_token

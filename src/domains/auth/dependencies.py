@@ -34,9 +34,8 @@ async def _get_auth_user_id(
     if not credentials:
         return status.HTTP_401_UNAUTHORIZED, "Missing authentication token"
 
-    from supabase import create_client
-
     from core.config import get_settings
+    from supabase import create_client
 
     settings = get_settings()
 
@@ -72,9 +71,8 @@ async def _get_auth_user(
     if not isinstance(user_id, UUID):
         return user_id
 
-    from supabase import create_client
-
     from core.config import get_settings
+    from supabase import create_client
 
     settings = get_settings()
     schema = get_schema()

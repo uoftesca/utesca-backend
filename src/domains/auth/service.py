@@ -11,12 +11,12 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from postgrest import APIResponse
-from supabase import Client, create_client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
 from core.config import get_settings
 from core.database import get_schema, get_supabase_client
 from core.email.service import EmailService
+from supabase import Client, create_client
 
 from .models import (
     CompleteOnboardingRequest,

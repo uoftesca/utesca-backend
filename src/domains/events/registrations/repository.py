@@ -7,10 +7,10 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 from uuid import UUID
 
 from postgrest import CountMethod, ReturnMethod
-from supabase import Client
 
 from domains.events.models import EventResponse
 from domains.tokens.models import TokenRecord
+from supabase import Client
 
 from .models import RegistrationResponse, RegistrationStatus
 

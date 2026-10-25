@@ -10,10 +10,10 @@ from uuid import UUID
 
 import httpx
 from fastapi import BackgroundTasks, HTTPException, status
-from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
+from supabase import Client, create_client
 
 from .models import (
     AnnouncementCreate,

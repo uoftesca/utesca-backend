@@ -7,12 +7,12 @@ from typing import List
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from supabase import Client, create_client
 
 from core.config import get_settings
 from core.database import get_schema
 from domains.events.registrations.models import RegistrationResponse
 from domains.events.registrations.repository import RegistrationsRepository
+from supabase import Client, create_client
 
 from ..repository import EventRepository
 from .models import BulkCheckInResponse, BulkCheckInResult, CheckInResponse

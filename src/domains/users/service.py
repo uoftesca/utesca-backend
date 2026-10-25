@@ -9,12 +9,12 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from supabase import Client, create_client
 from supabase_auth.errors import AuthApiError, AuthInvalidCredentialsError
 
 from core.config import get_settings
 from core.database import get_schema, get_supabase_client
 from domains.auth.models import UserResponse
+from supabase import Client, create_client
 
 from .models import (
     ChangePasswordRequest,
