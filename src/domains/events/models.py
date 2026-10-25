@@ -35,7 +35,7 @@ class RegistrationFormSchema(BaseModel):
 
     auto_accept: bool = False
     fields: List[dict] = Field(default_factory=list)
-    not_editable: Optional[List[str]] = None
+    editable: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(
         alias_generator=to_camel,

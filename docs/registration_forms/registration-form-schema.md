@@ -35,6 +35,7 @@ The schema is stored as a JSONB column (`registration_form_schema`) in the `even
 class RegistrationFormSchema(BaseModel):
     auto_accept: bool = False  # serializes as autoAccept
     fields: List[dict] = Field(default_factory=list)
+    editable: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -43,6 +44,8 @@ class RegistrationFormSchema(BaseModel):
 ```
 
 `fields` is typed as `List[dict]` in Pydantic — individual field structure is not enforced at the model level. Validation of field contents happens at submission time in `RegistrationService.validate_form_data`.
+
+`editable` is an allow-list of field IDs that applicants may change from their management page. When it is omitted or empty, the application is read-only and the management page does not show an edit button. File fields remain read-only.
 
 ### TypeScript types
 
@@ -61,6 +64,7 @@ interface FormField {
 interface RegistrationFormSchema {
   autoAccept?: boolean;
   fields: FormField[];
+  editable?: string[];
 }
 ```
 
@@ -91,6 +95,7 @@ interface RegistrationFormField {
 interface RegistrationFormSchema {
   autoAccept?: boolean;
   fields: RegistrationFormField[];
+  editable?: string[];
 }
 ```
 
