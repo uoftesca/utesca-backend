@@ -5,7 +5,7 @@ Portal-facing registration endpoints (authenticated).
 import csv
 import io
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
@@ -35,7 +35,7 @@ def get_analytics_service() -> AnalyticsService:
     return AnalyticsService()
 
 
-def _get_changed_field_labels(form_schema, previous: dict, updated: dict) -> List[str]:
+def _get_changed_field_labels(form_schema, previous: dict, updated: dict) -> list[str]:
     if not form_schema:
         return []
     return [
@@ -285,7 +285,7 @@ async def export_registrations(
     Raises:
         HTTPException: 404 if event not found
     """
-    statuses: Optional[List[str]] = [s.strip() for s in status.split(",")] if status else None
+    statuses: Optional[list[str]] = [s.strip() for s in status.split(",")] if status else None
     slug, rows = service.export_registrations(event_id, statuses)
 
     fieldnames = list(rows[0].keys()) if rows else ["Registration ID"]
