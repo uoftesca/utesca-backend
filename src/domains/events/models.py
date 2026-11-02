@@ -31,7 +31,6 @@ class EmailTemplate(BaseModel):
 
 
 FormFieldType = Literal["text", "textarea", "select", "radio", "checkbox", "file"]
-FieldValidationPattern = Literal["name", "fullName", "email", "uoftEmail", "utorid", "phoneNumber"]
 AllowedFileType = Literal["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]
 
 
@@ -40,7 +39,7 @@ class FieldValidationSchema(BaseModel):
 
     min_length: Optional[int] = None
     max_length: Optional[int] = None
-    pattern: Optional[FieldValidationPattern] = None
+    pattern: Optional[str] = None
     allowed_types: Optional[list[AllowedFileType]] = None
     max_size: Optional[int] = None
 

@@ -27,7 +27,7 @@ from utils.file_utils import deduplicate_filename, generate_zip_filename
 from utils.timezone import format_datetime_toronto
 from utils.tokens import generate_token, hash_token
 
-from ..models import AllowedFileType, EventResponse, FieldValidationPattern, FormFieldSchema, FormFieldType, RegistrationFormSchema
+from ..models import AllowedFileType, EventResponse, FormFieldSchema, FormFieldType, RegistrationFormSchema
 from ..repository import EventRepository
 from .access import build_management_url, build_rsvp_url, build_verification_url, generate_ticket_qr_png
 from .files_repository import RegistrationFilesRepository
@@ -55,15 +55,6 @@ class RegistrationService:
     """Service layer for handling registration lifecycle."""
 
     MAX_FILE_SIZE = 8_388_608  # 8MB
-
-    VALIDATION_PATTERN_REGEX: dict[FieldValidationPattern, str] = {
-        "name": r"^[A-Za-zÀ-ÿ\s'\-\.]+$",
-        "full_name": r"^\S+\s+\S.*$",
-        "email": r"^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
-        "uoft_email": r"^[\w.-]+@(mail\.)?utoronto\.ca$",
-        "utorid": r"^[a-z][a-z0-9]{2,15}$",
-        "phone_number": r"^\+?1?\s*\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}$"
-    }
 
     def __init__(self):
         self.settings = get_settings()
@@ -99,8 +90,8 @@ class RegistrationService:
     # -------------------------------------------------------------------------
     # Validation helpers
     # -------------------------------------------------------------------------
-    def _validate_pattern(self, target: str, pattern: FieldValidationPattern):
-        return re.match(self.VALIDATION_PATTERN_REGEX[pattern], target);
+    def _validate_pattern(self, target: str, pattern: str):
+        return re.match(pattern, target);
 
     def _validate_text(self, field: FormFieldSchema, value: Any, errors: List[dict]):
         if not isinstance(value, str):
