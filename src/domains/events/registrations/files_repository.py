@@ -30,6 +30,8 @@ class RegistrationFilesRepository:
         file_size: int,
         mime_type: str,
         upload_session_id: str,
+        registration_id: Optional[UUID] = None,
+        scheduled_deletion_date: Optional[date] = None,
     ) -> FileMeta:
         data = {
             "event_id": str(event_id),
@@ -39,6 +41,8 @@ class RegistrationFilesRepository:
             "file_size": file_size,
             "mime_type": mime_type,
             "upload_session_id": upload_session_id,
+            "registration_id": str(registration_id) if registration_id else None,
+            "scheduled_deletion_date": scheduled_deletion_date.isoformat() if scheduled_deletion_date else None,
         }
         result = (
             self.client.schema(self.schema)

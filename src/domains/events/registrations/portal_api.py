@@ -14,7 +14,10 @@ from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
 from domains.auth.models import UserResponse
 from domains.events.analytics.service import AnalyticsService
 from domains.events.registrations.models import (
+    FileDeleteResponse,
+    FileMeta,
     ManagementActionResponse,
+    RegistrationFileUploadRequest,
     RegistrationStatusUpdate,
     RegistrationUpdateRequest,
     TicketCheckInRequest,
@@ -43,6 +46,36 @@ def _get_changed_field_labels(form_schema, previous: dict, updated: dict) -> lis
         for field in form_schema.fields
         if previous.get(field["id"]) != updated.get(field["id"])
     ]
+
+
+@router.post(
+    "/registrations/{registration_id}/files",
+    response_model=FileMeta,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_registration_file(
+    registration_id: UUID,
+    payload: RegistrationFileUploadRequest,
+    _rl: None = Depends(medium_rate_limit("upload_event_registration_file_portal")),
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: RegistrationService = Depends(get_registration_service),
+):
+    return service.upload_registration_file(registration_id, payload)
+
+
+@router.delete(
+    "/registrations/{registration_id}/files/{file_id}",
+    response_model=FileDeleteResponse,
+)
+async def delete_registration_file(
+    registration_id: UUID,
+    file_id: UUID,
+    _rl: None = Depends(medium_rate_limit("delete_event_registration_file_portal")),
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: RegistrationService = Depends(get_registration_service),
+):
+    service.delete_registration_file(registration_id, file_id)
+    return FileDeleteResponse(success=True)
 
 
 @router.post(
