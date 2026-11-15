@@ -13,6 +13,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from domains.auth.dependencies import get_current_user, get_current_vp_or_admin
 from domains.auth.models import UserResponse
 from domains.events.analytics.service import AnalyticsService
+from domains.events.attendance.models import CheckInResponse
+from domains.events.attendance.service import AttendanceService
 from domains.events.registrations.models import (
     FileDeleteResponse,
     FileMeta,
@@ -36,6 +38,10 @@ def get_registration_service() -> RegistrationService:
 
 def get_analytics_service() -> AnalyticsService:
     return AnalyticsService()
+
+
+def get_attendance_service() -> AttendanceService:
+    return AttendanceService()
 
 
 def _get_changed_field_labels(form_schema, previous: dict, updated: dict) -> list[str]:
@@ -102,6 +108,20 @@ async def check_in_registration(
         checked_in_at=registration.checked_in_at,
         checked_in_by=registration.checked_in_by,
     )
+
+
+@router.post(
+    "/registrations/{registration_id}/manual-check-in",
+    response_model=CheckInResponse,
+)
+async def manually_check_in_registration(
+    registration_id: UUID,
+    _rl: None = Depends(medium_rate_limit("manually_check_in_event_registration")),
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: AttendanceService = Depends(get_attendance_service),
+):
+    """Check in an attendee without scanning their ticket."""
+    return service.check_in_attendee(registration_id, current_user.id)
 
 
 @router.get(
