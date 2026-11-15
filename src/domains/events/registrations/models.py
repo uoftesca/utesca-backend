@@ -257,6 +257,21 @@ class FileUploadResponse(BaseModel):
     )
 
 
+class RegistrationFileUploadRequest(BaseModel):
+    """Payload for attaching an uploaded file to an existing registration."""
+
+    field_name: str
+    file_url: str
+    file_name: str
+    file_size: int
+    mime_type: str
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
 class FileDeleteRequest(BaseModel):
     """Payload for deleting a pre-submission upload."""
 

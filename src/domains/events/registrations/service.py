@@ -10,7 +10,7 @@ import zipfile
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 from fastapi import HTTPException, status
@@ -34,6 +34,7 @@ from .files_repository import RegistrationFilesRepository
 from .models import (
     FileMeta,
     FileUploadRequest,
+    RegistrationFileUploadRequest,
     RegistrationListPagination,
     RegistrationListResponse,
     RegistrationResponse,
@@ -812,6 +813,11 @@ class RegistrationService:
                 detail=f"Unsupported file type. Allowed types: {', '.join(sorted(self.ALLOWED_TYPES))}.",
             )
 
+        previous_files = self.files_repo.get_file_for_field(
+            payload.upload_session_id,
+            payload.field_name,
+            event.id,
+        )
         created = self.files_repo.create_file_record(
             event_id=event.id,
             field_name=payload.field_name,
@@ -821,6 +827,8 @@ class RegistrationService:
             mime_type=payload.mime_type,
             upload_session_id=payload.upload_session_id,
         )
+        for previous_file in previous_files:
+            self.files_repo.delete_file_by_id(previous_file.id)
         return created
 
     def delete_uploaded_file(self, event_slug: str, file_id: UUID, upload_session_id: str, field_name: str) -> None:
@@ -836,6 +844,43 @@ class RegistrationService:
                 detail="File does not match session or field",
             )
 
+        self.files_repo.delete_file_by_id(file_id)
+
+    def upload_registration_file(self, registration_id: UUID, payload: RegistrationFileUploadRequest) -> FileMeta:
+        registration, event = self.get_editable_application(registration_id)
+        if payload.file_size > self.MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File too large. Maximum size is {self.MAX_FILE_SIZE // (1024 * 1024)}MB.",
+            )
+        if payload.mime_type not in self.ALLOWED_TYPES:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported file type")
+
+        file_fields = {
+            field["id"]
+            for field in (event.registration_form_schema.fields if event.registration_form_schema else [])
+            if field.get("type") == "file"
+        }
+        if payload.field_name not in file_fields:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file field")
+
+        return self.files_repo.create_file_record(
+            event_id=registration.event_id,
+            field_name=payload.field_name,
+            file_url=payload.file_url,
+            file_name=payload.file_name,
+            file_size=payload.file_size,
+            mime_type=payload.mime_type,
+            upload_session_id=f"portal-{uuid4()}",
+            registration_id=registration.id,
+            scheduled_deletion_date=event.date_time.date() + timedelta(days=30),
+        )
+
+    def delete_registration_file(self, registration_id: UUID, file_id: UUID) -> None:
+        self.get_editable_application(registration_id)
+        file_meta = self.files_repo.get_file_by_id(file_id)
+        if not file_meta or file_meta.registration_id != registration_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
         self.files_repo.delete_file_by_id(file_id)
 
     def send_acceptance_email(
