@@ -104,6 +104,7 @@ class RegistrationFilesRepository:
             .eq("upload_session_id", upload_session_id)
             .eq("field_name", field_name)
             .eq("event_id", str(event_id))
+            .is_("registration_id", "null")
             .execute()
         )
         return [FileMeta.model_validate(item) for item in result.data or []]

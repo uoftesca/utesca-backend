@@ -813,6 +813,11 @@ class RegistrationService:
                 detail=f"Unsupported file type. Allowed types: {', '.join(sorted(self.ALLOWED_TYPES))}.",
             )
 
+        previous_files = self.files_repo.get_file_for_field(
+            payload.upload_session_id,
+            payload.field_name,
+            event.id,
+        )
         created = self.files_repo.create_file_record(
             event_id=event.id,
             field_name=payload.field_name,
@@ -822,6 +827,8 @@ class RegistrationService:
             mime_type=payload.mime_type,
             upload_session_id=payload.upload_session_id,
         )
+        for previous_file in previous_files:
+            self.files_repo.delete_file_by_id(previous_file.id)
         return created
 
     def delete_uploaded_file(self, event_slug: str, file_id: UUID, upload_session_id: str, field_name: str) -> None:
