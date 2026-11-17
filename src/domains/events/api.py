@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from domains.auth.dependencies import get_current_vp_or_admin, get_optional_user
 from domains.auth.models import UserResponse
-from utils.rate_limit import medium_rate_limit
+from utils.rate_limit import light_rate_limit, medium_rate_limit
 
 from .models import (
     EventCreate,
@@ -20,6 +20,7 @@ from .models import (
     EventResponse,
     EventStatus,
     EventUpdate,
+    RegistrationFormSchema,
 )
 from .service import EventService
 
@@ -62,6 +63,24 @@ async def get_events(
         status_filter = status
 
     return service.get_events(status=status_filter)
+
+
+@router.get("/default-registration-form", response_model=RegistrationFormSchema)
+async def get_default_registration_form(
+    _rl: None = Depends(light_rate_limit("get_default_registration_form")),
+    current_user: UserResponse = Depends(get_current_vp_or_admin),
+    service: EventService = Depends(get_event_service),
+):
+    """
+    Get the default registration form for events.
+
+    - **Authorization**: Only VPs and Co-presidents can get the default registration form
+    - **Directors**: Will receive 403 Forbidden
+
+    Returns:
+        RegistrationFormSchema: Default registration form schema
+    """
+    return service.get_default_registration_form()
 
 
 @router.get("/{event_id}", response_model=EventResponse)
@@ -186,3 +205,5 @@ async def delete_event(
     """
     service.delete_event(event_id)
     return None
+
+
