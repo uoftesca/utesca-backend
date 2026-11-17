@@ -54,7 +54,7 @@ class FormFieldSchema(BaseModel):
 
     id: str = Field(..., min_length=1, max_length=50)
     type: FormFieldType
-    label: str = Field(..., min_length=1, max_length=200)
+    label: Optional[str] = Field(None, min_length=1, max_length=200)
     placeholder: Optional[str] = Field(None, min_length=1, max_length=100)
     options: Optional[list[str]] = None
     validation: Optional[FieldValidationSchema] = None

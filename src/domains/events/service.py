@@ -271,16 +271,16 @@ class EventService:
                     id="full_name",
                     type="text",
                     label="Name",
-                    placeholder="John Doe",
+                    placeholder="e.g. John Doe",
                     required=True,
                 ),
                 FormFieldSchema(
                     id="email",
                     type="text",
                     label="U of T Email",
-                    placeholder="johndoe@mail.utoronto.ca",
+                    placeholder="e.g. johndoe@mail.utoronto.ca",
                     validation=FieldValidationSchema(
-                        pattern="uoft_email",
+                        pattern="^[\\w-\\.]+@mail.utoronto.ca$/",
                     ),
                     required=True,
                 ),
@@ -288,9 +288,9 @@ class EventService:
                     id="utorid",
                     type="text",
                     label="UTORid",
-                    placeholder="johndo47",
+                    placeholder="e.g. johndo47",
                     validation=FieldValidationSchema(
-                        pattern="utorid"
+                        pattern="^[a-z0-9]{7,8}$"
                     ),
                     required=True,
                 ),
