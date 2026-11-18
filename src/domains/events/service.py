@@ -268,10 +268,23 @@ class EventService:
             auto_accept=True,
             fields=[
                 FormFieldSchema(
-                    id="full_name",
+                    id="first_name",
                     type="text",
-                    label="Name",
-                    placeholder="e.g. John Doe",
+                    label="First Name",
+                    placeholder="e.g. John",
+                    validation=FieldValidationSchema(
+                        pattern="^[p{L}p{M}]+(?:[' -][p{L}p{M}]+)*$",
+                    ),
+                    required=True,
+                ),
+                FormFieldSchema(
+                    id="last_name",
+                    type="text",
+                    label="Last Name",
+                    placeholder="e.g. Doe",
+                    validation=FieldValidationSchema(
+                        pattern="^[p{L}p{M}]+(?:[' -][p{L}p{M}]+)*$",
+                    ),
                     required=True,
                 ),
                 FormFieldSchema(
