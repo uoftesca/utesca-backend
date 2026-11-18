@@ -56,6 +56,7 @@ class FormFieldSchema(BaseModel):
     type: FormFieldType
     label: Optional[str] = Field(None, min_length=1, max_length=200)
     placeholder: Optional[str] = Field(None, min_length=1, max_length=100)
+    helper_text: Optional[str] = Field(None, min_length=1, max_length=300)
     options: Optional[list[str]] = None
     validation: Optional[FieldValidationSchema] = None
     required: bool = False
@@ -72,7 +73,6 @@ class RegistrationFormSchema(BaseModel):
 
     auto_accept: bool = False
     fields: List[FormFieldSchema] = Field(default_factory=list)
-    not_editable: Optional[List[str]] = None
 
     model_config = ConfigDict(
         alias_generator=to_camel,
