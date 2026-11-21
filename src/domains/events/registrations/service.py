@@ -10,7 +10,7 @@ import zipfile
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple, get_args
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 from fastapi import HTTPException, status
@@ -27,7 +27,7 @@ from utils.file_utils import deduplicate_filename, generate_zip_filename
 from utils.timezone import format_datetime_toronto
 from utils.tokens import generate_token, hash_token
 
-from ..models import AllowedFileType, EventResponse, FormFieldSchema, FormFieldType, RegistrationFormSchema
+from ..models import AllowedFileType, EventResponse, FormFieldSchema, FormFieldType, RegistrationFormSchema, AllowedFileType
 from ..repository import EventRepository
 from .access import build_management_url, build_rsvp_url, build_verification_url, generate_ticket_qr_png
 from .files_repository import RegistrationFilesRepository
@@ -846,13 +846,13 @@ class RegistrationService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"File too large. Maximum size is {self.MAX_FILE_SIZE // (1024 * 1024)}MB.",
             )
-        if payload.mime_type not in self.ALLOWED_TYPES:
+        if payload.mime_type not in get_args(AllowedFileType):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported file type")
 
         file_fields = {
-            field["id"]
+            field.id
             for field in (event.registration_form_schema.fields if event.registration_form_schema else [])
-            if field.get("type") == "file"
+            if field.type == "file"
         }
         if payload.field_name not in file_fields:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file field")
@@ -1322,7 +1322,7 @@ class RegistrationService:
 
     def _build_column_order(
         self,
-        schema_fields: List[dict],
+        schema_fields: List[FormFieldSchema],
         all_form_keys: List[str],
         file_field_names: set,
     ) -> List[Tuple[str, str]]:
@@ -1340,8 +1340,8 @@ class RegistrationService:
         seen_file_fields: set = set()
 
         for field in schema_fields:
-            field_id = field.get("id", "")
-            field_type = field.get("type", "")
+            field_id = field.id
+            field_type = field.type
 
             if field_type == "file":
                 if field_id in file_field_names:
