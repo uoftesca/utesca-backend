@@ -205,5 +205,3 @@ async def delete_event(
     """
     service.delete_event(event_id)
     return None
-
-

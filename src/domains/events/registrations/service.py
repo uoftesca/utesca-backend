@@ -27,7 +27,7 @@ from utils.file_utils import deduplicate_filename, generate_zip_filename
 from utils.timezone import format_datetime_toronto
 from utils.tokens import generate_token, hash_token
 
-from ..models import AllowedFileType, EventResponse, FormFieldSchema, FormFieldType, RegistrationFormSchema, AllowedFileType
+from ..models import AllowedFileType, EventResponse, FormFieldSchema, FormFieldType, RegistrationFormSchema
 from ..repository import EventRepository
 from .access import build_management_url, build_rsvp_url, build_verification_url, generate_ticket_qr_png
 from .files_repository import RegistrationFilesRepository
@@ -92,7 +92,7 @@ class RegistrationService:
     # Validation helpers
     # -------------------------------------------------------------------------
     def _validate_pattern(self, target: str, pattern: str):
-        return re.match(pattern, target);
+        return re.match(pattern, target)
 
     def _validate_text(self, field: FormFieldSchema, value: Any, errors: List[dict]):
         if not isinstance(value, str):
@@ -190,7 +190,7 @@ class RegistrationService:
                 if field.type == "file":
                     validator(field, files, errors)
                 else:
-                    validator(field, value, errors)  # type: ignore[arg-type]
+                    validator(field, value, errors)
 
         return errors
 

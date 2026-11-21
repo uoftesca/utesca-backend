@@ -22,15 +22,16 @@ from .models import (
     EventResponse,
     EventStatus,
     EventUpdate,
-    RegistrationFormSchema,
-    FormFieldSchema,
     FieldValidationSchema,
+    FormFieldSchema,
+    RegistrationFormSchema,
 )
 from .registrations.repository import RegistrationsRepository
 from .repository import EventRepository
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
+
 
 class EventService:
     """Service class for event management operations."""
@@ -272,9 +273,7 @@ class EventService:
                     type="text",
                     label="First Name",
                     placeholder="e.g. John",
-                    validation=FieldValidationSchema(
-                        pattern="^[p{L}p{M}]+(?:[' -][p{L}p{M}]+)*$",
-                    ),
+                    validation=FieldValidationSchema(pattern="^[p{L}p{M}]+(?:[' -][p{L}p{M}]+)*$"),
                     required=True,
                 ),
                 FormFieldSchema(
@@ -282,9 +281,7 @@ class EventService:
                     type="text",
                     label="Last Name",
                     placeholder="e.g. Doe",
-                    validation=FieldValidationSchema(
-                        pattern="^[p{L}p{M}]+(?:[' -][p{L}p{M}]+)*$",
-                    ),
+                    validation=FieldValidationSchema(pattern="^[p{L}p{M}]+(?:[' -][p{L}p{M}]+)*$"),
                     required=True,
                 ),
                 FormFieldSchema(
@@ -292,9 +289,7 @@ class EventService:
                     type="text",
                     label="U of T Email",
                     placeholder="e.g. johndoe@mail.utoronto.ca",
-                    validation=FieldValidationSchema(
-                        pattern="^[\\w-\\.]+@mail.utoronto.ca$/",
-                    ),
+                    validation=FieldValidationSchema(pattern="^[\\w-\\.]+@mail.utoronto.ca$/"),
                     required=True,
                 ),
                 FormFieldSchema(
@@ -302,9 +297,7 @@ class EventService:
                     type="text",
                     label="UTORid",
                     placeholder="e.g. johndo47",
-                    validation=FieldValidationSchema(
-                        pattern="^[a-z0-9]{7,8}$"
-                    ),
+                    validation=FieldValidationSchema(pattern="^[a-z0-9]{7,8}$"),
                     required=True,
                 ),
                 FormFieldSchema(
@@ -314,5 +307,5 @@ class EventService:
                     placeholder="e.g. ECE 2T7",
                     required=True,
                 ),
-            ]
+            ],
         )
