@@ -30,12 +30,49 @@ class EmailTemplate(BaseModel):
     )
 
 
+FormFieldType = Literal["text", "textarea", "select", "radio", "checkbox", "file"]
+AllowedFileType = Literal["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]
+
+
+class FieldValidationSchema(BaseModel):
+    """Validation for a form field."""
+
+    min_length: Optional[int] = None
+    max_length: Optional[int] = None
+    pattern: Optional[str] = None
+    allowed_types: Optional[list[AllowedFileType]] = None
+    max_size: Optional[int] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class FormFieldSchema(BaseModel):
+    """Form field for a form."""
+
+    id: str = Field(..., min_length=1, max_length=50)
+    type: FormFieldType
+    label: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    placeholder: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    helper_text: Optional[str] = Field(default=None, min_length=1, max_length=300)
+    options: Optional[list[str]] = None
+    validation: Optional[FieldValidationSchema] = None
+    required: bool = False
+    editable: bool = False
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
 class RegistrationFormSchema(BaseModel):
     """Schema definition for dynamic registration form."""
 
     auto_accept: bool = False
-    fields: List[dict] = Field(default_factory=list)
-    not_editable: Optional[List[str]] = None
+    fields: List[FormFieldSchema] = Field(default_factory=list)
 
     model_config = ConfigDict(
         alias_generator=to_camel,

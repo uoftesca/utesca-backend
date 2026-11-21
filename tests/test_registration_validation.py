@@ -1,6 +1,7 @@
 from unittest.mock import Mock
 from uuid import UUID
 
+from domains.events.models import FieldValidationSchema, FormFieldSchema, RegistrationFormSchema
 from domains.events.registrations.models import FileMeta
 from domains.events.registrations.service import RegistrationService
 
@@ -44,39 +45,33 @@ def make_file(field_name: str, size: int, mime: str) -> FileMeta:
 
 def test_required_text_field():
     service = ValidationOnlyService()
-    form_schema = {"fields": [{"id": "full_name", "type": "text", "required": True}]}
+    form_schema = RegistrationFormSchema(fields=[FormFieldSchema(id="full_name", type="text", required=True)])
+
     errors = service.validate_form_data(form_data={}, form_schema=form_schema, files_by_field={})
     assert errors and errors[0]["field"] == "full_name"
 
 
 def test_choice_validation():
     service = ValidationOnlyService()
-    form_schema = {
-        "fields": [
-            {
-                "id": "size",
-                "type": "select",
-                "required": True,
-                "options": ["S", "M", "L"],
-            }
-        ]
-    }
+    form_schema = RegistrationFormSchema(
+        fields=[FormFieldSchema(id="size", type="select", options=["S", "M", "L"], required=True)]
+    )
     errors = service.validate_form_data(form_data={"size": "XL"}, form_schema=form_schema, files_by_field={})
     assert errors and "allowed options" in errors[0]["message"]
 
 
 def test_file_validation_size_and_type():
     service = ValidationOnlyService()
-    form_schema = {
-        "fields": [
-            {
-                "id": "resume",
-                "type": "file",
-                "required": True,
-                "validation": {"maxSize": 1_000_000, "allowedTypes": ["application/pdf"]},
-            }
+    form_schema = RegistrationFormSchema(
+        fields=[
+            FormFieldSchema(
+                id="resume",
+                type="file",
+                validation=FieldValidationSchema(maxSize=1_000_000, allowedTypes=["application/pdf"]),
+                required=True,
+            )
         ]
-    }
+    )
     files_by_field = {
         "resume": [make_file("resume", size=2_000_000, mime="application/pdf")],
     }
@@ -92,17 +87,17 @@ def test_file_validation_size_and_type():
 
 def test_passes_valid_payload():
     service = ValidationOnlyService()
-    form_schema = {
-        "fields": [
-            {"id": "full_name", "type": "text", "required": True},
-            {
-                "id": "resume",
-                "type": "file",
-                "required": False,
-                "validation": {"maxSize": 1_000_000, "allowedTypes": ["application/pdf"]},
-            },
+    form_schema = RegistrationFormSchema(
+        fields=[
+            FormFieldSchema(id="full_name", type="text", required=True),
+            FormFieldSchema(
+                id="resume",
+                type="file",
+                validation=FieldValidationSchema(maxSize=1_000_000, allowedTypes=["application/pdf"]),
+                required=False,
+            ),
         ]
-    }
+    )
     files_by_field = {
         "resume": [make_file("resume", size=500_000, mime="application/pdf")],
     }
@@ -130,7 +125,7 @@ def test_update_application_updates_form_data_and_email():
 def test_required_text_field_camelcase():
     """Test camelCase field name validation."""
     service = ValidationOnlyService()
-    form_schema = {"fields": [{"id": "fullName", "type": "text", "required": True}]}
+    form_schema = RegistrationFormSchema(fields=[FormFieldSchema(id="fullName", type="text", required=True)])
     errors = service.validate_form_data(form_data={}, form_schema=form_schema, files_by_field={})
     assert errors and errors[0]["field"] == "fullName"
 

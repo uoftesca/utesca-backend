@@ -22,6 +22,9 @@ from .models import (
     EventResponse,
     EventStatus,
     EventUpdate,
+    FieldValidationSchema,
+    FormFieldSchema,
+    RegistrationFormSchema,
 )
 from .registrations.repository import RegistrationsRepository
 from .repository import EventRepository
@@ -257,3 +260,52 @@ class EventService:
         confirmed_count = reg_repo.count_by_status(event.id, "confirmed")
 
         return (accepted_count + confirmed_count) >= event.max_capacity
+
+    def get_default_registration_form(self) -> RegistrationFormSchema:
+        """
+        Return the default registration form schema for a new event.
+        """
+        return RegistrationFormSchema(
+            auto_accept=True,
+            fields=[
+                FormFieldSchema(
+                    id="first_name",
+                    type="text",
+                    label="First Name",
+                    placeholder="e.g. John",
+                    validation=FieldValidationSchema(pattern="^[p{L}p{M}]+(?:[' -][p{L}p{M}]+)*$"),
+                    required=True,
+                ),
+                FormFieldSchema(
+                    id="last_name",
+                    type="text",
+                    label="Last Name",
+                    placeholder="e.g. Doe",
+                    validation=FieldValidationSchema(pattern="^[p{L}p{M}]+(?:[' -][p{L}p{M}]+)*$"),
+                    required=True,
+                ),
+                FormFieldSchema(
+                    id="email",
+                    type="text",
+                    label="U of T Email",
+                    placeholder="e.g. johndoe@mail.utoronto.ca",
+                    validation=FieldValidationSchema(pattern="^[\\w-\\.]+@mail.utoronto.ca$/"),
+                    required=True,
+                ),
+                FormFieldSchema(
+                    id="utorid",
+                    type="text",
+                    label="UTORid",
+                    placeholder="e.g. johndo47",
+                    validation=FieldValidationSchema(pattern="^[a-z0-9]{7,8}$"),
+                    required=True,
+                ),
+                FormFieldSchema(
+                    id="discipline_year",
+                    type="text",
+                    label="Discipline & Year",
+                    placeholder="e.g. ECE 2T7",
+                    required=True,
+                ),
+            ],
+        )
