@@ -123,12 +123,14 @@ class EmailService:
         event_title: str,
         event_datetime: str,
         event_location: str,
+        custom_body: Optional[str] = None,
     ) -> bool:
         """Send an event reminder to one confirmed registrant."""
         html_body, text_body = build_event_reminder_email(
             event_title=event_title,
             event_datetime=event_datetime,
             event_location=event_location,
+            custom_body=custom_body,
         )
         return self.send_email(
             to=to,
