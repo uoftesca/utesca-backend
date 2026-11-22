@@ -16,6 +16,7 @@ from domains.events.analytics.service import AnalyticsService
 from domains.events.attendance.models import CheckInResponse
 from domains.events.attendance.service import AttendanceService
 from domains.events.registrations.models import (
+    EventReminderRequest,
     FileDeleteResponse,
     FileMeta,
     ManagementActionResponse,
@@ -415,8 +416,15 @@ async def notify_confirmed_registrants(
     _rl: None = Depends(medium_rate_limit("notify_event_registrants")),
     current_user: UserResponse = Depends(get_current_vp_or_admin),
     service: RegistrationService = Depends(get_registration_service),
+    payload: Optional[EventReminderRequest] = None,
 ):
-    """Queue a reminder for every unique confirmed registrant email."""
+    """
+    Queue a reminder for every unique confirmed registrant email.
+
+    The request body is optional. When ``body`` contains non-blank text it
+    replaces the default reminder body; otherwise the default is sent.
+    """
     event, recipients = service.prepare_event_reminder(event_id)
-    background_tasks.add_task(service.send_event_reminders, event, recipients)
+    custom_body = payload.body if payload and payload.body and payload.body.strip() else None
+    background_tasks.add_task(service.send_event_reminders, event, recipients, custom_body)
     return {"success": True, "queued": len(recipients)}

@@ -4,6 +4,7 @@ Returns both HTML and plain text versions for better email client compatibility.
 """
 
 import html
+import re
 from typing import Dict, List, Literal, Optional, Tuple
 
 from core.config import get_settings
@@ -109,8 +110,24 @@ def build_event_reminder_email(
     event_title: str,
     event_datetime: str,
     event_location: str,
+    custom_body: Optional[str] = None,
 ) -> Tuple[str, str]:
-    """Build the reminder sent to confirmed event registrants."""
+    """
+    Build the reminder sent to confirmed event registrants.
+
+    When ``custom_body`` is given it replaces the default body. The plain-text
+    part uses it verbatim; the HTML part escapes it, keeps line breaks, and
+    renders ``**text**`` as bold so the portal's prefilled text matches the
+    default layout.
+    """
+    if custom_body is not None:
+        safe_body = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html.escape(custom_body))
+        body_content = (
+            '<div style="font-size: 16px; color: #333333; line-height: 1.6; '
+            f'white-space: pre-wrap; margin: 0;">{safe_body}</div>'
+        )
+        return _build_email_html("Reminder", body_content), custom_body
+
     safe_title = html.escape(event_title)
     safe_datetime = html.escape(event_datetime)
     safe_location = html.escape(event_location)

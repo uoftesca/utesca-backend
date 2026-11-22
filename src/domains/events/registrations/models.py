@@ -94,6 +94,20 @@ class RegistrationUpdateRequest(BaseModel):
     )
 
 
+EVENT_REMINDER_BODY_MAX_LENGTH = 10000
+
+
+class EventReminderRequest(BaseModel):
+    """Optional overrides for the reminder sent to confirmed registrants."""
+
+    body: Optional[str] = Field(default=None, max_length=EVENT_REMINDER_BODY_MAX_LENGTH)
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
 class RegistrationVerificationRequest(BaseModel):
     """Raw verification token submitted from the email link."""
 

@@ -1287,7 +1287,12 @@ class RegistrationService:
             )
         return event, recipients
 
-    def send_event_reminders(self, event: EventResponse, recipients: List[str]) -> None:
+    def send_event_reminders(
+        self,
+        event: EventResponse,
+        recipients: List[str],
+        custom_body: Optional[str] = None,
+    ) -> None:
         """Send the prepared reminder to each recipient through the email service."""
         email_service = EmailService()
         event_datetime = format_datetime_toronto(event.date_time)
@@ -1298,6 +1303,7 @@ class RegistrationService:
                 event_title=event.title,
                 event_datetime=event_datetime,
                 event_location=event_location,
+                custom_body=custom_body,
             )
 
     @staticmethod
